@@ -18,6 +18,7 @@ import {
 type AccountKey = "A" | "B" | "C";
 
 interface PracticeRecord {
+  rowNumber: number;
   recordedAt: string;
   timeSeconds: number | null;
   notes: string;
@@ -31,12 +32,14 @@ interface PracticeRecord {
   unjudged: number;
 }
 
+const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
+
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let activeAccount = loadAccount();
 let state = loadState();
-let modal: { group: string; index: number } | null = null;
+let modal: { group: string } | null = null;
 let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
@@ -66,8 +69,6 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("keydown", (event) => {
   if (!modal) return;
   if (event.key === "Escape") modal = null;
-  if (event.key === "ArrowRight") moveModal(1);
-  if (event.key === "ArrowLeft") moveModal(-1);
   render();
 });
 
@@ -294,7 +295,7 @@ function recordsView() {
     <section class="page-intro records-intro">
       <p class="eyebrow">アカウント ${activeAccount}</p>
       <h1>記録</h1>
-      <p>${activeAccount}に対応するシートの記録だけを表示しています。</p>
+      <p>${activeAccount}に対応するシートの記録だけを表示しています。削除した記録は、シートの「削除」チェックを外すと再表示されます。完全に消す場合はシートで行を削除してください。</p>
       <button class="secondary" data-action="load-records">↻ 記録を更新</button>
     </section>
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
@@ -304,6 +305,7 @@ function recordsView() {
           <div><p>${formatRecordDate(record.recordedAt)}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
           <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
+          <button class="record-delete" data-action="delete-record" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">この記録を削除</button>
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果から最初の記録を保存してください。</p></div>`}
     </section>
   `, { back: "score", title: `${activeAccount}の記録` });
@@ -325,28 +327,29 @@ function photoGalleryView() {
 
 function rulesView() {
   return shell(`
-    <section class="page-intro"><p class="eyebrow">採点前に確認</p><h1>ルールについて</h1></section>
-    <article class="rules card">
-      <h2>「完全に入る」とは</h2>
-      <p>対象物が対応するエリアに触れていて、マット上のほかのエリアには触れていない状態です。</p>
-      <h2>未判定と0点は別です</h2>
-      <p>まだ確認していない項目は「未判定」のままです。条件を満たさなかった場合は、0点を明示的に選んでください。</p>
-      <h2>移動・損傷の考え方</h2>
-      <p>バリアやオウムの一部が灰色エリア外のマットに触れると「移動」です。開始時と同じ状態でなくなった場合（部品が外れた場合など）は「損傷」です。</p>
-    </article>
+    <section class="page-intro rules-intro">
+      <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。</p></div>
+      <a class="secondary pdf-open" href="${RULES_PDF_URL}" target="_blank" rel="noopener">PDFを大きく開く</a>
+    </section>
+    <section class="pdf-viewer card">
+      <iframe src="${RULES_PDF_URL}#page=1&zoom=page-width" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <p>この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">PDFを大きく開く</a>を押してください。</p>
+    </section>
   `, { back: "score", title: "ルール" });
 }
 
 function modalView() {
   if (!modal) return "";
   const group = judgingGroups[modal.group];
-  const photo = group.photos[modal.index];
   return `<div class="modal-backdrop" data-action="close-modal">
     <section class="photo-modal" role="dialog" aria-modal="true" aria-label="${group.title}" onclick="event.stopPropagation()">
-      <header><div><strong>${group.title}</strong><small>${modal.index + 1} / ${group.photos.length}</small></div><button class="icon-button" data-action="close-modal" aria-label="閉じる">×</button></header>
-      <div class="photo-frame"><img src="${photo.src}" alt="${escapeHtml(photo.description)}" data-action="zoom-photo" /></div>
-      <div class="photo-caption"><span class="photo-label ${photo.score === "0点" ? "zero" : ""}">${photo.label}・${photo.score}</span><p>${photo.description}</p></div>
-      <nav><button data-action="prev-photo" aria-label="前の写真">←</button><div>${group.photos.map((_, index) => `<i class="${index === modal!.index ? "active" : ""}"></i>`).join("")}</div><button data-action="next-photo" aria-label="次の写真">→</button></nav>
+      <header><div><strong>${group.title}</strong><small>${group.photos.length}件の判定例を一覧表示</small></div><button class="icon-button" data-action="close-modal" aria-label="閉じる">×</button></header>
+      <div class="photo-matrix">
+        ${group.photos.map((photo) => `<article class="photo-example">
+          <img src="${photo.src}" alt="${escapeHtml(photo.description)}" />
+          <div><span class="photo-label ${photo.score === "0点" ? "zero" : ""}">${photo.score}</span><strong>${photo.label}</strong><p>${escapeHtml(photo.description)}</p></div>
+        </article>`).join("")}
+      </div>
     </section>
   </div>`;
 }
@@ -385,7 +388,7 @@ function bindEvents() {
     }),
   );
   document.querySelectorAll<HTMLElement>("[data-photos]").forEach((button) =>
-    button.addEventListener("click", () => { modal = { group: button.dataset.photos!, index: 0 }; render(); }),
+    button.addEventListener("click", () => { modal = { group: button.dataset.photos! }; render(); }),
   );
   document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
     element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
@@ -422,6 +425,7 @@ function updateTime() {
 function handleAction(action: string, element: HTMLElement) {
   if (action === "login-account") loginAccount();
   if (action === "load-records") void loadRecords();
+  if (action === "delete-record") void deleteRecord(element);
   if (action === "all-dirt") { state.dirt.fill(2); saveState(); render(); }
   if (action === "timer-start") startStopwatch(true);
   if (action === "timer-lap") addStopwatchLap();
@@ -431,9 +435,6 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); render(); }
   if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
-  if (action === "prev-photo") { moveModal(-1); render(); }
-  if (action === "next-photo") { moveModal(1); render(); }
-  if (action === "zoom-photo") element.classList.toggle("zoomed");
   if (action === "send-sheet") void sendToSheet();
 }
 
@@ -521,12 +522,6 @@ function stopStopwatchUpdates() {
   stopwatchTimer = null;
 }
 
-function moveModal(change: number) {
-  if (!modal) return;
-  const length = judgingGroups[modal.group].photos.length;
-  modal.index = (modal.index + change + length) % length;
-}
-
 async function sendToSheet() {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !activeAccount) {
@@ -602,6 +597,30 @@ async function loadRecords() {
     recordsStatus = `記録を読み込めませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
+}
+
+async function deleteRecord(element: HTMLElement) {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  const rowNumber = Number(element.dataset.recordRow);
+  const recordedAt = element.dataset.recordedAt ?? "";
+  if (!endpoint || !activeAccount || !Number.isInteger(rowNumber) || rowNumber < 2) return;
+  if (!confirm(`${formatRecordDate(recordedAt)}の記録を削除しますか？\nスプレッドシートでは「削除」にチェックが入り、赤い行で保管されます。`)) return;
+  recordsStatus = "削除中…";
+  render();
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "delete", apiKey: activeAccount, rowNumber, recordedAt }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json() as { ok?: boolean; message?: string };
+    if (!result.ok) throw new Error(result.message || "記録を削除できませんでした");
+    await loadRecords();
+  } catch (error) {
+    recordsStatus = `削除できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    render();
+  }
 }
 
 function saveState() {
