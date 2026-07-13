@@ -34,8 +34,6 @@ function doPost(event) {
     ensureHeader_(sheet);
     sheet.appendRow([
       new Date(),
-      safe_(data.teamName),
-      safe_(data.round),
       numberOrBlank_(data.timeSeconds),
       number_(data.visitors),
       number_(data.redTowers),
@@ -45,7 +43,6 @@ function doPost(event) {
       number_(data.bonus),
       number_(data.total),
       number_(data.unjudged),
-      JSON.stringify(data.details || {}),
       safe_(data.notes)
     ]);
     return json_({ ok: true });
@@ -64,9 +61,24 @@ function getSheet_(key) {
 
 function ensureHeader_(sheet) {
   const headers = [[
-    "記録日時", "チーム名", "ラウンド", "競技時間（秒）", "訪問者", "赤い塔",
-    "黄色い塔", "遺物", "汚れ", "ボーナス", "合計", "未判定数", "採点詳細JSON", "メモ"
+    "記録日時", "競技時間（秒）", "訪問者", "赤い塔", "黄色い塔", "遺物",
+    "汚れ", "ボーナス", "合計", "未判定数", "メモ"
   ]];
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 0 && sheet.getLastColumn() >= 14) {
+    const currentHeaders = sheet.getRange(1, 1, 1, 14).getValues()[0];
+    if (currentHeaders[1] === "チーム名" || currentHeaders[12] === "採点詳細JSON") {
+      const oldRows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 14).getValues() : [];
+      const migratedRows = oldRows.map(function(row) {
+        return [row[0], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[13]];
+      });
+      sheet.clearContents();
+      if (migratedRows.length) sheet.getRange(2, 1, migratedRows.length, headers[0].length).setValues(migratedRows);
+    }
+  }
+  if (sheet.getMaxColumns() > headers[0].length) {
+    sheet.deleteColumns(headers[0].length + 1, sheet.getMaxColumns() - headers[0].length);
+  }
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
   sheet.setFrozenRows(1);
 }
@@ -74,22 +86,20 @@ function ensureHeader_(sheet) {
 function readRecords_(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 11).getValues();
   return rows.reverse().slice(0, 100).map(function(row) {
     return {
       recordedAt: row[0] instanceof Date ? row[0].toISOString() : String(row[0] || ""),
-      teamName: String(row[1] || ""),
-      round: String(row[2] || ""),
-      timeSeconds: row[3] === "" ? null : number_(row[3]),
-      visitors: number_(row[4]),
-      redTowers: number_(row[5]),
-      yellowTowers: number_(row[6]),
-      artifacts: number_(row[7]),
-      dirt: number_(row[8]),
-      bonus: number_(row[9]),
-      total: number_(row[10]),
-      unjudged: number_(row[11]),
-      notes: String(row[13] || "")
+      timeSeconds: row[1] === "" ? null : number_(row[1]),
+      visitors: number_(row[2]),
+      redTowers: number_(row[3]),
+      yellowTowers: number_(row[4]),
+      artifacts: number_(row[5]),
+      dirt: number_(row[6]),
+      bonus: number_(row[7]),
+      total: number_(row[8]),
+      unjudged: number_(row[9]),
+      notes: String(row[10] || "")
     };
   });
 }

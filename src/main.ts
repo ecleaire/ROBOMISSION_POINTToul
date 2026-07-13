@@ -1,6 +1,7 @@
 import "./style.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { judgingGroups } from "./judging";
+import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import {
   MAX_SCORE,
   duplicateArtifactColors,
@@ -18,8 +19,6 @@ type AccountKey = "A" | "B" | "C";
 
 interface PracticeRecord {
   recordedAt: string;
-  teamName: string;
-  round: string;
   timeSeconds: number | null;
   notes: string;
   visitors: number;
@@ -42,6 +41,12 @@ let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
+type StopwatchStatus = "idle" | "running" | "paused";
+let stopwatchStatus: StopwatchStatus = "idle";
+let stopwatchElapsedMs = 0;
+let stopwatchStartedAt = 0;
+let stopwatchTimer: number | null = null;
+let stopwatchLaps: number[] = [];
 
 const visitorNames = ["緑の訪問者", "赤の訪問者", "青の訪問者", "黒の訪問者"];
 const artifactColors: { value: ArtifactColor; label: string }[] = [
@@ -159,13 +164,10 @@ function scoringView() {
   const duplicates = duplicateArtifactColors(state);
   const scores = sectionScores(state);
   return shell(`
-    <div class="score-tools">
-      ${timePicker(state.timeSeconds)}
-      <label class="notes-card card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
-    </div>
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
+      ${stopwatchView()}
       <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>同じ□をもう一度押すと解除・0点は得点欄をタップ</span></div>
       <div class="sheet-row sheet-columns">
         <strong>ミッション／対象</strong><strong>高得点条件</strong><strong>部分点条件</strong><strong>得点</strong><strong>最大</strong>
@@ -190,6 +192,10 @@ function scoringView() {
       ${sheetSubtotal(scores.bonus, 30)}
       <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
       <div class="sheet-row sheet-maximum"><strong>最大得点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
+      <div class="sheet-footer-tools">
+        ${timePicker(state.timeSeconds)}
+        <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
+      </div>
     </section>
     <div class="bottom-space"></div>
     <nav class="bottom-bar">
@@ -199,22 +205,36 @@ function scoringView() {
   `, { back: "home", title: "採点する" });
 }
 
+function stopwatchView() {
+  const controls = stopwatchStatus === "idle"
+    ? `<button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>`
+    : stopwatchStatus === "running"
+      ? `<button class="timer-lap" data-action="timer-lap">⚑ <span>ラップ</span></button><button class="timer-pause" data-action="timer-pause">Ⅱ <span>停止</span></button>`
+      : `<button class="timer-finish" data-action="timer-finish">■ <span>タイマー終了</span></button><button class="timer-resume" data-action="timer-resume">◀ <span>再開</span></button>`;
+  const latestLap = stopwatchLaps.at(-1);
+  return `<section class="stopwatch" aria-label="ストップウォッチ">
+    <div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
+    <div class="stopwatch-controls">${controls}</div>
+    ${latestLap === undefined ? "" : `<small class="stopwatch-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}
+  </section>`;
+}
+
 function sheetSection(id: string, title: string, action = "") {
   return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
 }
 
 function timePicker(value: number | null) {
   const centiseconds = value === null ? null : Math.max(0, Math.round(value * 100));
-  const minutes = centiseconds === null ? "" : String(Math.min(2, Math.max(1, Math.floor(centiseconds / 6000))));
+  const minutes = centiseconds === null ? "" : String(Math.min(2, Math.max(0, Math.floor(centiseconds / 6000))));
   const seconds = centiseconds === null ? 0 : Math.floor((centiseconds % 6000) / 100);
   const hundredths = centiseconds === null ? 0 : centiseconds % 100;
   const numberOptions = (length: number, selected: number) => Array.from({ length }, (_, number) =>
     `<option value="${number}" ${number === selected ? "selected" : ""}>${String(number).padStart(2, "0")}</option>`,
   ).join("");
-  return `<section class="time-card card">
-    <strong>競技時間</strong>
+  return `<section class="time-card">
+    <div><strong>競技時間</strong><small>タイマー終了時に自動反映・手動修正できます</small></div>
     <div class="time-selects">
-      <label><select data-time-part="minutes" aria-label="競技時間の分"><option value="" ${minutes === "" ? "selected" : ""}>--</option><option value="1" ${minutes === "1" ? "selected" : ""}>1</option><option value="2" ${minutes === "2" ? "selected" : ""}>2</option></select><span>分</span></label>
+      <label><select data-time-part="minutes" aria-label="競技時間の分"><option value="" ${minutes === "" ? "selected" : ""}>--</option><option value="0" ${minutes === "0" ? "selected" : ""}>0</option><option value="1" ${minutes === "1" ? "selected" : ""}>1</option><option value="2" ${minutes === "2" ? "selected" : ""}>2</option></select><span>分</span></label>
       <label><select data-time-part="seconds" aria-label="競技時間の秒">${numberOptions(60, seconds)}</select><span>秒</span></label>
       <label><select data-time-part="hundredths" aria-label="競技時間の100分の1秒">${numberOptions(100, hundredths)}</select><span>1/100秒</span></label>
     </div>
@@ -365,6 +385,7 @@ function bindEvents() {
     practiceRecords = [];
     recordsStatus = "";
     sheetStatus = "";
+    resetStopwatch();
     render();
     if (location.hash === "#/records") void loadRecords();
   });
@@ -420,8 +441,13 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "login-account") loginAccount();
   if (action === "load-records") void loadRecords();
   if (action === "all-dirt") { state.dirt.fill(2); saveState(); render(); }
-  if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { state = makeInitialState(); saveState(); render(); }
-  if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { state = makeInitialState(); saveState(); location.hash = "#/score"; }
+  if (action === "timer-start") startStopwatch(true);
+  if (action === "timer-lap") addStopwatchLap();
+  if (action === "timer-pause") pauseStopwatch();
+  if (action === "timer-resume") startStopwatch(false);
+  if (action === "timer-finish") finishStopwatch();
+  if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); render(); }
+  if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
   if (action === "prev-photo") { moveModal(-1); render(); }
   if (action === "next-photo") { moveModal(1); render(); }
@@ -429,6 +455,68 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "print") window.print();
   if (action === "download") downloadResultImage();
   if (action === "send-sheet") void sendToSheet();
+}
+
+function currentStopwatchElapsed() {
+  return stopwatchStatus === "running" ? stopwatchElapsedMs + performance.now() - stopwatchStartedAt : stopwatchElapsedMs;
+}
+
+function startStopwatch(reset: boolean) {
+  if (reset) {
+    stopwatchElapsedMs = 0;
+    stopwatchLaps = [];
+  }
+  stopwatchStartedAt = performance.now();
+  stopwatchStatus = "running";
+  if (!document.fullscreenElement) void document.documentElement.requestFullscreen().catch(() => undefined);
+  render();
+  startStopwatchUpdates();
+}
+
+function pauseStopwatch() {
+  stopwatchElapsedMs = currentStopwatchElapsed();
+  stopwatchStatus = "paused";
+  stopStopwatchUpdates();
+  render();
+}
+
+function addStopwatchLap() {
+  if (stopwatchStatus !== "running") return;
+  stopwatchLaps.push(currentStopwatchElapsed());
+  render();
+}
+
+function finishStopwatch() {
+  if (stopwatchStatus !== "paused") return;
+  state.timeSeconds = secondsFromStopwatch(stopwatchElapsedMs);
+  saveState();
+  stopwatchStatus = "idle";
+  stopStopwatchUpdates();
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  render();
+}
+
+function resetStopwatch() {
+  stopwatchStatus = "idle";
+  stopwatchElapsedMs = 0;
+  stopwatchStartedAt = 0;
+  stopwatchLaps = [];
+  stopStopwatchUpdates();
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+}
+
+function startStopwatchUpdates() {
+  stopStopwatchUpdates();
+  stopwatchTimer = window.setInterval(() => {
+    const display = document.querySelector<HTMLElement>("[data-stopwatch-display]");
+    if (display) display.textContent = formatStopwatch(currentStopwatchElapsed());
+  }, 31);
+}
+
+function stopStopwatchUpdates() {
+  if (stopwatchTimer === null) return;
+  window.clearInterval(stopwatchTimer);
+  stopwatchTimer = null;
 }
 
 function moveModal(change: number) {
@@ -460,14 +548,11 @@ function resultPayload() {
   return {
     apiKey: activeAccount,
     recordedAt: new Date().toISOString(),
-    teamName: "",
-    round: "",
     timeSeconds: state.timeSeconds,
     notes: state.notes,
     ...scores,
     total: totalScore(state),
     unjudged: unjudgedCount(state),
-    details: state,
   };
 }
 
@@ -484,6 +569,7 @@ function loginAccount() {
   accountError = "";
   practiceRecords = [];
   recordsStatus = "";
+  resetStopwatch();
   state = loadState();
   location.hash = "#/";
   render();

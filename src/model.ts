@@ -7,8 +7,6 @@ export interface ArtifactState {
 }
 
 export interface ScoreState {
-  teamName: string;
-  round: string;
   timeSeconds: number | null;
   notes: string;
   visitors: Score[];
@@ -23,8 +21,6 @@ export interface ScoreState {
 export const MAX_SCORE = 230;
 
 export const makeInitialState = (): ScoreState => ({
-  teamName: "",
-  round: "",
   timeSeconds: null,
   notes: "",
   visitors: [null, null, null, null],

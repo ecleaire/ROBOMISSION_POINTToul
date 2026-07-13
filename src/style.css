@@ -45,19 +45,32 @@ button.secondary { background: white; color: #183b56; border-color: var(--border
 .card { background: white; border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); }
 label { font-weight: 700; font-size: .86rem; }
 input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12px; border: 1px solid #b8cad9; border-radius: 11px; color: #102a43; background: white; }
-.score-tools { margin-bottom: 10px; display: grid; grid-template-columns: auto minmax(280px, 1fr); gap: 10px; }
-.time-card { margin: 0; padding: 10px 14px; display: flex; align-items: center; justify-content: center; gap: 18px; border-radius: 8px; box-shadow: none; }
-.time-card > strong { color: var(--blue-dark); font-size: .92rem; }
+.sheet-footer-tools { display: grid; grid-template-columns: auto minmax(280px, 1fr); border-top: 2px solid #9fb7cb; background: #f7fbfe; }
+.time-card { margin: 0; padding: 10px 14px; display: flex; align-items: center; justify-content: center; gap: 18px; border-right: 1px solid #cbd8e3; }
+.time-card > div:first-child strong, .time-card > div:first-child small { display: block; }
+.time-card > div:first-child strong { color: var(--blue-dark); font-size: .92rem; }
+.time-card > div:first-child small { margin-top: 3px; color: #60798e; font-size: .66rem; font-weight: 600; }
 .time-selects { display: flex; align-items: center; gap: 10px; }
 .time-selects label { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .time-selects select { width: 72px; min-height: 38px; margin: 0; padding: 5px 8px; border-radius: 7px; font-size: .9rem; font-weight: 800; }
 .time-selects label:first-child select { width: 62px; }
 .time-selects span { color: #52677a; font-size: .76rem; }
-.notes-card { min-width: 0; padding: 8px 12px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; border-radius: 8px; box-shadow: none; color: var(--blue-dark); }
+.notes-card { min-width: 0; padding: 8px 12px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; color: var(--blue-dark); }
 .notes-card textarea { width: 100%; min-height: 48px; max-height: 110px; resize: vertical; padding: 7px 9px; border: 1px solid #b8cad9; border-radius: 6px; color: #102a43; background: white; line-height: 1.4; }
 .sheet-warning { margin: 0 0 8px; }
 .score-sheet { --sheet-columns: 24% 29% 29% 10% 8%; overflow: hidden; border: 1px solid #9fb7cb; border-radius: 4px; background: white; box-shadow: none; font-size: .86rem; }
 .score-sheet-title { padding: 9px 12px; color: white; background: #174f86; font-size: 1.2rem; font-weight: 900; text-align: center; }
+.stopwatch { min-height: 92px; padding: 10px 16px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 18px; border-bottom: 1px solid #9fb7cb; background: #eef7fd; }
+.stopwatch-time span, .stopwatch-time strong { display: block; }
+.stopwatch-time span { color: #55738b; font-size: .62rem; font-weight: 900; letter-spacing: .18em; }
+.stopwatch-time strong { color: #102a43; font: 800 clamp(2.1rem, 5vw, 3.3rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.06em; }
+.stopwatch-controls { display: flex; justify-content: flex-end; gap: 8px; }
+.stopwatch-controls button { min-width: 124px; min-height: 52px; padding: 8px 14px; border: 1px solid #8dbad8; border-radius: 9px; background: white; color: var(--blue-dark); font-size: 1.15rem; font-weight: 900; }
+.stopwatch-controls button span { margin-left: 4px; font-size: .78rem; }
+.stopwatch-controls .timer-start, .stopwatch-controls .timer-resume { border-color: var(--blue); color: white; background: var(--blue); }
+.stopwatch-controls .timer-pause { color: #8a5600; background: #fff7dd; border-color: #e2bf6a; }
+.stopwatch-controls .timer-finish { color: #8a4651; background: #fff1ee; border-color: #dca39b; }
+.stopwatch-lap { grid-column: 1 / -1; color: #52677a; font-weight: 800; }
 .score-sheet-guide { padding: 6px 10px; border-bottom: 1px solid #cbd8e3; background: #eaf3fb; font-size: .76rem; font-weight: 800; text-align: center; }
 .score-sheet-guide span { color: #9a5400; }
 .sheet-row { display: grid; grid-template-columns: var(--sheet-columns); }
@@ -210,15 +223,22 @@ code { overflow-wrap: anywhere; }
   .mode-nav button { min-height: 38px; padding: 5px 2px; border-radius: 7px; font-size: .64rem; }
   main { padding: 12px 14px 60px; }
   .hero { padding-top: 44px; }
-  .time-card { padding: 8px; flex-direction: column; gap: 4px; }
-  .score-tools { grid-template-columns: 1fr; }
-  .time-card > strong { font-size: .74rem; }
+  .sheet-footer-tools { grid-template-columns: 1fr; }
+  .time-card { padding: 10px 8px; flex-direction: column; gap: 7px; border-right: 0; border-bottom: 1px solid #cbd8e3; }
+  .time-card > div:first-child { text-align: center; }
+  .time-card > div:first-child strong { font-size: .8rem; }
   .time-selects { gap: 5px; }
   .time-selects label { gap: 2px; }
   .time-selects select { width: 55px; min-height: 36px; padding: 4px; font-size: .78rem; }
   .time-selects label:first-child select { width: 48px; }
   .time-selects span { font-size: .62rem; }
   .notes-card { grid-template-columns: 1fr; gap: 4px; }
+  .stopwatch { min-height: 108px; padding: 9px; grid-template-columns: 1fr; justify-items: center; gap: 8px; }
+  .stopwatch-time { text-align: center; }
+  .stopwatch-time strong { font-size: clamp(2.25rem, 13vw, 3.2rem); }
+  .stopwatch-controls { width: 100%; justify-content: center; }
+  .stopwatch-controls button { flex: 1; min-width: 0; min-height: 48px; }
+  .stopwatch-lap { grid-column: auto; }
   .score-sheet { --sheet-columns: 31% 20% 20% 15% 14%; font-size: .7rem; }
   .score-sheet-title { font-size: .92rem; }
   .score-sheet-guide { font-size: .62rem; }
