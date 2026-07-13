@@ -589,6 +589,9 @@ async function sendToSheet() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json() as { ok?: boolean; message?: string };
     if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
+    resetStopwatch();
+    state = makeInitialState();
+    saveState();
     sheetStatus = "";
     location.hash = "#/score";
     render();
