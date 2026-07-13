@@ -71,6 +71,19 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .stopwatch-controls .timer-pause { color: #8a5600; background: #fff7dd; border-color: #e2bf6a; }
 .stopwatch-controls .timer-finish { color: #8a4651; background: #fff1ee; border-color: #dca39b; }
 .stopwatch-lap { grid-column: 1 / -1; color: #52677a; font-weight: 800; }
+body.stopwatch-mode { overflow: hidden; }
+.stopwatch.stopwatch-expanded, .stopwatch:fullscreen, .stopwatch:-webkit-full-screen { position: fixed; z-index: 200; inset: 0; width: 100vw; height: 100vh; padding: max(56px, env(safe-area-inset-top)) clamp(16px, 5vw, 70px) max(28px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: center; gap: clamp(42px, 9vh, 90px); overflow: hidden; border: 0; color: white; background: #000; }
+.stopwatch.stopwatch-expanded .stopwatch-time, .stopwatch:fullscreen .stopwatch-time, .stopwatch:-webkit-full-screen .stopwatch-time { width: 100%; margin-top: clamp(22px, 8vh, 90px); text-align: center; }
+.stopwatch.stopwatch-expanded .stopwatch-time span, .stopwatch:fullscreen .stopwatch-time span, .stopwatch:-webkit-full-screen .stopwatch-time span { display: none; }
+.stopwatch.stopwatch-expanded .stopwatch-time strong, .stopwatch:fullscreen .stopwatch-time strong, .stopwatch:-webkit-full-screen .stopwatch-time strong { color: white; font-size: clamp(4.2rem, 18vw, 13rem); font-weight: 300; letter-spacing: -.075em; }
+.stopwatch.stopwatch-expanded .stopwatch-controls, .stopwatch:fullscreen .stopwatch-controls, .stopwatch:-webkit-full-screen .stopwatch-controls { width: min(900px, 100%); justify-content: space-between; }
+.stopwatch.stopwatch-expanded .stopwatch-controls button, .stopwatch:fullscreen .stopwatch-controls button, .stopwatch:-webkit-full-screen .stopwatch-controls button { flex: 0 0 auto; width: clamp(92px, 17vw, 148px); height: clamp(92px, 17vw, 148px); min-width: 0; min-height: 0; padding: 12px; border-width: 2px; border-radius: 50%; color: #bbb; background: #171717; border-color: #393939; font-size: clamp(1.25rem, 4vw, 2rem); }
+.stopwatch.stopwatch-expanded .stopwatch-controls button span, .stopwatch:fullscreen .stopwatch-controls button span, .stopwatch:-webkit-full-screen .stopwatch-controls button span { display: block; margin: 4px 0 0; font-size: clamp(.72rem, 2vw, 1rem); }
+.stopwatch.stopwatch-expanded .stopwatch-controls .timer-start, .stopwatch.stopwatch-expanded .stopwatch-controls .timer-resume, .stopwatch:fullscreen .stopwatch-controls .timer-start, .stopwatch:fullscreen .stopwatch-controls .timer-resume { color: #5be36d; background: #0d2511; border-color: #1d5a27; }
+.stopwatch.stopwatch-expanded .stopwatch-controls .timer-pause, .stopwatch:fullscreen .stopwatch-controls .timer-pause { color: #ffb229; background: #2a1c06; border-color: #76500e; }
+.stopwatch.stopwatch-expanded .stopwatch-controls .timer-finish, .stopwatch:fullscreen .stopwatch-controls .timer-finish { color: #ff625d; background: #2a0d0c; border-color: #722623; }
+.stopwatch.stopwatch-expanded .stopwatch-controls button:disabled, .stopwatch:fullscreen .stopwatch-controls button:disabled { opacity: .55; cursor: default; }
+.stopwatch.stopwatch-expanded .stopwatch-lap, .stopwatch:fullscreen .stopwatch-lap, .stopwatch:-webkit-full-screen .stopwatch-lap { width: min(900px, 100%); padding: 18px 4px; grid-column: auto; align-self: start; border-top: 1px solid #1e1e1e; border-bottom: 1px solid #1e1e1e; color: #b7b7b7; font-size: clamp(.9rem, 2.5vw, 1.25rem); }
 .score-sheet-guide { padding: 6px 10px; border-bottom: 1px solid #cbd8e3; background: #eaf3fb; font-size: .76rem; font-weight: 800; text-align: center; }
 .score-sheet-guide span { color: #9a5400; }
 .sheet-row { display: grid; grid-template-columns: var(--sheet-columns); }

@@ -206,17 +206,19 @@ function scoringView() {
 }
 
 function stopwatchView() {
+  return `<section class="stopwatch" aria-label="ストップウォッチ">${stopwatchContents()}</section>`;
+}
+
+function stopwatchContents() {
   const controls = stopwatchStatus === "idle"
-    ? `<button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>`
+    ? `<button class="timer-lap" type="button" disabled>⚑ <span>ラップ</span></button><button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>`
     : stopwatchStatus === "running"
       ? `<button class="timer-lap" data-action="timer-lap">⚑ <span>ラップ</span></button><button class="timer-pause" data-action="timer-pause">Ⅱ <span>停止</span></button>`
       : `<button class="timer-finish" data-action="timer-finish">■ <span>タイマー終了</span></button><button class="timer-resume" data-action="timer-resume">◀ <span>再開</span></button>`;
   const latestLap = stopwatchLaps.at(-1);
-  return `<section class="stopwatch" aria-label="ストップウォッチ">
-    <div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
+  return `<div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
     <div class="stopwatch-controls">${controls}</div>
-    ${latestLap === undefined ? "" : `<small class="stopwatch-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}
-  </section>`;
+    ${latestLap === undefined ? "" : `<small class="stopwatch-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
 }
 
 function sheetSection(id: string, title: string, action = "") {
@@ -468,8 +470,11 @@ function startStopwatch(reset: boolean) {
   }
   stopwatchStartedAt = performance.now();
   stopwatchStatus = "running";
-  if (!document.fullscreenElement) void document.documentElement.requestFullscreen().catch(() => undefined);
-  render();
+  refreshStopwatch();
+  const stopwatch = document.querySelector<HTMLElement>(".stopwatch");
+  stopwatch?.classList.add("stopwatch-expanded");
+  document.body.classList.add("stopwatch-mode");
+  if (!document.fullscreenElement && stopwatch) void stopwatch.requestFullscreen().catch(() => undefined);
   startStopwatchUpdates();
 }
 
@@ -477,13 +482,13 @@ function pauseStopwatch() {
   stopwatchElapsedMs = currentStopwatchElapsed();
   stopwatchStatus = "paused";
   stopStopwatchUpdates();
-  render();
+  refreshStopwatch();
 }
 
 function addStopwatchLap() {
   if (stopwatchStatus !== "running") return;
   stopwatchLaps.push(currentStopwatchElapsed());
-  render();
+  refreshStopwatch();
 }
 
 function finishStopwatch() {
@@ -492,8 +497,24 @@ function finishStopwatch() {
   saveState();
   stopwatchStatus = "idle";
   stopStopwatchUpdates();
-  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-  render();
+  const finish = () => {
+    document.body.classList.remove("stopwatch-mode");
+    render();
+  };
+  if (document.fullscreenElement) {
+    void document.exitFullscreen().catch(() => undefined).finally(finish);
+  } else {
+    finish();
+  }
+}
+
+function refreshStopwatch() {
+  const stopwatch = document.querySelector<HTMLElement>(".stopwatch");
+  if (!stopwatch) return;
+  stopwatch.innerHTML = stopwatchContents();
+  stopwatch.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
+    element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
+  );
 }
 
 function resetStopwatch() {
@@ -502,6 +523,7 @@ function resetStopwatch() {
   stopwatchStartedAt = 0;
   stopwatchLaps = [];
   stopStopwatchUpdates();
+  document.body.classList.remove("stopwatch-mode");
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
 }
 
