@@ -1,4 +1,4 @@
-export type Score = number | null;
+export type Score = number;
 export type ArtifactColor = "blue" | "red" | "green" | "black" | "yellow" | "unused";
 
 export interface ArtifactState {
@@ -23,12 +23,12 @@ export const MAX_SCORE = 230;
 export const makeInitialState = (): ScoreState => ({
   timeSeconds: null,
   notes: "",
-  visitors: [null, null, null, null],
-  redTowers: [null, null],
-  yellowTowers: [null, null],
-  artifacts: Array.from({ length: 4 }, () => ({ color: "unused" as const, score: null })),
-  dirt: Array.from({ length: 10 }, () => null),
-  bonus: [null, null, null],
+  visitors: [0, 0, 0, 0],
+  redTowers: [0, 0],
+  yellowTowers: [0, 0],
+  artifacts: Array.from({ length: 4 }, () => ({ color: "unused" as const, score: 0 })),
+  dirt: Array.from({ length: 10 }, () => 0),
+  bonus: [0, 0, 0],
   updatedAt: new Date().toISOString(),
 });
 
@@ -44,15 +44,7 @@ export const sectionScores = (state: ScoreState) => ({
 export const totalScore = (state: ScoreState) =>
   Object.values(sectionScores(state)).reduce((total, score) => total + score, 0);
 
-export const unjudgedCount = (state: ScoreState) =>
-  [
-    ...state.visitors,
-    ...state.redTowers,
-    ...state.yellowTowers,
-    ...state.artifacts.map((item) => item.score),
-    ...state.dirt,
-    ...state.bonus,
-  ].filter((value) => value === null).length;
+export const unjudgedCount = (_state: ScoreState) => 0;
 
 export const duplicateArtifactColors = (state: ScoreState) => {
   const colors = state.artifacts.map((item) => item.color).filter((color) => color !== "unused");
@@ -60,8 +52,7 @@ export const duplicateArtifactColors = (state: ScoreState) => {
 };
 
 export const isComplete = (state: ScoreState) =>
-  unjudgedCount(state) === 0 &&
   duplicateArtifactColors(state).length === 0 &&
   state.artifacts.every((item) => item.color !== "unused");
 
-const sum = (values: Score[]) => values.reduce<number>((total, value) => total + (value ?? 0), 0);
+const sum = (values: Score[]) => values.reduce<number>((total, value) => total + value, 0);

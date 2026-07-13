@@ -14,11 +14,12 @@ describe("score calculation", () => {
     expect(unjudgedCount(state)).toBe(0);
   });
 
-  it("distinguishes explicit zero from unjudged", () => {
+  it("treats every unchecked condition as zero", () => {
     const state = makeInitialState();
-    state.visitors[0] = 0;
     expect(totalScore(state)).toBe(0);
-    expect(unjudgedCount(state)).toBe(24);
+    expect(unjudgedCount(state)).toBe(0);
+    expect(state.visitors).toEqual([0, 0, 0, 0]);
+    expect(state.dirt).toEqual(Array(10).fill(0));
   });
 
   it("calculates a mixture of partial scores", () => {

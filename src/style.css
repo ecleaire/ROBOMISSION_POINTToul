@@ -99,15 +99,16 @@ body.stopwatch-mode { overflow: hidden; }
 .sheet-target { justify-content: space-between; gap: 5px; }
 .sheet-target > strong { font-size: .94rem; line-height: 1.2; letter-spacing: .01em; }
 .sheet-target select { width: 86px; min-height: 30px; margin: 0; padding: 3px 5px; border-radius: 4px; font-size: .72rem; }
+.dirt-count-cell { justify-content: center; background: #fbfcfd; }
+.dirt-count-cell select { width: 90px; min-height: 32px; margin: 0; padding: 4px 8px; border-radius: 6px; font-weight: 900; text-align: center; }
 .sheet-check-cell { justify-content: center; gap: 3px; margin: 0; border-width: 0 1px 1px 0; border-style: solid; border-color: #d4dee6; border-radius: 0; color: inherit; font: inherit; cursor: pointer; background: #fbfcfd; }
 .sheet-check-cell .check-box { width: 27px; height: 27px; border-radius: 4px; font-size: .85rem; }
 .sheet-check-cell small { display: none; }
 .sheet-check-cell.selected { background: var(--pale-green); }
 .sheet-check-cell.selected .check-box { border-color: var(--green); color: white; background: var(--green); }
 .sheet-check-cell.empty { justify-content: center; color: #a2afba; cursor: default; }
-.sheet-score-cell { justify-content: center; margin: 0; border-top: 0; border-bottom: 1px solid #d4dee6; border-left: 0; border-radius: 0; cursor: pointer; color: var(--green); background: #fbfffc; }
-.sheet-score-cell strong { font-size: 1rem; }
-.sheet-score-cell.selected-zero { color: #9a4e42; background: #fff1ee; }
+.sheet-score-cell { justify-content: center; margin: 0; border-top: 0; border-bottom: 1px solid #d4dee6; border-left: 0; border-radius: 0; cursor: default; color: var(--green); background: #fbfffc; font-size: 1rem; }
+.sheet-score-cell.zero-score { color: #52677a; background: #f7f9fb; }
 .sheet-max { justify-content: center; color: #102a43; }
 .sheet-subtotal > *, .sheet-total > *, .sheet-maximum > * { font-weight: 900; }
 .sheet-subtotal > strong:nth-child(4), .sheet-total > strong:nth-child(4), .sheet-maximum > strong:nth-child(4) { justify-content: center; color: var(--green); }

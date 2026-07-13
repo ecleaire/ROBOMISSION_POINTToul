@@ -158,30 +158,30 @@ function scoringView() {
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
       ${stopwatchView()}
-      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>同じ□をもう一度押すと解除・0点は得点欄をタップ</span></div>
+      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>チェックなしは0点・同じ□をもう一度押すと解除</span></div>
       <div class="sheet-row sheet-columns">
-        <strong>ミッション／対象</strong><strong>高得点条件</strong><strong>部分点条件</strong><strong>得点</strong><strong>最大</strong>
+        <strong>ミッション／対象</strong><strong>高得点</strong><strong>部分点</strong><strong>得点</strong><strong>最大得点</strong>
       </div>
       ${sheetSection("visitors", "1. 訪問者を案内する")}
       ${visitorNames.map((name, index) => sheetScoreRow("visitors", index, name, state.visitors[index], [[10, "対応色エリア内・直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 10)).join("")}
       ${sheetSubtotal(scores.visitors, 40)}
       ${sheetSection("redTowers", "2. 塔を再建する（赤い塔）")}
-      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15)).join("")}
+      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${["上", "下"][index]}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15)).join("")}
       ${sheetSubtotal(scores.redTowers, 30)}
       ${sheetSection("yellowTowers", "2. 塔を再建する（黄色い塔）")}
-      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25)).join("")}
+      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${["上", "下"][index]}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25)).join("")}
       ${sheetSubtotal(scores.yellowTowers, 50)}
       ${sheetSection("artifacts", "3. 遺物を博物館に運ぶ")}
       ${state.artifacts.map((artifact, index) => sheetScoreRow("artifacts", index, `遺物 ${index + 1}`, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 15, artifactColorSelect(index, artifact.color))).join("")}
       ${sheetSubtotal(scores.artifacts, 60)}
-      ${sheetSection("dirt", "4. 石畳の汚れを落とす", `<button class="sheet-quick" data-action="all-dirt">すべて満点</button>`)}
-      ${state.dirt.map((score, index) => sheetScoreRow("dirt", index, `汚れ ${index + 1}`, score, [[2, "石畳に触れていない"], [0, "石畳に触れている"]], 2)).join("")}
+      ${sheetSection("dirt", "4. 石畳の汚れを落とす")}
+      ${dirtCountRow()}
       ${sheetSubtotal(scores.dirt, 20)}
       ${sheetSection("bonus", "5. ボーナスポイント")}
       ${["赤いバリア", "白いバリア", "オウム"].map((name, index) => sheetScoreRow("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]], 10)).join("")}
       ${sheetSubtotal(scores.bonus, 30)}
       <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
-      <div class="sheet-row sheet-maximum"><strong>最大得点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
+      <div class="sheet-row sheet-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
       <div class="sheet-footer-tools">
         ${timePicker(state.timeSeconds)}
         <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
@@ -244,9 +244,7 @@ function sheetScoreRow(section: string, index: number, title: string, score: Sco
     <div class="sheet-target"><strong>${title}</strong>${targetExtra}</div>
     ${sheetCheck(section, index, score, high)}
     ${partial ? sheetCheck(section, index, score, partial) : `<span class="sheet-check-cell empty">—</span>`}
-    <button type="button" class="sheet-score-cell ${score === 0 ? "selected-zero" : ""}" title="${escapeHtml(zero[1])}" data-score-section="${section}" data-score-index="${index}" data-score-value="0" aria-pressed="${score === 0}">
-      <strong>${score ?? 0}</strong>
-    </button>
+    <strong class="sheet-score-cell ${score === 0 ? "zero-score" : ""}" title="${escapeHtml(zero[1])}">${score}</strong>
     <strong class="sheet-max">${max}</strong>
   </div>`;
 }
@@ -262,10 +260,26 @@ function sheetSubtotal(score: number, max: number) {
   return `<div class="sheet-row sheet-subtotal"><strong>小計</strong><span></span><span></span><strong>${score}</strong><strong>${max}</strong></div>`;
 }
 
+function dirtCountRow() {
+  const count = state.dirt.filter((score) => score === 2).length;
+  return `<div class="sheet-row score-sheet-row dirt-count-row">
+    <div class="sheet-target"><strong>石畳に触れていない汚れ</strong></div>
+    <label class="dirt-count-cell"><select data-dirt-count aria-label="石畳に触れていない汚れの個数">
+      ${Array.from({ length: 11 }, (_, value) => `<option value="${value}" ${value === count ? "selected" : ""}>${value}個</option>`).join("")}
+    </select></label>
+    <span class="sheet-check-cell empty">—</span>
+    <strong class="sheet-score-cell ${count === 0 ? "zero-score" : ""}">${count * 2}</strong>
+    <strong class="sheet-max">20</strong>
+  </div>`;
+}
+
 function resultView() {
   const sections = sectionScores(state);
-  const unjudged = unjudgedCount(state);
   const duplicates = duplicateArtifactColors(state);
+  const resultIssues = [
+    duplicates.length ? "遺物の色重複あり" : "",
+    state.artifacts.some((item) => item.color === "unused") ? "遺物の色未選択あり" : "",
+  ].filter(Boolean);
   return shell(`
     <section class="result-card" id="result-card">
       <p class="eyebrow">スコア</p>
@@ -281,7 +295,7 @@ function resultView() {
         ${resultRow("石畳の汚れを落とす", sections.dirt, 20)}
         ${resultRow("ボーナスポイント", sections.bonus, 30)}
       </dl>
-      <div class="completion ${isComplete(state) ? "complete" : "incomplete"}">${isComplete(state) ? "✓ すべて判定済み" : `! 未判定 ${unjudged}項目${duplicates.length ? "・遺物の色重複あり" : ""}${state.artifacts.some((item) => item.color === "unused") ? "・遺物の色未選択あり" : ""}`}</div>
+      <div class="completion ${isComplete(state) ? "complete" : "incomplete"}">${isComplete(state) ? "✓ 採点内容を確認しました" : `! ${resultIssues.join("・")}`}</div>
     </section>
     <section class="result-actions">
       <button class="secondary" data-nav="score">採点へ戻る</button>
@@ -433,6 +447,12 @@ function bindEvents() {
   document.querySelectorAll<HTMLSelectElement>("[data-time-part]").forEach((select) =>
     select.addEventListener("change", updateTime),
   );
+  document.querySelector<HTMLSelectElement>("[data-dirt-count]")?.addEventListener("change", (event) => {
+    const count = Number((event.currentTarget as HTMLSelectElement).value);
+    state.dirt = Array.from({ length: 10 }, (_, index) => index < count ? 2 : 0);
+    saveState();
+    render();
+  });
   document.querySelector<HTMLTextAreaElement>("[data-notes]")?.addEventListener("input", (event) => {
     state.notes = (event.currentTarget as HTMLTextAreaElement).value;
     saveState();
@@ -461,7 +481,7 @@ function toggleScore(button: HTMLButtonElement) {
   const currentScore = section === "artifacts"
     ? state.artifacts[index].score
     : (state[section as keyof Pick<ScoreState, "visitors" | "redTowers" | "yellowTowers" | "dirt" | "bonus">] as Score[])[index];
-  updateScore(section, index, currentScore === selectedScore ? null : selectedScore as Score);
+  updateScore(section, index, currentScore === selectedScore ? 0 : selectedScore as Score);
 }
 
 function updateScore(section: string, index: number, score: Score) {
@@ -482,7 +502,6 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "login-account") loginAccount();
   if (action === "load-records") void loadRecords();
   if (action === "delete-record") void deleteRecord(element);
-  if (action === "all-dirt") { state.dirt.fill(2); saveState(); render(); }
   if (action === "timer-start") startStopwatch(true);
   if (action === "timer-lap") addStopwatchLap();
   if (action === "timer-pause") pauseStopwatch();
@@ -691,7 +710,23 @@ function saveState() {
 function loadState(): ScoreState {
   try {
     const saved = JSON.parse(activeAccount ? localStorage.getItem(scoreStorageKey()) || "null" : "null") as Partial<ScoreState> | null;
-    return saved ? { ...makeInitialState(), ...saved } as ScoreState : makeInitialState();
+    const initial = makeInitialState();
+    if (!saved) return initial;
+    const scoreOrZero = (score: number | null | undefined) => typeof score === "number" ? score : 0;
+    return {
+      ...initial,
+      ...saved,
+      visitors: (saved.visitors ?? initial.visitors).map(scoreOrZero),
+      redTowers: (saved.redTowers ?? initial.redTowers).map(scoreOrZero),
+      yellowTowers: (saved.yellowTowers ?? initial.yellowTowers).map(scoreOrZero),
+      artifacts: (saved.artifacts ?? initial.artifacts).map((item, index) => ({
+        ...initial.artifacts[index],
+        ...item,
+        score: scoreOrZero(item?.score),
+      })),
+      dirt: (saved.dirt ?? initial.dirt).map(scoreOrZero),
+      bonus: (saved.bonus ?? initial.bonus).map(scoreOrZero),
+    };
   } catch { return makeInitialState(); }
 }
 
