@@ -1,4 +1,5 @@
 import "./style.css";
+import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { judgingGroups } from "./judging";
 import {
   MAX_SCORE,
@@ -13,12 +14,33 @@ import {
   type ScoreState,
 } from "./model";
 
-const STORAGE_KEY = "robomission-junior-score-v1";
-const ENDPOINT_KEY = "robomission-junior-gas-endpoint";
+type AccountKey = "A" | "B" | "C";
+
+interface PracticeRecord {
+  recordedAt: string;
+  teamName: string;
+  round: string;
+  timeSeconds: number | null;
+  visitors: number;
+  redTowers: number;
+  yellowTowers: number;
+  artifacts: number;
+  dirt: number;
+  bonus: number;
+  total: number;
+  unjudged: number;
+}
+
+const STORAGE_KEY = "robomission-junior-score-v2";
+const ACCOUNT_KEY = "robomission-junior-account";
 const app = document.querySelector<HTMLDivElement>("#app")!;
+let activeAccount = loadAccount();
 let state = loadState();
 let modal: { group: string; index: number } | null = null;
 let sheetStatus = "";
+let accountError = "";
+let recordsStatus = "";
+let practiceRecords: PracticeRecord[] = [];
 const openCards = new Set(["visitors"]);
 
 const visitorNames = ["緑の訪問者", "赤の訪問者", "青の訪問者", "黒の訪問者"];
@@ -34,6 +56,7 @@ const artifactColors: { value: ArtifactColor; label: string }[] = [
 window.addEventListener("hashchange", () => {
   window.scrollTo(0, 0);
   render();
+  if (location.hash === "#/records" && activeAccount) void loadRecords();
 });
 window.addEventListener("keydown", (event) => {
   if (!modal) return;
@@ -55,10 +78,14 @@ render();
 function render() {
   const route = location.hash.replace(/^#\/?/, "") || "home";
   const content =
-    route === "score"
+    !activeAccount || route === "account"
+      ? accountView()
+      : route === "score"
       ? scoringView()
       : route === "result"
         ? resultView()
+        : route === "records"
+          ? recordsView()
         : route === "photos"
           ? photoGalleryView()
           : route === "rules"
@@ -79,8 +106,12 @@ function shell(content: string, options: { back?: string; title?: string } = {})
 }
 
 function homeView() {
-  const hasProgress = localStorage.getItem(STORAGE_KEY) && hasAnyProgress(state);
+  const hasProgress = localStorage.getItem(scoreStorageKey()) && hasAnyProgress(state);
   return shell(`
+    <section class="account-strip">
+      <span>練習アカウント <strong>${activeAccount}</strong></span>
+      <button data-nav="account">切り替える</button>
+    </section>
     <section class="hero">
       <div class="hero-badge">非公式・練習用</div>
       <h1>RoboMission Junior<br><span>得点計算</span></h1>
@@ -89,6 +120,7 @@ function homeView() {
     <section class="home-actions" aria-label="メインメニュー">
       <button class="primary jumbo" data-nav="score">${hasProgress ? "前回の採点を続ける" : "採点を始める"}<span>→</span></button>
       <button class="secondary jumbo" data-nav="photos">判定写真を見る<span>▧</span></button>
+      <button class="secondary jumbo" data-nav="records">${activeAccount}の練習記録を見る<span>↗</span></button>
       <button class="secondary jumbo" data-nav="rules">ルールについて<span>?</span></button>
     </section>
     <aside class="notice">
@@ -98,12 +130,26 @@ function homeView() {
   `);
 }
 
+function accountView() {
+  return shell(`
+    <section class="account-login card">
+      <div class="account-icon">鍵</div>
+      <p class="eyebrow">練習グループを選択</p>
+      <h1>APIキーを入力</h1>
+      <p>先生から伝えられた1文字のキーを入力してください。採点と記録はキーごとに分かれます。</p>
+      <label>APIキー<input id="account-key-input" type="password" maxlength="1" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
+      ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
+      <button class="primary" data-action="login-account">このキーで始める</button>
+    </section>
+  `, { title: "アカウント" });
+}
+
 function scoringView() {
   const total = totalScore(state);
   const duplicates = duplicateArtifactColors(state);
   return shell(`
     <section class="score-hero">
-      <span>現在の得点</span>
+      <span>アカウント ${activeAccount} ・ 現在の得点</span>
       <strong>${total} <small>/ ${MAX_SCORE} 点</small></strong>
       <div class="progress"><span style="width:${(total / MAX_SCORE) * 100}%"></span></div>
     </section>
@@ -165,7 +211,6 @@ function resultView() {
   const sections = sectionScores(state);
   const unjudged = unjudgedCount(state);
   const duplicates = duplicateArtifactColors(state);
-  const endpoint = localStorage.getItem(ENDPOINT_KEY) ?? import.meta.env.VITE_GAS_WEB_APP_URL ?? "";
   return shell(`
     <section class="result-card" id="result-card">
       <p class="eyebrow">練習スコア</p>
@@ -190,13 +235,32 @@ function resultView() {
     </section>
     <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
-      <p>GASを「ウェブアプリ」としてデプロイした後、発行された <code>/exec</code> URLを一度だけ入力します。</p>
-      <label>GAS WebアプリURL<input id="gas-endpoint" value="${escapeHtml(endpoint)}" placeholder="https://script.google.com/macros/s/.../exec" /></label>
-      <button class="primary" data-action="send-sheet">この結果を記録する</button>
+      <p>アカウント<strong>${activeAccount}</strong>の専用シートへ、この結果を1行追加します。</p>
+      <button class="primary" data-action="send-sheet">${activeAccount}の記録として保存</button>
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
     </section>
     <button class="text-button new-score" data-action="new">＋ 新しい採点を始める</button>
   `, { back: "score", title: "採点結果" });
+}
+
+function recordsView() {
+  return shell(`
+    <section class="page-intro records-intro">
+      <p class="eyebrow">アカウント ${activeAccount}</p>
+      <h1>練習記録</h1>
+      <p>${activeAccount}に対応するシートの記録だけを表示しています。</p>
+      <button class="secondary" data-action="load-records">↻ 記録を更新</button>
+    </section>
+    ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
+    <section class="records-list">
+      ${practiceRecords.length ? practiceRecords.map((record) => `
+        <article class="record-card card">
+          <div><p>${formatRecordDate(record.recordedAt)}</p><h2>${escapeHtml(record.teamName || "チーム名未入力")}</h2><span>ラウンド ${escapeHtml(record.round || "-")} ・ ${formatTime(record.timeSeconds)}</span></div>
+          <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
+          ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
+        </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果から最初の記録を保存してください。</p></div>`}
+    </section>
+  `, { back: "home", title: `${activeAccount}の練習記録` });
 }
 
 function resultRow(label: string, score: number, max: number) {
@@ -276,6 +340,9 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
     element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
   );
+  document.querySelector<HTMLInputElement>("#account-key-input")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") loginAccount();
+  });
 }
 
 function updateScore(section: string, index: number, score: number) {
@@ -285,6 +352,8 @@ function updateScore(section: string, index: number, score: number) {
 }
 
 function handleAction(action: string, element: HTMLElement) {
+  if (action === "login-account") loginAccount();
+  if (action === "load-records") void loadRecords();
   if (action === "all-dirt") { state.dirt.fill(2); saveState(); render(); }
   if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { state = makeInitialState(); saveState(); render(); }
   if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { state = makeInitialState(); saveState(); location.hash = "#/score"; }
@@ -304,12 +373,10 @@ function moveModal(change: number) {
 }
 
 async function sendToSheet() {
-  const input = document.querySelector<HTMLInputElement>("#gas-endpoint");
-  const endpoint = input?.value.trim() ?? "";
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(endpoint)) {
-    sheetStatus = "GASのデプロイ後に発行される /exec URLを入力してください。"; render(); return;
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint || !activeAccount) {
+    sheetStatus = "記録先がまだ設定されていません。"; render(); return;
   }
-  localStorage.setItem(ENDPOINT_KEY, endpoint);
   sheetStatus = "送信中…"; render();
   try {
     const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(resultPayload()) });
@@ -326,6 +393,7 @@ async function sendToSheet() {
 function resultPayload() {
   const scores = sectionScores(state);
   return {
+    apiKey: activeAccount,
     recordedAt: new Date().toISOString(),
     teamName: state.teamName,
     round: state.round,
@@ -335,6 +403,48 @@ function resultPayload() {
     unjudged: unjudgedCount(state),
     details: state,
   };
+}
+
+function loginAccount() {
+  const input = document.querySelector<HTMLInputElement>("#account-key-input");
+  const key = input?.value.trim().toUpperCase() ?? "";
+  if (!isAccountKey(key)) {
+    accountError = "APIキーが違います。A・B・Cのいずれかを入力してください。";
+    render();
+    return;
+  }
+  activeAccount = key;
+  localStorage.setItem(ACCOUNT_KEY, key);
+  accountError = "";
+  practiceRecords = [];
+  recordsStatus = "";
+  state = loadState();
+  location.hash = "#/";
+  render();
+}
+
+async function loadRecords() {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint || !activeAccount) {
+    recordsStatus = "記録先がまだ設定されていません。";
+    render();
+    return;
+  }
+  recordsStatus = "読み込み中…";
+  render();
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("key", activeAccount);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const result = await response.json() as { ok?: boolean; records?: PracticeRecord[]; message?: string };
+    if (!result.ok) throw new Error(result.message || "記録を取得できませんでした");
+    practiceRecords = result.records ?? [];
+    recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
+  } catch (error) {
+    recordsStatus = `記録を読み込めませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+  }
+  render();
 }
 
 function downloadResultImage() {
@@ -360,16 +470,31 @@ function roundRect(context: CanvasRenderingContext2D, x: number, y: number, widt
   context.beginPath(); context.roundRect(x, y, width, height, radius);
 }
 
-function saveState() { state.updatedAt = new Date().toISOString(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function saveState() {
+  if (!activeAccount) return;
+  state.updatedAt = new Date().toISOString();
+  localStorage.setItem(scoreStorageKey(), JSON.stringify(state));
+}
 
 function loadState(): ScoreState {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as Partial<ScoreState> | null;
+    const saved = JSON.parse(activeAccount ? localStorage.getItem(scoreStorageKey()) || "null" : "null") as Partial<ScoreState> | null;
     return saved ? { ...makeInitialState(), ...saved } as ScoreState : makeInitialState();
   } catch { return makeInitialState(); }
 }
 
+function loadAccount(): AccountKey | null {
+  const key = localStorage.getItem(ACCOUNT_KEY);
+  return isAccountKey(key) ? key : null;
+}
+
+function isAccountKey(value: string | null): value is AccountKey { return value === "A" || value === "B" || value === "C"; }
+function scoreStorageKey() { return `${STORAGE_KEY}-${activeAccount ?? "none"}`; }
 function hasAnyProgress(value: ScoreState) { return Boolean(value.teamName || value.timeSeconds !== null || unjudgedCount(value) < 25); }
 function formatTime(seconds: number | null) { return seconds === null ? "未入力" : `${Math.floor(seconds / 60)}分${String(seconds % 60).padStart(2, "0")}秒`; }
+function formatRecordDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
 function colorLabel(color: string) { return artifactColors.find((item) => item.value === color)?.label ?? color; }
 function escapeHtml(value: string) { return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!); }

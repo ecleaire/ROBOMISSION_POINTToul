@@ -3,10 +3,24 @@
  * このコードを指定のApps Scriptプロジェクトへ貼り付け、ウェブアプリとしてデプロイします。
  */
 const SPREADSHEET_ID = "1uwp_LefMKwa6xwp4j7pS7OkW7aw04QUXb9r7WB5eBUc";
-const SHEET_NAME = "練習記録";
+const ACCOUNT_SHEETS = Object.freeze({
+  A: "練習記録_A",
+  B: "練習記録_B",
+  C: "練習記録_C"
+});
 
-function doGet() {
-  return json_({ ok: true, message: "RoboMission Junior score endpoint is ready." });
+function doGet(event) {
+  const key = normalizeKey_(event && event.parameter && event.parameter.key);
+  if (!key) {
+    return json_({ ok: true, message: "RoboMission Junior score endpoint is ready." });
+  }
+  try {
+    const sheet = getSheet_(key);
+    ensureHeader_(sheet);
+    return json_({ ok: true, account: key, records: readRecords_(sheet) });
+  } catch (error) {
+    return json_({ ok: false, message: String(error && error.message ? error.message : error) });
+  }
 }
 
 function doPost(event) {
@@ -14,7 +28,9 @@ function doPost(event) {
   try {
     lock.waitLock(10000);
     const data = JSON.parse(event.postData.contents);
-    const sheet = getSheet_();
+    const key = normalizeKey_(data.apiKey);
+    if (!key) throw new Error("APIキーが無効です。");
+    const sheet = getSheet_(key);
     ensureHeader_(sheet);
     sheet.appendRow([
       new Date(),
@@ -39,9 +55,10 @@ function doPost(event) {
   }
 }
 
-function getSheet_() {
+function getSheet_(key) {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  return spreadsheet.getSheetByName(SHEET_NAME) || spreadsheet.insertSheet(SHEET_NAME);
+  const sheetName = ACCOUNT_SHEETS[key];
+  return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
 }
 
 function ensureHeader_(sheet) {
@@ -52,6 +69,33 @@ function ensureHeader_(sheet) {
   ]];
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
   sheet.setFrozenRows(1);
+}
+
+function readRecords_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const rows = sheet.getRange(2, 1, lastRow - 1, 12).getValues();
+  return rows.reverse().slice(0, 100).map(function(row) {
+    return {
+      recordedAt: row[0] instanceof Date ? row[0].toISOString() : String(row[0] || ""),
+      teamName: String(row[1] || ""),
+      round: String(row[2] || ""),
+      timeSeconds: row[3] === "" ? null : number_(row[3]),
+      visitors: number_(row[4]),
+      redTowers: number_(row[5]),
+      yellowTowers: number_(row[6]),
+      artifacts: number_(row[7]),
+      dirt: number_(row[8]),
+      bonus: number_(row[9]),
+      total: number_(row[10]),
+      unjudged: number_(row[11])
+    };
+  });
+}
+
+function normalizeKey_(value) {
+  const key = String(value || "").trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(ACCOUNT_SHEETS, key) ? key : "";
 }
 
 function safe_(value) {

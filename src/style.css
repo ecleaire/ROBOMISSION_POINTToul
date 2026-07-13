@@ -22,6 +22,16 @@ main { max-width: 900px; margin: auto; padding: 12px 20px 60px; }
 .hero h1 span { color: var(--blue); }
 .hero p { color: #52677a; margin: 0; }
 .home-actions { max-width: 620px; margin: auto; display: grid; gap: 12px; }
+.account-strip { max-width: 620px; margin: 12px auto -20px; display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,.75); border: 1px solid var(--border); border-radius: 12px; color: #52677a; font-size: .82rem; }
+.account-strip strong { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-left: 5px; border-radius: 50%; background: var(--blue); color: white; }
+.account-strip button { min-height: 38px; border: 0; background: transparent; color: var(--blue); font-weight: 800; }
+.account-login { max-width: 480px; margin: 54px auto; padding: 34px; text-align: center; }
+.account-login h1 { margin: 8px 0; font-size: 2rem; }
+.account-login > p:not(.eyebrow, .warning) { color: #5f7486; line-height: 1.7; }
+.account-login label { display: block; margin: 24px 0 12px; text-align: left; }
+.account-login input { text-align: center; text-transform: uppercase; font-size: 1.5rem; font-weight: 900; letter-spacing: .2em; }
+.account-login .primary { width: 100%; margin-top: 8px; }
+.account-icon { width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 20px; background: var(--pale-blue); color: var(--blue); font-weight: 900; }
 button.primary, button.secondary, .quick-action { min-height: 48px; border-radius: 14px; padding: 12px 18px; font-weight: 800; border: 1px solid transparent; }
 button.primary { background: var(--blue); color: white; box-shadow: 0 8px 20px rgba(18, 97, 166, .22); }
 button.primary:hover { background: var(--blue-dark); }
@@ -108,6 +118,21 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .sheet-panel p { color: #5f7486; font-size: .88rem; line-height: 1.6; }
 .sheet-panel button { width: 100%; margin-top: 10px; }
 .sheet-status { padding: 10px; background: var(--pale-blue); border-radius: 10px; color: #183b56 !important; font-weight: 700; }
+.records-intro { position: relative; }
+.records-intro .secondary { margin-top: 8px; }
+.records-status { margin: 0 0 12px; }
+.records-list { display: grid; gap: 12px; }
+.record-card { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 20px; }
+.record-card p { margin: 0 0 4px; color: #71879a; font-size: .74rem; }
+.record-card h2 { margin: 0 0 5px; font-size: 1.1rem; }
+.record-card span { color: #5f7486; font-size: .82rem; }
+.record-card > strong { color: var(--green); font-size: 1.8rem; }
+.record-card > strong small { color: #71879a; font-size: .72rem; }
+.record-card em { grid-column: 1 / -1; width: fit-content; padding: 4px 8px; border-radius: 99px; color: #934f00; background: var(--pale-orange); font-size: .72rem; font-style: normal; font-weight: 800; }
+.record-card em.complete { color: var(--green); background: var(--pale-green); }
+.empty-state { padding: 44px 20px; text-align: center; color: #52677a; }
+.empty-state strong { color: #183b56; }
+.empty-state p { margin-bottom: 0; }
 .text-button { display: block; margin: 22px auto; min-height: 44px; border: 0; background: transparent; color: var(--blue); font-weight: 800; }
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(5, 22, 36, .78); }
 .photo-modal { width: min(720px, 100%); max-height: 95vh; display: flex; flex-direction: column; background: white; border-radius: 22px; overflow: hidden; }
