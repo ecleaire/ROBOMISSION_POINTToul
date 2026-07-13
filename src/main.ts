@@ -41,7 +41,6 @@ let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
-const openCards = new Set(["visitors"]);
 
 const visitorNames = ["緑の訪問者", "赤の訪問者", "青の訪問者", "黒の訪問者"];
 const artifactColors: { value: ArtifactColor; label: string }[] = [
@@ -97,10 +96,29 @@ function render() {
 }
 
 function shell(content: string, options: { back?: string; title?: string } = {}) {
+  const route = location.hash.replace(/^#\/?/, "") || "home";
+  const activeRoute = route === "result" ? "score" : route;
+  const modes = [
+    ["home", "ホーム"],
+    ["score", "採点"],
+    ["photos", "判定写真"],
+    ["records", "練習記録"],
+    ["rules", "ルール"],
+  ];
   return `
     <header class="app-header">
-      ${options.back ? `<button class="icon-button" data-nav="${options.back}" aria-label="戻る">←</button>` : '<span class="brand-mark">RM</span>'}
-      <div><p class="eyebrow">WRO 2026 練習サポート</p><strong>${options.title ?? "RoboMission Junior"}</strong></div>
+      <div class="app-brand">
+        <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Assist</strong></div>
+        <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
+        ${activeAccount ? `<label class="account-switch">アカウント
+          <select id="header-account-select" aria-label="アカウントを切り替える">
+            ${(["A", "B", "C"] as AccountKey[]).map((key) => `<option value="${key}" ${key === activeAccount ? "selected" : ""}>${key}</option>`).join("")}
+          </select>
+        </label>` : ""}
+      </div>
+      <nav class="mode-nav" aria-label="機能メニュー">
+        ${modes.map(([target, label]) => `<button data-nav="${target}" class="${activeRoute === target ? "active" : ""}">${label}</button>`).join("")}
+      </nav>
     </header>
     <main>${content}</main>`;
 }
@@ -108,12 +126,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
 function homeView() {
   const hasProgress = localStorage.getItem(scoreStorageKey()) && hasAnyProgress(state);
   return shell(`
-    <section class="account-strip">
-      <span>練習アカウント <strong>${activeAccount}</strong></span>
-      <button data-nav="account">切り替える</button>
-    </section>
     <section class="hero">
-      <div class="hero-badge">非公式・練習用</div>
       <h1>RoboMission Junior<br><span>得点計算</span></h1>
       <p>判定写真を見ながら、ひとりでも迷わず採点できます。</p>
     </section>
@@ -158,6 +171,7 @@ function scoringView() {
       <label>ラウンド<input data-meta="round" value="${escapeHtml(state.round)}" inputmode="numeric" /></label>
       <label>競技時間（秒）<input data-meta="timeSeconds" value="${state.timeSeconds ?? ""}" type="number" min="0" inputmode="numeric" placeholder="例：115" /></label>
     </section>
+    <div class="mission-grid">
     ${scoreCard("visitors", "01", "訪問者を案内する", "4体を色ごとに判定", 40, visitorNames.map((name, index) => scoreItem("visitors", index, name, state.visitors[index], [[10, "完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]])).join(""))}
     ${scoreCard("redTowers", "02", "赤い塔を再建する", "2基をそれぞれ判定", 30, state.redTowers.map((score, index) => scoreItem("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]])).join(""))}
     ${scoreCard("yellowTowers", "03", "黄色い塔を再建する", "2基をそれぞれ判定", 50, state.yellowTowers.map((score, index) => scoreItem("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]])).join(""))}
@@ -171,10 +185,10 @@ function scoringView() {
     `)}
     ${scoreCard("dirt", "05", "石畳の汚れを落とす", "10個をそれぞれ判定", 20, `
       <button class="quick-action" data-action="all-dirt">✓ すべて石畳から出た</button>
-      <div class="dirt-grid">${state.dirt.map((score, index) => `
-        <div class="dirt-item"><strong>汚れ ${index + 1}</strong>${radioOptions("dirt", index, score, [[2, "触れていない"], [0, "触れている"]], true)}</div>`).join("")}</div>
+      <div class="dirt-rows">${state.dirt.map((score, index) => scoreItem("dirt", index, `汚れ ${index + 1}`, score, [[2, "触れていない"], [0, "触れている"]])).join("")}</div>
     `)}
     ${scoreCard("bonus", "06", "ボーナスポイント", "移動・損傷がないか判定", 30, ["赤いバリア", "白いバリア", "オウム"].map((name, index) => scoreItem("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]])).join(""))}
+    </div>
     <div class="bottom-space"></div>
     <nav class="bottom-bar">
       <button class="reset-button" data-action="reset">採点をリセット</button>
@@ -185,14 +199,15 @@ function scoringView() {
 
 function scoreCard(id: string, number: string, title: string, subtitle: string, max: number, body: string) {
   const scores = sectionScores(state) as unknown as Record<string, number>;
-  return `<details class="mission-card" id="card-${id}" ${openCards.has(id) ? "open" : ""}>
-    <summary>
+  return `<section class="mission-card" id="card-${id}">
+    <header class="mission-header">
       <span class="mission-number">${number}</span>
       <span class="mission-title"><strong>${title}</strong><small>${subtitle}</small></span>
       <span class="section-score">${scores[id]}<small>/${max}</small></span>
-    </summary>
-    <div class="mission-body">${body}<button class="photo-button" data-photos="${id}">▧ 判定写真を見る</button></div>
-  </details>`;
+      <button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button>
+    </header>
+    <div class="mission-body">${body}</div>
+  </section>`;
 }
 
 function scoreItem(section: string, index: number, title: string, score: Score, options: [number, string][]) {
@@ -200,10 +215,10 @@ function scoreItem(section: string, index: number, title: string, score: Score, 
 }
 
 function radioOptions(section: string, index: number, score: Score, options: [number, string][], compact = false) {
-  return `<div class="option-list ${compact ? "compact" : ""}">${options.map(([value, label]) => `
-    <label class="score-option ${score === value ? "selected" : ""} ${score === 0 ? "zero" : ""}">
+  return `<div class="option-list option-count-${options.length} ${compact ? "compact" : ""}">${options.map(([value, label]) => `
+    <label class="score-option ${score === value ? "selected" : ""} ${score === 0 ? "zero" : ""}" title="${escapeHtml(label)}">
       <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="${value}" ${score === value ? "checked" : ""} />
-      <span class="radio-dot"></span><strong>${value}点</strong><span>${label}</span>
+      <span class="check-box" aria-hidden="true">✓</span><strong>${value}点</strong><span>${label}</span>
     </label>`).join("")}</div>`;
 }
 
@@ -311,15 +326,21 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
     element.addEventListener("click", () => (location.hash = `#/${element.dataset.nav === "home" ? "" : element.dataset.nav}`)),
   );
-  document.querySelectorAll<HTMLDetailsElement>(".mission-card").forEach((details) =>
-    details.addEventListener("toggle", () => {
-      const id = details.id.replace("card-", "");
-      details.open ? openCards.add(id) : openCards.delete(id);
-    }),
-  );
   document.querySelectorAll<HTMLInputElement>("[data-score-section]").forEach((input) =>
     input.addEventListener("change", () => updateScore(input.dataset.scoreSection!, Number(input.dataset.scoreIndex), Number(input.value))),
   );
+  document.querySelector<HTMLSelectElement>("#header-account-select")?.addEventListener("change", (event) => {
+    const key = (event.currentTarget as HTMLSelectElement).value;
+    if (!isAccountKey(key) || key === activeAccount) return;
+    activeAccount = key;
+    localStorage.setItem(ACCOUNT_KEY, key);
+    state = loadState();
+    practiceRecords = [];
+    recordsStatus = "";
+    sheetStatus = "";
+    render();
+    if (location.hash === "#/records") void loadRecords();
+  });
   document.querySelectorAll<HTMLInputElement>("[data-meta]").forEach((input) =>
     input.addEventListener("input", () => {
       if (input.dataset.meta === "timeSeconds") state.timeSeconds = input.value === "" ? null : Math.max(0, Number(input.value));
