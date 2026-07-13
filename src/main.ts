@@ -77,11 +77,11 @@ if ("serviceWorker" in navigator) {
   );
 }
 
-if (!location.hash) location.hash = "#/";
+if (!location.hash) location.hash = "#/score";
 render();
 
 function render() {
-  const route = location.hash.replace(/^#\/?/, "") || "home";
+  const route = location.hash.replace(/^#\/?/, "") || "score";
   const content =
     !activeAccount || route === "account"
       ? accountView()
@@ -95,17 +95,16 @@ function render() {
           ? photoGalleryView()
           : route === "rules"
             ? rulesView()
-            : homeView();
+            : scoringView();
 
   app.innerHTML = `${content}${modal ? modalView() : ""}`;
   bindEvents();
 }
 
 function shell(content: string, options: { back?: string; title?: string } = {}) {
-  const route = location.hash.replace(/^#\/?/, "") || "home";
+  const route = location.hash.replace(/^#\/?/, "") || "score";
   const activeRoute = route === "result" ? "score" : route;
   const modes = [
-    ["home", "ホーム"],
     ["score", "採点"],
     ["photos", "判定写真"],
     ["records", "練習記録"],
@@ -127,22 +126,6 @@ function shell(content: string, options: { back?: string; title?: string } = {})
       </nav>
     </header>
     <main>${content}</main>`;
-}
-
-function homeView() {
-  const hasProgress = localStorage.getItem(scoreStorageKey()) && hasAnyProgress(state);
-  return shell(`
-    <section class="hero">
-      <h1>RoboMission Junior<br><span>得点計算</span></h1>
-      <p>判定写真を見ながら、ひとりでも迷わず採点できます。</p>
-    </section>
-    <section class="home-actions" aria-label="メインメニュー">
-      <button class="primary jumbo" data-nav="score">${hasProgress ? "前回の採点を続ける" : "採点を始める"}<span>→</span></button>
-      <button class="secondary jumbo" data-nav="photos">判定写真を見る<span>▧</span></button>
-      <button class="secondary jumbo" data-nav="records">${activeAccount}の記録を見る<span>↗</span></button>
-      <button class="secondary jumbo" data-nav="rules">ルールについて<span>?</span></button>
-    </section>
-  `);
 }
 
 function accountView() {
@@ -202,7 +185,7 @@ function scoringView() {
       <button class="reset-button" data-action="reset">採点をリセット</button>
       <button class="primary" data-nav="result"><span>結果を見る</span><strong>合計得点 ${total} / ${MAX_SCORE}点</strong></button>
     </nav>
-  `, { back: "home", title: "採点する" });
+  `, { back: "score", title: "採点" });
 }
 
 function stopwatchView() {
@@ -215,10 +198,9 @@ function stopwatchContents() {
     : stopwatchStatus === "running"
       ? `<button class="timer-lap" data-action="timer-lap">⚑ <span>ラップ</span></button><button class="timer-pause" data-action="timer-pause">Ⅱ <span>停止</span></button>`
       : `<button class="timer-finish" data-action="timer-finish">■ <span>タイマー終了</span></button><button class="timer-resume" data-action="timer-resume">◀ <span>再開</span></button>`;
-  const latestLap = stopwatchLaps.at(-1);
   return `<div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
     <div class="stopwatch-controls">${controls}</div>
-    ${latestLap === undefined ? "" : `<small class="stopwatch-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
+    ${stopwatchLaps.length ? `<ol class="stopwatch-laps" aria-label="ラップ記録">${stopwatchLaps.map((lap, index) => `<li><span>ラップ ${index + 1}</span><strong>${formatStopwatch(lap)}</strong></li>`).join("")}</ol>` : ""}`;
 }
 
 function sheetSection(id: string, title: string, action = "") {
@@ -295,9 +277,7 @@ function resultView() {
       <div class="completion ${isComplete(state) ? "complete" : "incomplete"}">${isComplete(state) ? "✓ すべて判定済み" : `! 未判定 ${unjudged}項目${duplicates.length ? "・遺物の色重複あり" : ""}${state.artifacts.some((item) => item.color === "unused") ? "・遺物の色未選択あり" : ""}`}</div>
     </section>
     <section class="result-actions">
-      <button class="primary" data-action="download">結果を画像として保存</button>
-      <button class="secondary" data-action="print">結果を印刷</button>
-      <button class="secondary" data-nav="score">採点画面へ戻る</button>
+      <button class="secondary" data-nav="score">採点へ戻る</button>
     </section>
     <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
@@ -326,7 +306,7 @@ function recordsView() {
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果から最初の記録を保存してください。</p></div>`}
     </section>
-  `, { back: "home", title: `${activeAccount}の記録` });
+  `, { back: "score", title: `${activeAccount}の記録` });
 }
 
 function resultRow(label: string, score: number, max: number) {
@@ -340,7 +320,7 @@ function photoGalleryView() {
       <button class="gallery-card" data-photos="${key}">
         <img src="${group.photos[0].src}" alt="" /><span><strong>${group.title.replace("の判定写真", "")}</strong><small>${group.photos.length}枚の判定例</small></span>
       </button>`).join("")}</div>
-  `, { back: "home", title: "判定写真" });
+  `, { back: "score", title: "判定写真" });
 }
 
 function rulesView() {
@@ -354,7 +334,7 @@ function rulesView() {
       <h2>移動・損傷の考え方</h2>
       <p>バリアやオウムの一部が灰色エリア外のマットに触れると「移動」です。開始時と同じ状態でなくなった場合（部品が外れた場合など）は「損傷」です。</p>
     </article>
-  `, { back: "home", title: "ルール" });
+  `, { back: "score", title: "ルール" });
 }
 
 function modalView() {
@@ -373,7 +353,7 @@ function modalView() {
 
 function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
-    element.addEventListener("click", () => (location.hash = `#/${element.dataset.nav === "home" ? "" : element.dataset.nav}`)),
+    element.addEventListener("click", () => (location.hash = `#/${element.dataset.nav}`)),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
     button.addEventListener("click", () => toggleScore(button)),
@@ -454,8 +434,6 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "prev-photo") { moveModal(-1); render(); }
   if (action === "next-photo") { moveModal(1); render(); }
   if (action === "zoom-photo") element.classList.toggle("zoomed");
-  if (action === "print") window.print();
-  if (action === "download") downloadResultImage();
   if (action === "send-sheet") void sendToSheet();
 }
 
@@ -515,6 +493,8 @@ function refreshStopwatch() {
   stopwatch.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
     element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
   );
+  const laps = stopwatch.querySelector<HTMLOListElement>(".stopwatch-laps");
+  if (laps) laps.scrollTop = laps.scrollHeight;
 }
 
 function resetStopwatch() {
@@ -558,7 +538,10 @@ async function sendToSheet() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json() as { ok?: boolean; message?: string };
     if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
-    sheetStatus = "スプレッドシートに記録しました。";
+    sheetStatus = "";
+    location.hash = "#/score";
+    render();
+    return;
   } catch (error) {
     sheetStatus = `送信できませんでした。GASの公開設定を確認してください（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
@@ -593,7 +576,7 @@ function loginAccount() {
   recordsStatus = "";
   resetStopwatch();
   state = loadState();
-  location.hash = "#/";
+  location.hash = "#/score";
   render();
 }
 
@@ -621,29 +604,6 @@ async function loadRecords() {
   render();
 }
 
-function downloadResultImage() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1200; canvas.height = 1500;
-  const context = canvas.getContext("2d")!;
-  context.fillStyle = "#f4f8fc"; context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#1261a6"; context.fillRect(0, 0, canvas.width, 240);
-  context.fillStyle = "white"; context.font = "700 44px sans-serif"; context.fillText("RoboMission Junior 得点記録", 80, 100);
-  context.font = "700 58px sans-serif"; context.fillText("採点結果", 80, 185);
-  context.fillStyle = "#102a43"; context.font = "700 36px sans-serif"; context.fillText(`競技時間 ${formatTime(state.timeSeconds)}`, 80, 330);
-  context.fillStyle = "#e8f7ef"; roundRect(context, 70, 390, 1060, 250, 32); context.fill();
-  context.fillStyle = "#116b45"; context.font = "700 36px sans-serif"; context.fillText("合計得点", 120, 475);
-  context.font = "800 96px sans-serif"; context.fillText(`${totalScore(state)} / ${MAX_SCORE} 点`, 120, 590);
-  const rows = [["訪問者を案内する", sectionScores(state).visitors, 40], ["赤い塔を再建する", sectionScores(state).redTowers, 30], ["黄色い塔を再建する", sectionScores(state).yellowTowers, 50], ["遺物を博物館に運ぶ", sectionScores(state).artifacts, 60], ["石畳の汚れを落とす", sectionScores(state).dirt, 20], ["ボーナスポイント", sectionScores(state).bonus, 30]] as const;
-  context.font = "600 34px sans-serif";
-  rows.forEach(([label, score, max], index) => { const y = 750 + index * 105; context.fillStyle = "#102a43"; context.fillText(label, 100, y); context.textAlign = "right"; context.fillText(`${score} / ${max}`, 1100, y); context.textAlign = "left"; context.strokeStyle = "#d5e1ec"; context.beginPath(); context.moveTo(100, y + 32); context.lineTo(1100, y + 32); context.stroke(); });
-  context.fillStyle = "#52677a"; context.font = "28px sans-serif"; context.fillText(`未判定：${unjudgedCount(state)}項目`, 100, 1390); context.fillText("WRO 2026 RoboMission Junior 得点記録", 100, 1440);
-  canvas.toBlob((blob) => { if (!blob) return; const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "robomission-score.png"; link.click(); URL.revokeObjectURL(link.href); }, "image/png");
-}
-
-function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-  context.beginPath(); context.roundRect(x, y, width, height, radius);
-}
-
 function saveState() {
   if (!activeAccount) return;
   state.updatedAt = new Date().toISOString();
@@ -664,7 +624,6 @@ function loadAccount(): AccountKey | null {
 
 function isAccountKey(value: string | null): value is AccountKey { return value === "A" || value === "B" || value === "C"; }
 function scoreStorageKey() { return `${STORAGE_KEY}-${activeAccount ?? "none"}`; }
-function hasAnyProgress(value: ScoreState) { return Boolean(value.notes || value.timeSeconds !== null || unjudgedCount(value) < 25); }
 function formatTime(seconds: number | null) {
   if (seconds === null) return "未入力";
   const centiseconds = Math.max(0, Math.round(seconds * 100));
