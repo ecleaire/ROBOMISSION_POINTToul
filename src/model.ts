@@ -10,6 +10,7 @@ export interface ScoreState {
   teamName: string;
   round: string;
   timeSeconds: number | null;
+  notes: string;
   visitors: Score[];
   redTowers: Score[];
   yellowTowers: Score[];
@@ -23,8 +24,9 @@ export const MAX_SCORE = 230;
 
 export const makeInitialState = (): ScoreState => ({
   teamName: "",
-  round: "1",
+  round: "",
   timeSeconds: null,
+  notes: "",
   visitors: [null, null, null, null],
   redTowers: [null, null],
   yellowTowers: [null, null],

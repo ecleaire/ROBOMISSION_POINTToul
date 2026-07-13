@@ -21,6 +21,7 @@ interface PracticeRecord {
   teamName: string;
   round: string;
   timeSeconds: number | null;
+  notes: string;
   visitors: number;
   redTowers: number;
   yellowTowers: number;
@@ -133,13 +134,9 @@ function homeView() {
     <section class="home-actions" aria-label="メインメニュー">
       <button class="primary jumbo" data-nav="score">${hasProgress ? "前回の採点を続ける" : "採点を始める"}<span>→</span></button>
       <button class="secondary jumbo" data-nav="photos">判定写真を見る<span>▧</span></button>
-      <button class="secondary jumbo" data-nav="records">${activeAccount}の練習記録を見る<span>↗</span></button>
+      <button class="secondary jumbo" data-nav="records">${activeAccount}の記録を見る<span>↗</span></button>
       <button class="secondary jumbo" data-nav="rules">ルールについて<span>?</span></button>
     </section>
-    <aside class="notice">
-      <strong>このアプリについて</strong>
-      <p>このアプリは、WRO 2026 RoboMission Juniorのルール確認・練習を補助する非公式ツールです。正式な判定については、各大会の公式ルールと審判の判断に従ってください。</p>
-    </aside>
   `);
 }
 
@@ -147,7 +144,7 @@ function accountView() {
   return shell(`
     <section class="account-login card">
       <div class="account-icon">鍵</div>
-      <p class="eyebrow">練習グループを選択</p>
+      <p class="eyebrow">アカウントを選択</p>
       <h1>APIキーを入力</h1>
       <p>先生から伝えられた1文字のキーを入力してください。採点と記録はキーごとに分かれます。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="1" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
@@ -162,48 +159,42 @@ function scoringView() {
   const duplicates = duplicateArtifactColors(state);
   const scores = sectionScores(state);
   return shell(`
-    <section class="score-hero">
-      <span>アカウント ${activeAccount} ・ 現在の得点</span>
-      <strong>${total} <small>/ ${MAX_SCORE} 点</small></strong>
-      <div class="progress"><span style="width:${(total / MAX_SCORE) * 100}%"></span></div>
-    </section>
-    <section class="setup-grid card">
-      <label>チーム名<input data-meta="teamName" value="${escapeHtml(state.teamName)}" placeholder="例：ロボ部A" /></label>
-      <label>ラウンド<input data-meta="round" value="${escapeHtml(state.round)}" inputmode="numeric" /></label>
-      <label>競技時間（秒）<input data-meta="timeSeconds" value="${state.timeSeconds ?? ""}" type="number" min="0" inputmode="numeric" placeholder="例：115" /></label>
-    </section>
+    <div class="score-tools">
+      ${timePicker(state.timeSeconds)}
+      <label class="notes-card card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
+    </div>
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
-      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>0点は得点欄をタップ</span></div>
+      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>同じ□をもう一度押すと解除・0点は得点欄をタップ</span></div>
       <div class="sheet-row sheet-columns">
-        <strong>ミッション／対象</strong><strong>高得点条件</strong><strong>部分点条件</strong><strong>得点</strong><strong>最大</strong><strong>メモ</strong>
+        <strong>ミッション／対象</strong><strong>高得点条件</strong><strong>部分点条件</strong><strong>得点</strong><strong>最大</strong>
       </div>
       ${sheetSection("visitors", "1. 訪問者を案内する")}
-      ${visitorNames.map((name, index) => sheetScoreRow("visitors", index, name, state.visitors[index], [[10, "対応色エリア内・直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 10, "対応色エリア内・直立")).join("")}
+      ${visitorNames.map((name, index) => sheetScoreRow("visitors", index, name, state.visitors[index], [[10, "対応色エリア内・直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 10)).join("")}
       ${sheetSubtotal(scores.visitors, 40)}
       ${sheetSection("redTowers", "2. 塔を再建する（赤い塔）")}
-      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15, "完全／一部とも直立が必要")).join("")}
+      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15)).join("")}
       ${sheetSubtotal(scores.redTowers, 30)}
       ${sheetSection("yellowTowers", "2. 塔を再建する（黄色い塔）")}
-      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25, "塔上部が正しく土台に配置")).join("")}
+      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25)).join("")}
       ${sheetSubtotal(scores.yellowTowers, 50)}
       ${sheetSection("artifacts", "3. 遺物を博物館に運ぶ")}
-      ${state.artifacts.map((artifact, index) => sheetScoreRow("artifacts", index, `遺物 ${index + 1}`, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 15, "対応色の展示場所", artifactColorSelect(index, artifact.color))).join("")}
+      ${state.artifacts.map((artifact, index) => sheetScoreRow("artifacts", index, `遺物 ${index + 1}`, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 15, artifactColorSelect(index, artifact.color))).join("")}
       ${sheetSubtotal(scores.artifacts, 60)}
       ${sheetSection("dirt", "4. 石畳の汚れを落とす", `<button class="sheet-quick" data-action="all-dirt">すべて満点</button>`)}
-      ${state.dirt.map((score, index) => sheetScoreRow("dirt", index, `汚れ ${index + 1}`, score, [[2, "石畳に触れていない"], [0, "石畳に触れている"]], 2, "石畳に触れていない")).join("")}
+      ${state.dirt.map((score, index) => sheetScoreRow("dirt", index, `汚れ ${index + 1}`, score, [[2, "石畳に触れていない"], [0, "石畳に触れている"]], 2)).join("")}
       ${sheetSubtotal(scores.dirt, 20)}
       ${sheetSection("bonus", "5. ボーナスポイント")}
-      ${["赤いバリア", "白いバリア", "オウム"].map((name, index) => sheetScoreRow("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]], 10, "移動・損傷なし")).join("")}
+      ${["赤いバリア", "白いバリア", "オウム"].map((name, index) => sheetScoreRow("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]], 10)).join("")}
       ${sheetSubtotal(scores.bonus, 30)}
-      <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong><span class="sheet-memo"></span></div>
-      <div class="sheet-row sheet-maximum"><strong>最大得点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong><span class="sheet-memo"></span></div>
+      <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
+      <div class="sheet-row sheet-maximum"><strong>最大得点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
     </section>
     <div class="bottom-space"></div>
     <nav class="bottom-bar">
       <button class="reset-button" data-action="reset">採点をリセット</button>
-      <button class="primary" data-nav="result">結果を見る <span>${total}点</span></button>
+      <button class="primary" data-nav="result"><span>結果を見る</span><strong>合計得点 ${total} / ${MAX_SCORE}点</strong></button>
     </nav>
   `, { back: "home", title: "採点する" });
 }
@@ -212,11 +203,29 @@ function sheetSection(id: string, title: string, action = "") {
   return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
 }
 
+function timePicker(value: number | null) {
+  const centiseconds = value === null ? null : Math.max(0, Math.round(value * 100));
+  const minutes = centiseconds === null ? "" : String(Math.min(2, Math.max(1, Math.floor(centiseconds / 6000))));
+  const seconds = centiseconds === null ? 0 : Math.floor((centiseconds % 6000) / 100);
+  const hundredths = centiseconds === null ? 0 : centiseconds % 100;
+  const numberOptions = (length: number, selected: number) => Array.from({ length }, (_, number) =>
+    `<option value="${number}" ${number === selected ? "selected" : ""}>${String(number).padStart(2, "0")}</option>`,
+  ).join("");
+  return `<section class="time-card card">
+    <strong>競技時間</strong>
+    <div class="time-selects">
+      <label><select data-time-part="minutes" aria-label="競技時間の分"><option value="" ${minutes === "" ? "selected" : ""}>--</option><option value="1" ${minutes === "1" ? "selected" : ""}>1</option><option value="2" ${minutes === "2" ? "selected" : ""}>2</option></select><span>分</span></label>
+      <label><select data-time-part="seconds" aria-label="競技時間の秒">${numberOptions(60, seconds)}</select><span>秒</span></label>
+      <label><select data-time-part="hundredths" aria-label="競技時間の100分の1秒">${numberOptions(100, hundredths)}</select><span>1/100秒</span></label>
+    </div>
+  </section>`;
+}
+
 function artifactColorSelect(index: number, color: ArtifactColor) {
   return `<select data-artifact-color="${index}" aria-label="遺物${index + 1}の色">${artifactColors.map((item) => `<option value="${item.value}" ${item.value === color ? "selected" : ""}>${item.label}</option>`).join("")}</select>`;
 }
 
-function sheetScoreRow(section: string, index: number, title: string, score: Score, options: [number, string][], max: number, memo: string, targetExtra = "") {
+function sheetScoreRow(section: string, index: number, title: string, score: Score, options: [number, string][], max: number, targetExtra = "") {
   const high = options[0];
   const partial = options.length === 3 ? options[1] : null;
   const zero = options[options.length - 1];
@@ -224,25 +233,22 @@ function sheetScoreRow(section: string, index: number, title: string, score: Sco
     <div class="sheet-target"><strong>${title}</strong>${targetExtra}</div>
     ${sheetCheck(section, index, score, high)}
     ${partial ? sheetCheck(section, index, score, partial) : `<span class="sheet-check-cell empty">—</span>`}
-    <label class="sheet-score-cell ${score === 0 ? "selected-zero" : ""}" title="${escapeHtml(zero[1])}">
-      <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="0" ${score === 0 ? "checked" : ""} />
+    <button type="button" class="sheet-score-cell ${score === 0 ? "selected-zero" : ""}" title="${escapeHtml(zero[1])}" data-score-section="${section}" data-score-index="${index}" data-score-value="0" aria-pressed="${score === 0}">
       <strong>${score ?? 0}</strong>
-    </label>
+    </button>
     <strong class="sheet-max">${max}</strong>
-    <span class="sheet-memo">${memo}</span>
   </div>`;
 }
 
 function sheetCheck(section: string, index: number, score: Score, option: [number, string]) {
   const [value, label] = option;
-  return `<label class="sheet-check-cell ${score === value ? "selected" : ""}" title="${escapeHtml(label)}">
-    <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="${value}" ${score === value ? "checked" : ""} />
+  return `<button type="button" class="sheet-check-cell ${score === value ? "selected" : ""}" title="${escapeHtml(label)}" data-score-section="${section}" data-score-index="${index}" data-score-value="${value}" aria-pressed="${score === value}">
     <span class="check-box" aria-hidden="true">✓</span><small>${value}点</small>
-  </label>`;
+  </button>`;
 }
 
 function sheetSubtotal(score: number, max: number) {
-  return `<div class="sheet-row sheet-subtotal"><strong>小計</strong><span></span><span></span><strong>${score}</strong><strong>${max}</strong><span class="sheet-memo"></span></div>`;
+  return `<div class="sheet-row sheet-subtotal"><strong>小計</strong><span></span><span></span><strong>${score}</strong><strong>${max}</strong></div>`;
 }
 
 function resultView() {
@@ -251,9 +257,10 @@ function resultView() {
   const duplicates = duplicateArtifactColors(state);
   return shell(`
     <section class="result-card" id="result-card">
-      <p class="eyebrow">練習スコア</p>
-      <h1>${escapeHtml(state.teamName || "チーム名未入力")}</h1>
-      <div class="result-meta"><span>ラウンド ${escapeHtml(state.round || "-")}</span><span>競技時間 ${formatTime(state.timeSeconds)}</span></div>
+      <p class="eyebrow">スコア</p>
+      <h1>採点結果</h1>
+      <div class="result-meta"><span>競技時間 ${formatTime(state.timeSeconds)}</span></div>
+      ${state.notes ? `<p class="result-notes"><strong>メモ</strong>${escapeHtml(state.notes)}</p>` : ""}
       <div class="final-score"><span>合計得点</span><strong>${totalScore(state)} <small>/ ${MAX_SCORE} 点</small></strong></div>
       <dl class="score-breakdown">
         ${resultRow("訪問者を案内する", sections.visitors, 40)}
@@ -264,7 +271,6 @@ function resultView() {
         ${resultRow("ボーナスポイント", sections.bonus, 30)}
       </dl>
       <div class="completion ${isComplete(state) ? "complete" : "incomplete"}">${isComplete(state) ? "✓ すべて判定済み" : `! 未判定 ${unjudged}項目${duplicates.length ? "・遺物の色重複あり" : ""}${state.artifacts.some((item) => item.color === "unused") ? "・遺物の色未選択あり" : ""}`}</div>
-      <p class="result-disclaimer">WRO 2026 RoboMission Junior 練習用・非公式記録</p>
     </section>
     <section class="result-actions">
       <button class="primary" data-action="download">結果を画像として保存</button>
@@ -273,7 +279,7 @@ function resultView() {
     </section>
     <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
-      <p>アカウント<strong>${activeAccount}</strong>の専用シートへ、この結果を1行追加します。</p>
+      <p>アカウント<strong>${activeAccount}</strong>のシートへ、この結果を1行追加します。</p>
       <button class="primary" data-action="send-sheet">${activeAccount}の記録として保存</button>
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
     </section>
@@ -285,7 +291,7 @@ function recordsView() {
   return shell(`
     <section class="page-intro records-intro">
       <p class="eyebrow">アカウント ${activeAccount}</p>
-      <h1>練習記録</h1>
+      <h1>記録</h1>
       <p>${activeAccount}に対応するシートの記録だけを表示しています。</p>
       <button class="secondary" data-action="load-records">↻ 記録を更新</button>
     </section>
@@ -293,12 +299,12 @@ function recordsView() {
     <section class="records-list">
       ${practiceRecords.length ? practiceRecords.map((record) => `
         <article class="record-card card">
-          <div><p>${formatRecordDate(record.recordedAt)}</p><h2>${escapeHtml(record.teamName || "チーム名未入力")}</h2><span>ラウンド ${escapeHtml(record.round || "-")} ・ ${formatTime(record.timeSeconds)}</span></div>
+          <div><p>${formatRecordDate(record.recordedAt)}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
           <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果から最初の記録を保存してください。</p></div>`}
     </section>
-  `, { back: "home", title: `${activeAccount}の練習記録` });
+  `, { back: "home", title: `${activeAccount}の記録` });
 }
 
 function resultRow(label: string, score: number, max: number) {
@@ -325,8 +331,6 @@ function rulesView() {
       <p>まだ確認していない項目は「未判定」のままです。条件を満たさなかった場合は、0点を明示的に選んでください。</p>
       <h2>移動・損傷の考え方</h2>
       <p>バリアやオウムの一部が灰色エリア外のマットに触れると「移動」です。開始時と同じ状態でなくなった場合（部品が外れた場合など）は「損傷」です。</p>
-      <h2>公式判定ではありません</h2>
-      <p>本アプリは練習を補助する非公式ツールです。ルール更新や大会ごとの指示がある場合は、公式資料と審判の判断を優先してください。</p>
     </article>
   `, { back: "home", title: "ルール" });
 }
@@ -349,8 +353,8 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
     element.addEventListener("click", () => (location.hash = `#/${element.dataset.nav === "home" ? "" : element.dataset.nav}`)),
   );
-  document.querySelectorAll<HTMLInputElement>("[data-score-section]").forEach((input) =>
-    input.addEventListener("change", () => updateScore(input.dataset.scoreSection!, Number(input.dataset.scoreIndex), Number(input.value))),
+  document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
+    button.addEventListener("click", () => toggleScore(button)),
   );
   document.querySelector<HTMLSelectElement>("#header-account-select")?.addEventListener("change", (event) => {
     const key = (event.currentTarget as HTMLSelectElement).value;
@@ -364,14 +368,13 @@ function bindEvents() {
     render();
     if (location.hash === "#/records") void loadRecords();
   });
-  document.querySelectorAll<HTMLInputElement>("[data-meta]").forEach((input) =>
-    input.addEventListener("input", () => {
-      if (input.dataset.meta === "timeSeconds") state.timeSeconds = input.value === "" ? null : Math.max(0, Number(input.value));
-      else if (input.dataset.meta === "teamName") state.teamName = input.value;
-      else state.round = input.value;
-      saveState();
-    }),
+  document.querySelectorAll<HTMLSelectElement>("[data-time-part]").forEach((select) =>
+    select.addEventListener("change", updateTime),
   );
+  document.querySelector<HTMLTextAreaElement>("[data-notes]")?.addEventListener("input", (event) => {
+    state.notes = (event.currentTarget as HTMLTextAreaElement).value;
+    saveState();
+  });
   document.querySelectorAll<HTMLSelectElement>("[data-artifact-color]").forEach((select) =>
     select.addEventListener("change", () => {
       state.artifacts[Number(select.dataset.artifactColor)].color = select.value as ArtifactColor;
@@ -389,10 +392,28 @@ function bindEvents() {
   });
 }
 
-function updateScore(section: string, index: number, score: number) {
+function toggleScore(button: HTMLButtonElement) {
+  const section = button.dataset.scoreSection!;
+  const index = Number(button.dataset.scoreIndex);
+  const selectedScore = Number(button.dataset.scoreValue);
+  const currentScore = section === "artifacts"
+    ? state.artifacts[index].score
+    : (state[section as keyof Pick<ScoreState, "visitors" | "redTowers" | "yellowTowers" | "dirt" | "bonus">] as Score[])[index];
+  updateScore(section, index, currentScore === selectedScore ? null : selectedScore as Score);
+}
+
+function updateScore(section: string, index: number, score: Score) {
   if (section === "artifacts") state.artifacts[index].score = score;
   else (state[section as keyof Pick<ScoreState, "visitors" | "redTowers" | "yellowTowers" | "dirt" | "bonus">] as Score[])[index] = score;
   saveState(); render();
+}
+
+function updateTime() {
+  const minutes = document.querySelector<HTMLSelectElement>('[data-time-part="minutes"]')?.value ?? "";
+  const seconds = Number(document.querySelector<HTMLSelectElement>('[data-time-part="seconds"]')?.value ?? 0);
+  const hundredths = Number(document.querySelector<HTMLSelectElement>('[data-time-part="hundredths"]')?.value ?? 0);
+  state.timeSeconds = minutes === "" ? null : Number(minutes) * 60 + seconds + hundredths / 100;
+  saveState();
 }
 
 function handleAction(action: string, element: HTMLElement) {
@@ -439,9 +460,10 @@ function resultPayload() {
   return {
     apiKey: activeAccount,
     recordedAt: new Date().toISOString(),
-    teamName: state.teamName,
-    round: state.round,
+    teamName: "",
+    round: "",
     timeSeconds: state.timeSeconds,
+    notes: state.notes,
     ...scores,
     total: totalScore(state),
     unjudged: unjudgedCount(state),
@@ -497,17 +519,17 @@ function downloadResultImage() {
   const context = canvas.getContext("2d")!;
   context.fillStyle = "#f4f8fc"; context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#1261a6"; context.fillRect(0, 0, canvas.width, 240);
-  context.fillStyle = "white"; context.font = "700 44px sans-serif"; context.fillText("RoboMission Junior 練習スコア", 80, 100);
-  context.font = "700 58px sans-serif"; context.fillText(state.teamName || "チーム名未入力", 80, 185);
-  context.fillStyle = "#102a43"; context.font = "700 36px sans-serif"; context.fillText(`ラウンド ${state.round || "-"}　　競技時間 ${formatTime(state.timeSeconds)}`, 80, 330);
+  context.fillStyle = "white"; context.font = "700 44px sans-serif"; context.fillText("RoboMission Junior 得点記録", 80, 100);
+  context.font = "700 58px sans-serif"; context.fillText("採点結果", 80, 185);
+  context.fillStyle = "#102a43"; context.font = "700 36px sans-serif"; context.fillText(`競技時間 ${formatTime(state.timeSeconds)}`, 80, 330);
   context.fillStyle = "#e8f7ef"; roundRect(context, 70, 390, 1060, 250, 32); context.fill();
   context.fillStyle = "#116b45"; context.font = "700 36px sans-serif"; context.fillText("合計得点", 120, 475);
   context.font = "800 96px sans-serif"; context.fillText(`${totalScore(state)} / ${MAX_SCORE} 点`, 120, 590);
   const rows = [["訪問者を案内する", sectionScores(state).visitors, 40], ["赤い塔を再建する", sectionScores(state).redTowers, 30], ["黄色い塔を再建する", sectionScores(state).yellowTowers, 50], ["遺物を博物館に運ぶ", sectionScores(state).artifacts, 60], ["石畳の汚れを落とす", sectionScores(state).dirt, 20], ["ボーナスポイント", sectionScores(state).bonus, 30]] as const;
   context.font = "600 34px sans-serif";
   rows.forEach(([label, score, max], index) => { const y = 750 + index * 105; context.fillStyle = "#102a43"; context.fillText(label, 100, y); context.textAlign = "right"; context.fillText(`${score} / ${max}`, 1100, y); context.textAlign = "left"; context.strokeStyle = "#d5e1ec"; context.beginPath(); context.moveTo(100, y + 32); context.lineTo(1100, y + 32); context.stroke(); });
-  context.fillStyle = "#52677a"; context.font = "28px sans-serif"; context.fillText(`未判定：${unjudgedCount(state)}項目`, 100, 1390); context.fillText("WRO 2026 RoboMission Junior 練習用・非公式記録", 100, 1440);
-  canvas.toBlob((blob) => { if (!blob) return; const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `robomission-${state.teamName || "score"}.png`; link.click(); URL.revokeObjectURL(link.href); }, "image/png");
+  context.fillStyle = "#52677a"; context.font = "28px sans-serif"; context.fillText(`未判定：${unjudgedCount(state)}項目`, 100, 1390); context.fillText("WRO 2026 RoboMission Junior 得点記録", 100, 1440);
+  canvas.toBlob((blob) => { if (!blob) return; const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "robomission-score.png"; link.click(); URL.revokeObjectURL(link.href); }, "image/png");
 }
 
 function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -534,8 +556,14 @@ function loadAccount(): AccountKey | null {
 
 function isAccountKey(value: string | null): value is AccountKey { return value === "A" || value === "B" || value === "C"; }
 function scoreStorageKey() { return `${STORAGE_KEY}-${activeAccount ?? "none"}`; }
-function hasAnyProgress(value: ScoreState) { return Boolean(value.teamName || value.timeSeconds !== null || unjudgedCount(value) < 25); }
-function formatTime(seconds: number | null) { return seconds === null ? "未入力" : `${Math.floor(seconds / 60)}分${String(seconds % 60).padStart(2, "0")}秒`; }
+function hasAnyProgress(value: ScoreState) { return Boolean(value.notes || value.timeSeconds !== null || unjudgedCount(value) < 25); }
+function formatTime(seconds: number | null) {
+  if (seconds === null) return "未入力";
+  const centiseconds = Math.max(0, Math.round(seconds * 100));
+  const minutes = Math.floor(centiseconds / 6000);
+  const remaining = centiseconds % 6000;
+  return `${minutes}:${String(Math.floor(remaining / 100)).padStart(2, "0")}.${String(remaining % 100).padStart(2, "0")}`;
+}
 function formatRecordDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("ja-JP", { dateStyle: "medium", timeStyle: "short" }).format(date);

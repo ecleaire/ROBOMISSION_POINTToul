@@ -45,7 +45,8 @@ function doPost(event) {
       number_(data.bonus),
       number_(data.total),
       number_(data.unjudged),
-      JSON.stringify(data.details || {})
+      JSON.stringify(data.details || {}),
+      safe_(data.notes)
     ]);
     return json_({ ok: true });
   } catch (error) {
@@ -62,10 +63,9 @@ function getSheet_(key) {
 }
 
 function ensureHeader_(sheet) {
-  if (sheet.getLastRow() > 0) return;
   const headers = [[
     "記録日時", "チーム名", "ラウンド", "競技時間（秒）", "訪問者", "赤い塔",
-    "黄色い塔", "遺物", "汚れ", "ボーナス", "合計", "未判定数", "採点詳細JSON"
+    "黄色い塔", "遺物", "汚れ", "ボーナス", "合計", "未判定数", "採点詳細JSON", "メモ"
   ]];
   sheet.getRange(1, 1, 1, headers[0].length).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
   sheet.setFrozenRows(1);
@@ -74,7 +74,7 @@ function ensureHeader_(sheet) {
 function readRecords_(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 12).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
   return rows.reverse().slice(0, 100).map(function(row) {
     return {
       recordedAt: row[0] instanceof Date ? row[0].toISOString() : String(row[0] || ""),
@@ -88,7 +88,8 @@ function readRecords_(sheet) {
       dirt: number_(row[8]),
       bonus: number_(row[9]),
       total: number_(row[10]),
-      unjudged: number_(row[11])
+      unjudged: number_(row[11]),
+      notes: String(row[13] || "")
     };
   });
 }
