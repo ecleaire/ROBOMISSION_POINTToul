@@ -90,14 +90,14 @@ body.stopwatch-mode { overflow: hidden; }
 .sheet-row > *:last-child { border-right: 0; }
 .sheet-columns { color: #102a43; background: #fff4cf; text-align: center; }
 .sheet-columns > * { min-height: 44px; justify-content: center; font-size: .8rem; }
-.sheet-columns > *:first-child { background: #2b6095; color: white; }
+.sheet-columns > *:first-child { background: #2b6095; color: white; font-size: .9rem; }
 .sheet-section { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-bottom: 1px solid #cbd8e3; background: #f7fbfe; }
 .sheet-section > strong { font-size: .86rem; }
 .sheet-section > span { display: flex; gap: 4px; }
 .sheet-section button { min-height: 30px; padding: 3px 10px; border: 1px solid #9fc4df; border-radius: 5px; background: white; color: var(--blue); font-size: .72rem; font-weight: 800; }
 .sheet-section .sheet-quick { background: var(--pale-blue); }
 .sheet-target { justify-content: space-between; gap: 5px; }
-.sheet-target > strong { line-height: 1.2; }
+.sheet-target > strong { font-size: .94rem; line-height: 1.2; letter-spacing: .01em; }
 .sheet-target select { width: 86px; min-height: 30px; margin: 0; padding: 3px 5px; border-radius: 4px; font-size: .72rem; }
 .sheet-check-cell { justify-content: center; gap: 3px; margin: 0; border-width: 0 1px 1px 0; border-style: solid; border-color: #d4dee6; border-radius: 0; color: inherit; font: inherit; cursor: pointer; background: #fbfcfd; }
 .sheet-check-cell .check-box { width: 27px; height: 27px; border-radius: 4px; font-size: .85rem; }
@@ -237,8 +237,11 @@ body.stopwatch-mode { overflow: hidden; }
 .photo-example > div { min-height: 118px; padding: 12px 14px 14px; text-align: center; }
 .photo-example > div > strong { margin-left: 7px; font-size: .83rem; }
 .photo-example p { margin: 8px 0 0; color: #52677a; font-size: .82rem; line-height: 1.5; }
-.photo-label { display: inline-block; padding: 5px 10px; border-radius: 99px; color: var(--green); background: var(--pale-green); font-weight: 900; font-size: .83rem; }
+.photo-label { display: inline-block; padding: 5px 10px; border-radius: 99px; font-weight: 900; font-size: .83rem; }
+.photo-label.full { color: var(--green); background: var(--pale-green); }
+.photo-label.partial { color: #9a5400; background: #fff1cf; }
 .photo-label.zero { color: #91483d; background: #fff1ee; }
+.photo-label.info { color: var(--blue); background: var(--pale-blue); }
 code { overflow-wrap: anywhere; }
 @media (max-width: 640px) {
   .app-header { margin: 0; padding: 9px 8px 8px; grid-template-columns: 1fr; gap: 8px; border-width: 0 0 1px; border-radius: 0; }
@@ -273,6 +276,7 @@ code { overflow-wrap: anywhere; }
   .sheet-row > * { min-height: 38px; padding-inline: 3px; }
   .sheet-columns > * { min-height: 42px; font-size: .62rem; }
   .sheet-target { gap: 2px; }
+  .sheet-target > strong { font-size: .78rem; }
   .sheet-target select { width: 60px; min-height: 28px; font-size: .62rem; }
   .sheet-section > strong { font-size: .72rem; }
   .sheet-check-cell .check-box { width: 25px; height: 25px; font-size: .8rem; }
@@ -297,6 +301,8 @@ code { overflow-wrap: anywhere; }
 @media (min-width: 760px) {
   body:has(.score-sheet) main { max-width: 1600px; padding: 4px 12px 60px; }
   .score-sheet { --sheet-columns: 38% 18% 18% 16% 10%; }
+  .sheet-target > strong { font-size: 1.02rem; }
+  .sheet-section > strong { font-size: .94rem; }
   .mission-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .mission-body { padding: 0 7px 5px; }
   .score-item { min-height: 35px; grid-template-columns: minmax(88px, .8fr) minmax(0, 2fr); gap: 5px; padding: 2px 0; }

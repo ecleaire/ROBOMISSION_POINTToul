@@ -403,7 +403,7 @@ function modalView() {
       <div class="photo-matrix">
         ${group.photos.map((photo) => `<article class="photo-example">
           <img src="${photo.src}" alt="${escapeHtml(photo.description)}" />
-          <div><span class="photo-label ${photo.score === "0点" ? "zero" : ""}">${photo.score}</span><strong>${photo.label}</strong><p>${escapeHtml(photo.description)}</p></div>
+          <div><span class="photo-label ${photo.label === "満点" ? "full" : photo.label === "部分点" ? "partial" : photo.score === "0点" ? "zero" : "info"}">${photo.score}</span><strong>${photo.label}</strong><p>${escapeHtml(photo.description)}</p></div>
         </article>`).join("")}
       </div>
     </section>
