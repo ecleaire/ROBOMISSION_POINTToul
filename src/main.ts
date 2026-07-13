@@ -160,6 +160,7 @@ function accountView() {
 function scoringView() {
   const total = totalScore(state);
   const duplicates = duplicateArtifactColors(state);
+  const scores = sectionScores(state);
   return shell(`
     <section class="score-hero">
       <span>アカウント ${activeAccount} ・ 現在の得点</span>
@@ -171,24 +172,34 @@ function scoringView() {
       <label>ラウンド<input data-meta="round" value="${escapeHtml(state.round)}" inputmode="numeric" /></label>
       <label>競技時間（秒）<input data-meta="timeSeconds" value="${state.timeSeconds ?? ""}" type="number" min="0" inputmode="numeric" placeholder="例：115" /></label>
     </section>
-    <div class="mission-grid">
-    ${scoreCard("visitors", "01", "訪問者を案内する", "4体を色ごとに判定", 40, visitorNames.map((name, index) => scoreItem("visitors", index, name, state.visitors[index], [[10, "完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]])).join(""))}
-    ${scoreCard("redTowers", "02", "赤い塔を再建する", "2基をそれぞれ判定", 30, state.redTowers.map((score, index) => scoreItem("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]])).join(""))}
-    ${scoreCard("yellowTowers", "03", "黄色い塔を再建する", "2基をそれぞれ判定", 50, state.yellowTowers.map((score, index) => scoreItem("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]])).join(""))}
-    ${scoreCard("artifacts", "04", "遺物を博物館に運ぶ", "使用する4色を選んで判定", 60, `
-      ${duplicates.length ? `<p class="warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
-      ${state.artifacts.map((artifact, index) => `
-        <div class="score-item artifact-item">
-          <div class="item-heading"><strong>遺物 ${index + 1}</strong><select data-artifact-color="${index}" aria-label="遺物${index + 1}の色">${artifactColors.map((color) => `<option value="${color.value}" ${color.value === artifact.color ? "selected" : ""}>${color.label}</option>`).join("")}</select></div>
-          ${radioOptions("artifacts", index, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]])}
-        </div>`).join("")}
-    `)}
-    ${scoreCard("dirt", "05", "石畳の汚れを落とす", "10個をそれぞれ判定", 20, `
-      <button class="quick-action" data-action="all-dirt">✓ すべて石畳から出た</button>
-      <div class="dirt-rows">${state.dirt.map((score, index) => scoreItem("dirt", index, `汚れ ${index + 1}`, score, [[2, "触れていない"], [0, "触れている"]])).join("")}</div>
-    `)}
-    ${scoreCard("bonus", "06", "ボーナスポイント", "移動・損傷がないか判定", 30, ["赤いバリア", "白いバリア", "オウム"].map((name, index) => scoreItem("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]])).join(""))}
-    </div>
+    ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
+    <section class="score-sheet" aria-label="得点チェック表">
+      <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
+      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>0点は得点欄をタップ</span></div>
+      <div class="sheet-row sheet-columns">
+        <strong>ミッション／対象</strong><strong>高得点条件</strong><strong>部分点条件</strong><strong>得点</strong><strong>最大</strong><strong>メモ</strong>
+      </div>
+      ${sheetSection("visitors", "1. 訪問者を案内する")}
+      ${visitorNames.map((name, index) => sheetScoreRow("visitors", index, name, state.visitors[index], [[10, "対応色エリア内・直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 10, "対応色エリア内・直立")).join("")}
+      ${sheetSubtotal(scores.visitors, 40)}
+      ${sheetSection("redTowers", "2. 塔を再建する（赤い塔）")}
+      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${index + 1}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15, "完全／一部とも直立が必要")).join("")}
+      ${sheetSubtotal(scores.redTowers, 30)}
+      ${sheetSection("yellowTowers", "2. 塔を再建する（黄色い塔）")}
+      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${index + 1}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25, "塔上部が正しく土台に配置")).join("")}
+      ${sheetSubtotal(scores.yellowTowers, 50)}
+      ${sheetSection("artifacts", "3. 遺物を博物館に運ぶ")}
+      ${state.artifacts.map((artifact, index) => sheetScoreRow("artifacts", index, `遺物 ${index + 1}`, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 15, "対応色の展示場所", artifactColorSelect(index, artifact.color))).join("")}
+      ${sheetSubtotal(scores.artifacts, 60)}
+      ${sheetSection("dirt", "4. 石畳の汚れを落とす", `<button class="sheet-quick" data-action="all-dirt">すべて満点</button>`)}
+      ${state.dirt.map((score, index) => sheetScoreRow("dirt", index, `汚れ ${index + 1}`, score, [[2, "石畳に触れていない"], [0, "石畳に触れている"]], 2, "石畳に触れていない")).join("")}
+      ${sheetSubtotal(scores.dirt, 20)}
+      ${sheetSection("bonus", "5. ボーナスポイント")}
+      ${["赤いバリア", "白いバリア", "オウム"].map((name, index) => sheetScoreRow("bonus", index, name, state.bonus[index], [[10, "移動・損傷していない"], [0, "移動または損傷している"]], 10, "移動・損傷なし")).join("")}
+      ${sheetSubtotal(scores.bonus, 30)}
+      <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong><span class="sheet-memo"></span></div>
+      <div class="sheet-row sheet-maximum"><strong>最大得点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong><span class="sheet-memo"></span></div>
+    </section>
     <div class="bottom-space"></div>
     <nav class="bottom-bar">
       <button class="reset-button" data-action="reset">採点をリセット</button>
@@ -197,29 +208,41 @@ function scoringView() {
   `, { back: "home", title: "採点する" });
 }
 
-function scoreCard(id: string, number: string, title: string, subtitle: string, max: number, body: string) {
-  const scores = sectionScores(state) as unknown as Record<string, number>;
-  return `<section class="mission-card" id="card-${id}">
-    <header class="mission-header">
-      <span class="mission-number">${number}</span>
-      <span class="mission-title"><strong>${title}</strong><small>${subtitle}</small></span>
-      <span class="section-score">${scores[id]}<small>/${max}</small></span>
-      <button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button>
-    </header>
-    <div class="mission-body">${body}</div>
-  </section>`;
+function sheetSection(id: string, title: string, action = "") {
+  return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
 }
 
-function scoreItem(section: string, index: number, title: string, score: Score, options: [number, string][]) {
-  return `<div class="score-item"><strong>${title}</strong>${radioOptions(section, index, score, options)}</div>`;
+function artifactColorSelect(index: number, color: ArtifactColor) {
+  return `<select data-artifact-color="${index}" aria-label="遺物${index + 1}の色">${artifactColors.map((item) => `<option value="${item.value}" ${item.value === color ? "selected" : ""}>${item.label}</option>`).join("")}</select>`;
 }
 
-function radioOptions(section: string, index: number, score: Score, options: [number, string][], compact = false) {
-  return `<div class="option-list option-count-${options.length} ${compact ? "compact" : ""}">${options.map(([value, label]) => `
-    <label class="score-option ${score === value ? "selected" : ""} ${score === 0 ? "zero" : ""}" title="${escapeHtml(label)}">
-      <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="${value}" ${score === value ? "checked" : ""} />
-      <span class="check-box" aria-hidden="true">✓</span><strong>${value}点</strong><span>${label}</span>
-    </label>`).join("")}</div>`;
+function sheetScoreRow(section: string, index: number, title: string, score: Score, options: [number, string][], max: number, memo: string, targetExtra = "") {
+  const high = options[0];
+  const partial = options.length === 3 ? options[1] : null;
+  const zero = options[options.length - 1];
+  return `<div class="sheet-row score-sheet-row">
+    <div class="sheet-target"><strong>${title}</strong>${targetExtra}</div>
+    ${sheetCheck(section, index, score, high)}
+    ${partial ? sheetCheck(section, index, score, partial) : `<span class="sheet-check-cell empty">—</span>`}
+    <label class="sheet-score-cell ${score === 0 ? "selected-zero" : ""}" title="${escapeHtml(zero[1])}">
+      <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="0" ${score === 0 ? "checked" : ""} />
+      <strong>${score ?? 0}</strong>
+    </label>
+    <strong class="sheet-max">${max}</strong>
+    <span class="sheet-memo">${memo}</span>
+  </div>`;
+}
+
+function sheetCheck(section: string, index: number, score: Score, option: [number, string]) {
+  const [value, label] = option;
+  return `<label class="sheet-check-cell ${score === value ? "selected" : ""}" title="${escapeHtml(label)}">
+    <input type="radio" name="${section}-${index}" data-score-section="${section}" data-score-index="${index}" value="${value}" ${score === value ? "checked" : ""} />
+    <span class="check-box" aria-hidden="true">✓</span><small>${value}点</small>
+  </label>`;
+}
+
+function sheetSubtotal(score: number, max: number) {
+  return `<div class="sheet-row sheet-subtotal"><strong>小計</strong><span></span><span></span><strong>${score}</strong><strong>${max}</strong><span class="sheet-memo"></span></div>`;
 }
 
 function resultView() {
