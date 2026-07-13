@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v7";
+const CACHE = "robomission-junior-v8";
 const PHOTOS = [
   "visitors/full-upright", "visitors/partial", "visitors/fallen", "visitors/outside", "visitors/wrong-color",
   "red-towers/full", "red-towers/partial", "red-towers/outside", "red-towers/fallen",
@@ -7,7 +7,7 @@ const PHOTOS = [
   "dirt/area", "dirt/clear", "dirt/touching", "dirt/visitor-area", "dirt/line",
   "bonus/red-ok", "bonus/red-moved", "bonus/red-damaged", "bonus/white-ok", "bonus/white-moved", "bonus/parrot-ok", "bonus/parrot-moved"
 ].map((path) => `./assets/judging/${path}.webp`);
-const PRECACHE = ["./", "./index.html", "./manifest.webmanifest", "./assets/icons/icon-192.png", "./assets/icons/icon-512.png", "./assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf", ...PHOTOS];
+const PRECACHE = ["./", "./index.html", "./manifest.webmanifest", "./assets/icons/icon-192.png", "./assets/icons/icon-512.png", "./assets/robomission-public-url-qr.png", "./assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf", ...PHOTOS];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)).then(() => self.skipWaiting()));

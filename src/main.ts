@@ -33,6 +33,9 @@ interface PracticeRecord {
 }
 
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
+const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
+const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
+const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
 
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
@@ -96,6 +99,8 @@ function render() {
           ? photoGalleryView()
           : route === "rules"
             ? rulesView()
+            : route === "links"
+              ? linksView()
             : scoringView();
 
   app.innerHTML = `${content}${modal ? modalView() : ""}`;
@@ -110,6 +115,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
     ["photos", "判定写真"],
     ["records", "練習記録"],
     ["rules", "ルール"],
+    ["links", "リンク"],
   ];
   return `
     <header class="app-header">
@@ -336,6 +342,56 @@ function rulesView() {
       <p>この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">PDFを大きく開く</a>を押してください。</p>
     </section>
   `, { back: "score", title: "ルール" });
+}
+
+function linksView() {
+  return shell(`
+    <section class="page-intro links-intro">
+      <p class="eyebrow">RELATED LINKS</p>
+      <h1>関連リンク</h1>
+      <p>WROの公式情報、ルール、関連動画、このアプリの公開先をまとめています。</p>
+    </section>
+    <section class="link-groups">
+      ${linkGroup("WRO ホームページ", [
+        ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
+        ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
+        ["WRO兵庫", "兵庫地区の大会・予選会情報", "https://wro-hyogo.jp/"],
+      ])}
+      ${linkGroup("ルール関連", [
+        ["Google翻訳", "RoboMission JuniorルールのGoogle翻訳版", GOOGLE_TRANSLATED_RULES_URL],
+        ["世界大会ルール", "RoboMission Juniorの世界大会ルール", WORLD_RULES_URL],
+        ["Q&A", "WRO国際サイトの質問・回答", "https://wro-association.org/competition/questions-answers/"],
+      ])}
+      ${linkGroup("その他", [
+        ["YouTube関連動画", "RoboMission関連動画の再生リスト", "https://youtube.com/playlist?list=PL5-Hc8xo0J3ns_WHhwGI-AxDOyEL9-l2O&si=YglnMNN6SpMbn9AN"],
+        ["GitHubリポジトリ", "アプリのソースコード", "https://github.com/ecleaire/ROBOMISSION_POINTToul.git"],
+      ])}
+      <article class="link-section card qr-section">
+        <h2>公開URL QRコード</h2>
+        <a class="public-qr" href="${PUBLIC_APP_URL}" target="_blank" rel="noopener noreferrer">
+          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Assist 公開URL QRコード" />
+          <span><strong>RoboMission Assist</strong><small>${PUBLIC_APP_URL}</small></span>
+        </a>
+      </article>
+      <article class="link-section card credits-section">
+        <h2>ライセンス / クレジット</h2>
+        <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Juniorの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
+        <p>WROおよびWROロゴはWorld Robot Olympiad Association Ltd.の商標です。正式な情報と判定はWRO公式サイトおよび各大会の案内を確認してください。</p>
+        <p><strong>開発：</strong>ecleaire　<strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
+      </article>
+    </section>
+  `, { back: "score", title: "リンク" });
+}
+
+function linkGroup(title: string, links: [string, string, string][]) {
+  return `<article class="link-section card">
+    <h2>${escapeHtml(title)}</h2>
+    <div class="resource-links">${links.map(([label, description, href]) => `
+      <a href="${href}" target="_blank" rel="noopener noreferrer">
+        <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></span><b aria-hidden="true">↗</b>
+      </a>`).join("")}
+    </div>
+  </article>`;
 }
 
 function modalView() {

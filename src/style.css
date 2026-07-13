@@ -17,7 +17,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .current-mode { padding-left: 14px; border-left: 1px solid #c8ddeb; color: #60798e; font-size: .72rem; font-weight: 800; white-space: nowrap; }
 .account-switch { min-height: 34px; margin-left: auto; padding: 3px 5px 3px 9px; display: flex; align-items: center; gap: 5px; border: 1px solid #b7d5e9; border-radius: 8px; background: var(--pale-blue); color: var(--blue); font-size: .65rem; font-weight: 800; white-space: nowrap; }
 .account-switch select { width: 38px; min-height: 27px; margin: 0; padding: 2px 3px; border-radius: 5px; font-size: .75rem; font-weight: 900; }
-.mode-nav { display: grid; grid-template-columns: repeat(5, minmax(62px, auto)); gap: 7px; }
+.mode-nav { display: grid; grid-template-columns: repeat(6, minmax(62px, auto)); gap: 7px; }
 .mode-nav button { min-width: 0; min-height: 43px; padding: 7px 13px; border: 1px solid #c8ddeb; border-radius: 10px; background: #f7fbfe; color: #46657e; font-size: .76rem; font-weight: 900; white-space: nowrap; }
 .mode-nav button:hover { border-color: #65addd; color: var(--blue); }
 .mode-nav button.active { border-color: #1488d1; color: white; background: var(--blue); box-shadow: 0 5px 14px rgba(18,97,166,.2); }
@@ -169,6 +169,23 @@ body.stopwatch-mode { overflow: hidden; }
 .pdf-viewer { overflow: hidden; }
 .pdf-viewer iframe { display: block; width: 100%; height: min(78vh, 980px); min-height: 560px; border: 0; background: #e8eef3; }
 .pdf-viewer > p { display: none; margin: 0; padding: 16px; color: #52677a; }
+.links-intro { padding-bottom: 18px; }
+.link-groups { display: grid; gap: 14px; }
+.link-section { padding: 22px; }
+.link-section h2 { margin: 0 0 14px; color: var(--blue-dark); font-size: 1.05rem; }
+.resource-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 10px; }
+.resource-links a { min-height: 74px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid #c8ddeb; border-radius: 12px; color: #183b56; background: #f7fbfe; text-decoration: none; }
+.resource-links a:hover { border-color: #65addd; background: var(--pale-blue); }
+.resource-links span, .resource-links strong, .resource-links small { min-width: 0; display: block; }
+.resource-links small { margin-top: 4px; color: #60798e; font-size: .76rem; line-height: 1.45; }
+.resource-links b { flex: 0 0 auto; color: var(--blue); font-size: 1.1rem; }
+.qr-section { overflow: hidden; }
+.public-qr { width: fit-content; max-width: 100%; display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 20px; padding: 12px; border: 1px solid #c8ddeb; border-radius: 14px; color: #183b56; background: #f7fbfe; text-decoration: none; }
+.public-qr img { width: 150px; height: 150px; padding: 7px; border-radius: 9px; background: white; image-rendering: pixelated; }
+.public-qr strong, .public-qr small { display: block; }
+.public-qr small { max-width: 420px; margin-top: 6px; color: #60798e; overflow-wrap: anywhere; }
+.credits-section p { margin: 9px 0 0; color: #52677a; font-size: .84rem; line-height: 1.7; }
+.credits-section strong { color: #183b56; }
 .result-card { background: white; border-radius: 24px; padding: 32px; box-shadow: var(--shadow); }
 .result-card h1 { margin: 5px 0 8px; font-size: clamp(1.7rem, 5vw, 2.8rem); }
 .result-meta { display: flex; gap: 10px; flex-wrap: wrap; color: #52677a; }
@@ -230,7 +247,7 @@ code { overflow-wrap: anywhere; }
   .app-brand strong { font-size: 1rem; }
   .current-mode { display: none; }
   .account-switch { min-height: 30px; }
-  .mode-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .mode-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .mode-nav button { min-height: 38px; padding: 5px 2px; border-radius: 7px; font-size: .64rem; }
   main { padding: 12px 14px 60px; }
   .sheet-footer-tools { grid-template-columns: 1fr; }
@@ -267,6 +284,9 @@ code { overflow-wrap: anywhere; }
   .rules-intro { align-items: stretch; flex-direction: column; }
   .pdf-open { width: 100%; }
   .pdf-viewer iframe { height: 72vh; min-height: 460px; }
+  .link-section { padding: 16px; }
+  .public-qr { width: 100%; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+  .public-qr img { width: 112px; height: 112px; }
   .result-card { padding: 22px 18px; }
   .dirt-rows { grid-template-columns: 1fr; }
   .bottom-bar { grid-template-columns: 1fr 1.5fr; }
