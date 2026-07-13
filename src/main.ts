@@ -200,13 +200,16 @@ function stopwatchView() {
 }
 
 function stopwatchContents() {
-  const controls = stopwatchStatus === "idle"
+  const timerControls = stopwatchStatus === "idle"
     ? `<button class="timer-lap" type="button" disabled>⚑ <span>ラップ</span></button><button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>`
     : stopwatchStatus === "running"
       ? `<button class="timer-lap" data-action="timer-lap">⚑ <span>ラップ</span></button><button class="timer-pause" data-action="timer-pause">Ⅱ <span>停止</span></button>`
       : `<button class="timer-finish" data-action="timer-finish">■ <span>タイマー終了</span></button><button class="timer-resume" data-action="timer-resume">◀ <span>再開</span></button>`;
+  const fullscreenControl = document.body.classList.contains("stopwatch-mode")
+    ? `<button class="timer-collapse" data-action="timer-collapse" aria-label="ストップウォッチの全画面表示を解除">× <span>全画面解除</span></button>`
+    : `<button class="timer-expand" data-action="timer-expand" aria-label="ストップウォッチを全画面表示">⛶ <span>全画面</span></button>`;
   return `<div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
-    <div class="stopwatch-controls">${controls}</div>
+    <div class="stopwatch-controls">${timerControls}${fullscreenControl}</div>
     ${stopwatchLaps.length ? `<ol class="stopwatch-laps" aria-label="ラップ記録">${stopwatchLaps.map((lap, index) => `<li><span>ラップ ${index + 1}</span><strong>${formatStopwatch(lap)}</strong></li>`).join("")}</ol>` : ""}`;
 }
 
@@ -507,6 +510,8 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "timer-pause") pauseStopwatch();
   if (action === "timer-resume") startStopwatch(false);
   if (action === "timer-finish") finishStopwatch();
+  if (action === "timer-expand") enterStopwatchFullscreen();
+  if (action === "timer-collapse") exitStopwatchFullscreen();
   if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); render(); }
   if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
@@ -524,12 +529,30 @@ function startStopwatch(reset: boolean) {
   }
   stopwatchStartedAt = performance.now();
   stopwatchStatus = "running";
-  refreshStopwatch();
+  enterStopwatchFullscreen();
+  startStopwatchUpdates();
+}
+
+function enterStopwatchFullscreen() {
   const stopwatch = document.querySelector<HTMLElement>(".stopwatch");
+  if (!stopwatch) return;
   stopwatch?.classList.add("stopwatch-expanded");
   document.body.classList.add("stopwatch-mode");
-  if (!document.fullscreenElement && stopwatch) void stopwatch.requestFullscreen().catch(() => undefined);
-  startStopwatchUpdates();
+  if (!document.fullscreenElement) void stopwatch.requestFullscreen().catch(() => undefined);
+  refreshStopwatch();
+}
+
+function exitStopwatchFullscreen() {
+  const collapse = () => {
+    document.body.classList.remove("stopwatch-mode");
+    document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
+    refreshStopwatch();
+  };
+  if (document.fullscreenElement) {
+    void document.exitFullscreen().catch(() => undefined).finally(collapse);
+  } else {
+    collapse();
+  }
 }
 
 function pauseStopwatch() {
@@ -580,6 +603,7 @@ function resetStopwatch() {
   stopwatchLaps = [];
   stopStopwatchUpdates();
   document.body.classList.remove("stopwatch-mode");
+  document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
 }
 

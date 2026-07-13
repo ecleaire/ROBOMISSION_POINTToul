@@ -64,6 +64,7 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .stopwatch-controls .timer-start, .stopwatch-controls .timer-resume { border-color: var(--blue); color: white; background: var(--blue); }
 .stopwatch-controls .timer-pause { color: #8a5600; background: #fff7dd; border-color: #e2bf6a; }
 .stopwatch-controls .timer-finish { color: #8a4651; background: #fff1ee; border-color: #dca39b; }
+.stopwatch-controls .timer-expand { color: var(--blue); background: #f7fbfe; border-color: #8dbad8; }
 .stopwatch-laps { width: 100%; max-height: 150px; margin: 0; padding: 0; grid-column: 1 / -1; overflow: auto; list-style: none; color: #52677a; font-variant-numeric: tabular-nums; }
 .stopwatch-laps li { min-height: 38px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid #d5e1ec; }
 .stopwatch-laps li span { font-size: .76rem; font-weight: 800; }
@@ -74,11 +75,12 @@ body.stopwatch-mode { overflow: hidden; }
 .stopwatch.stopwatch-expanded .stopwatch-time span, .stopwatch:fullscreen .stopwatch-time span, .stopwatch:-webkit-full-screen .stopwatch-time span { display: none; }
 .stopwatch.stopwatch-expanded .stopwatch-time strong, .stopwatch:fullscreen .stopwatch-time strong, .stopwatch:-webkit-full-screen .stopwatch-time strong { color: white; font-size: clamp(4.2rem, 18vw, 13rem); font-weight: 300; letter-spacing: -.075em; }
 .stopwatch.stopwatch-expanded .stopwatch-controls, .stopwatch:fullscreen .stopwatch-controls, .stopwatch:-webkit-full-screen .stopwatch-controls { width: min(900px, 100%); justify-content: space-between; }
-.stopwatch.stopwatch-expanded .stopwatch-controls button, .stopwatch:fullscreen .stopwatch-controls button, .stopwatch:-webkit-full-screen .stopwatch-controls button { flex: 0 0 auto; width: clamp(92px, 17vw, 148px); height: clamp(92px, 17vw, 148px); min-width: 0; min-height: 0; padding: 12px; border-width: 2px; border-radius: 50%; color: #bbb; background: #171717; border-color: #393939; font-size: clamp(1.25rem, 4vw, 2rem); }
+.stopwatch.stopwatch-expanded .stopwatch-controls button, .stopwatch:fullscreen .stopwatch-controls button, .stopwatch:-webkit-full-screen .stopwatch-controls button { flex: 0 0 auto; width: clamp(78px, 16vw, 132px); height: clamp(78px, 16vw, 132px); min-width: 0; min-height: 0; padding: 10px; border-width: 2px; border-radius: 50%; color: #bbb; background: #171717; border-color: #393939; font-size: clamp(1.15rem, 3.6vw, 1.8rem); }
 .stopwatch.stopwatch-expanded .stopwatch-controls button span, .stopwatch:fullscreen .stopwatch-controls button span, .stopwatch:-webkit-full-screen .stopwatch-controls button span { display: block; margin: 4px 0 0; font-size: clamp(.72rem, 2vw, 1rem); }
 .stopwatch.stopwatch-expanded .stopwatch-controls .timer-start, .stopwatch.stopwatch-expanded .stopwatch-controls .timer-resume, .stopwatch:fullscreen .stopwatch-controls .timer-start, .stopwatch:fullscreen .stopwatch-controls .timer-resume { color: #5be36d; background: #0d2511; border-color: #1d5a27; }
 .stopwatch.stopwatch-expanded .stopwatch-controls .timer-pause, .stopwatch:fullscreen .stopwatch-controls .timer-pause { color: #ffb229; background: #2a1c06; border-color: #76500e; }
 .stopwatch.stopwatch-expanded .stopwatch-controls .timer-finish, .stopwatch:fullscreen .stopwatch-controls .timer-finish { color: #ff625d; background: #2a0d0c; border-color: #722623; }
+.stopwatch.stopwatch-expanded .stopwatch-controls .timer-collapse, .stopwatch:fullscreen .stopwatch-controls .timer-collapse { color: #e2e2e2; background: #202020; border-color: #555; }
 .stopwatch.stopwatch-expanded .stopwatch-controls button:disabled, .stopwatch:fullscreen .stopwatch-controls button:disabled { opacity: .55; cursor: default; }
 .stopwatch.stopwatch-expanded .stopwatch-laps, .stopwatch:fullscreen .stopwatch-laps, .stopwatch:-webkit-full-screen .stopwatch-laps { width: min(900px, 100%); max-height: 100%; grid-column: auto; align-self: stretch; color: #b7b7b7; }
 .stopwatch.stopwatch-expanded .stopwatch-laps li, .stopwatch:fullscreen .stopwatch-laps li, .stopwatch:-webkit-full-screen .stopwatch-laps li { min-height: clamp(48px, 8vh, 70px); padding: 10px 6px; border-color: #1e1e1e; font-size: clamp(1rem, 3vw, 1.4rem); }
