@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v5";
+const CACHE = "robomission-junior-v6";
 const PHOTOS = [
   "visitors/full-upright", "visitors/partial", "visitors/fallen", "visitors/outside", "visitors/wrong-color",
   "red-towers/full", "red-towers/partial", "red-towers/outside", "red-towers/fallen",
@@ -14,13 +14,37 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
+    await self.clients.claim();
+
+    // A previous cache may contain index.html that references a removed hashed bundle.
+    // Reload open app tabs once so they immediately move to the fresh shell.
+    const clients = await self.clients.matchAll({ type: "window" });
+    await Promise.all(clients.map((client) => client.navigate(client.url)));
+  })());
 });
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-    if (response.ok && new URL(event.request.url).origin === self.location.origin) caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
-    return response;
-  }).catch(() => event.request.mode === "navigate" ? caches.match("./index.html") : cached)));
+  if (new URL(event.request.url).origin !== self.location.origin) return;
+
+  // HTML and hashed JS/CSS must prefer the network. Cache-first can leave an old
+  // index.html pointing at bundles that GitHub Pages has already removed.
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(event.request);
+      if (response.ok) {
+        const cache = await caches.open(CACHE);
+        await cache.put(event.request, response.clone());
+      }
+      return response;
+    } catch {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      if (event.request.mode === "navigate") return caches.match("./index.html");
+      return Response.error();
+    }
+  })());
 });

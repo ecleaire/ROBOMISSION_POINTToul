@@ -10,7 +10,18 @@
     <title>RoboMission Junior 得点計算</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <p style="margin: 0; padding: 2rem; text-align: center; color: #24445f; font: 700 1rem/1.6 system-ui, sans-serif">
+        得点表を読み込んでいます…
+      </p>
+    </div>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js", { scope: "./" }).then((registration) => registration.update()).catch(() => {});
+        });
+      }
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
