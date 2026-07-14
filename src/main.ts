@@ -197,7 +197,7 @@ function accountView() {
 
 function accountSwitchModal() {
   return `<div class="modal-backdrop" data-action="close-account-switch">
-    <section class="account-switch-modal card" role="dialog" aria-modal="true" aria-label="アカウントを切り替える" onclick="event.stopPropagation()">
+    <section class="account-switch-modal card" role="dialog" aria-modal="true" aria-label="アカウントを切り替える">
       <header><div><strong>アカウントを切り替える</strong><small>チーム名はAPIキー確認後に表示されます</small></div><button class="icon-button" data-action="close-account-switch" aria-label="閉じる">×</button></header>
       <label>APIキー<input id="switch-account-key-input" type="password" maxlength="128" autocomplete="off" placeholder="切り替えるアカウントのAPIキー" /></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
@@ -568,7 +568,7 @@ function modalView() {
   if (!modal) return "";
   const group = judgingGroups[modal.group];
   return `<div class="modal-backdrop" data-action="close-modal">
-    <section class="photo-modal" role="dialog" aria-modal="true" aria-label="${group.title}" onclick="event.stopPropagation()">
+    <section class="photo-modal" role="dialog" aria-modal="true" aria-label="${group.title}">
       <header><div><strong>${group.title}</strong><small>${group.photos.length}件の判定例を一覧表示</small></div><button class="icon-button" data-action="close-modal" aria-label="閉じる">×</button></header>
       <div class="photo-matrix">
         ${group.photos.map((photo) => `<article class="photo-example">
@@ -620,7 +620,10 @@ function bindEvents() {
     button.addEventListener("click", () => { modal = { group: button.dataset.photos! }; render(); }),
   );
   document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
-    element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
+    element.addEventListener("click", (event) => {
+      if (element.classList.contains("modal-backdrop") && event.target !== element) return;
+      handleAction(element.dataset.action!, element);
+    }),
   );
   document.querySelector<HTMLInputElement>("#account-key-input")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void loginAccount();
