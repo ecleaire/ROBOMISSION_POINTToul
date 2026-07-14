@@ -227,6 +227,9 @@ body.stopwatch-mode { overflow: hidden; }
 .records-status { margin: 0 0 12px; }
 .account-management { margin: 0 0 14px; padding: 18px; }
 .account-management-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-management-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.account-management-actions button { min-height: 46px; padding: 10px 16px; border-radius: 10px; font-weight: 900; }
+.account-management-actions .admin-exit { border: 2px solid #6f42a5; background: #6f42a5; color: white; box-shadow: 0 4px 12px rgba(90,52,139,.2); }
 .account-management h2, .account-management h3 { margin: 2px 0 8px; }
 .account-management > p:not(.eyebrow, .sheet-status) { color: #526b7e; line-height: 1.6; }
 .managed-account-list { display: grid; gap: 10px; margin: 14px 0; }
@@ -299,6 +302,8 @@ code { overflow-wrap: anywhere; }
   .managed-account, .new-managed-account { grid-template-columns: 1fr; }
   .new-managed-account h3 { grid-column: 1; }
   .account-management { padding: 12px; }
+  .account-management-header { align-items: flex-start; }
+  .account-management-actions { display: grid; grid-template-columns: 1fr; }
   .record-search, .record-filter-actions, .record-filter-count { grid-column: 1 / -1; }
   .record-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sheet-footer-tools { grid-template-columns: 1fr; }

@@ -223,7 +223,7 @@ function adminView() {
 
 function accountManagementView() {
   return `<section class="account-management card" aria-label="アカウント管理">
-    <div class="account-management-header"><div><p class="eyebrow">PRIVATE ACCOUNT MANAGEMENT</p><h2>アカウント管理</h2></div><button class="secondary" data-action="load-accounts">↻ 更新</button></div>
+    <div class="account-management-header"><div><p class="eyebrow">PRIVATE ACCOUNT MANAGEMENT</p><h2>アカウント管理</h2></div><div class="account-management-actions"><button class="secondary" data-action="load-accounts">↻ 更新</button><button class="admin-exit" data-action="logout-admin">管理を終了</button></div></div>
     <p>チーム名とAPIキーはGASのスクリプトプロパティにだけ保存され、公開リポジトリ・URL・シート名には含めません。既存APIキーは画面へ表示しません。</p>
     ${accountManagementStatus ? `<p class="sheet-status" role="status">${escapeHtml(accountManagementStatus)}</p>` : ""}
     <div class="managed-account-list">

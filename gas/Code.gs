@@ -267,8 +267,9 @@ function saveAccount_(data) {
   const existing = requestedId ? accountById_(requestedId) : null;
   if (requestedId && !existing) throw new Error("更新するアカウントが見つかりません。");
   if (newApiKey) {
+    const normalizedNewApiKey = newApiKey.toLocaleLowerCase();
     const duplicate = accountConfigs_().some(function(account) {
-      return account.id !== requestedId && account.apiKey === newApiKey;
+      return account.id !== requestedId && account.apiKey.toLocaleLowerCase() === normalizedNewApiKey;
     });
     if (duplicate || normalizeKey_(newApiKey) === "ADMIN") throw new Error("このAPIキーは既に使用されています。");
   }
@@ -298,11 +299,12 @@ function saveAccount_(data) {
 function normalizeKey_(value) {
   const apiKey = String(value || "").trim();
   if (!apiKey) return "";
+  const normalizedApiKey = apiKey.toLocaleLowerCase();
   const properties = PropertiesService.getScriptProperties();
   const accounts = accountConfigs_();
   for (let index = 0; index < accounts.length; index += 1) {
     const account = accounts[index];
-    if (account.apiKey && apiKey === account.apiKey) return account.id;
+    if (account.apiKey && normalizedApiKey === account.apiKey.toLocaleLowerCase()) return account.id;
   }
   const allProperties = properties.getProperties();
   const masterPropertyNames = Object.keys(allProperties).filter(function(name) {
@@ -310,7 +312,7 @@ function normalizeKey_(value) {
   });
   for (let index = 0; index < masterPropertyNames.length; index += 1) {
     const configuredPassword = String(allProperties[masterPropertyNames[index]] || "");
-    if (configuredPassword && apiKey.toLocaleLowerCase() === configuredPassword.toLocaleLowerCase()) return "ADMIN";
+    if (configuredPassword && normalizedApiKey === configuredPassword.toLocaleLowerCase()) return "ADMIN";
   }
   return "";
 }

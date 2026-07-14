@@ -30,10 +30,10 @@ function loadGas() {
 }
 
 describe("GAS account management", () => {
-  it("keeps account API keys case-sensitive and administrator passwords case-insensitive", () => {
+  it("treats account API keys and administrator passwords as case-insensitive", () => {
     const { gas } = loadGas();
     expect(gas.normalizeKey_("alpha-key")).toBe("A");
-    expect(gas.normalizeKey_("ALPHA-KEY")).toBe("");
+    expect(gas.normalizeKey_("ALPHA-KEY")).toBe("A");
     expect(gas.normalizeKey_("secretadmin")).toBe("ADMIN");
     expect(gas.normalizeKey_("SECRETADMIN")).toBe("ADMIN");
   });
@@ -52,6 +52,12 @@ describe("GAS account management", () => {
     expect(created.id).toBe("ACC_1234567812");
     expect(values.ACCOUNT_CONFIG_JSON).toContain("Private Team");
     expect(gas.normalizeKey_("private-key")).toBe(created.id);
+    expect(gas.normalizeKey_("PRIVATE-KEY")).toBe(created.id);
+  });
+
+  it("rejects API keys that only differ by letter case", () => {
+    const { gas } = loadGas();
+    expect(() => gas.saveAccount_({ name: "Duplicate Team", newApiKey: "ALPHA-KEY" })).toThrow("このAPIキーは既に使用されています。");
   });
 });
 
