@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeInitialState, totalScore, unjudgedCount } from "./model";
+import { isComplete, makeInitialState, totalScore, unjudgedCount } from "./model";
 
 describe("score calculation", () => {
   it("calculates the official maximum as 230", () => {
@@ -31,5 +31,14 @@ describe("score calculation", () => {
     state.dirt = [2, 2, 0, 2, 0, 2, 2, 0, 2, 2];
     state.bonus = [10, 0, 10];
     expect(totalScore(state)).toBe(159);
+  });
+
+  it("requires a color only when an artifact has points", () => {
+    const state = makeInitialState();
+    expect(isComplete(state)).toBe(true);
+    state.artifacts[0].score = 15;
+    expect(isComplete(state)).toBe(false);
+    state.artifacts[0].color = "blue";
+    expect(isComplete(state)).toBe(true);
   });
 });

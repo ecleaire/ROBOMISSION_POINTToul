@@ -281,7 +281,7 @@ function resultView() {
   const duplicates = duplicateArtifactColors(state);
   const resultIssues = [
     duplicates.length ? "遺物の色重複あり" : "",
-    state.artifacts.some((item) => item.color === "unused") ? "遺物の色未選択あり" : "",
+    state.artifacts.some((item) => item.score > 0 && item.color === "unused") ? "得点を選んだ遺物の色未選択あり" : "",
   ].filter(Boolean);
   return shell(`
     <section class="result-card" id="result-card">
