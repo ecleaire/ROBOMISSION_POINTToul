@@ -1,6 +1,16 @@
-# RoboMission Junior 得点計算
+# RoboMission Junior_POINT_Toul
+ 
 
+![TypeScript](https://img.shields.io/badge/TypeScript-Vite-3178C6?logo=typescript&logoColor=white)
+![Web](https://img.shields.io/badge/Platform-Web-2ea44f)
+![PWA](https://img.shields.io/badge/PWA-Supported-8A2BE2)
+![Offline](https://img.shields.io/badge/Offline-Supported-orange)  
+  
 WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webアプリです。スマートフォン、タブレット、PCで利用でき、PWAとしてインストールすると採点と判定写真をオフラインでも利用できます。
+
+# 公開 URL  
+
+# https://ecleaire.github.io/Tennis-Assist-Web/  
 
 ## 主な機能
 
