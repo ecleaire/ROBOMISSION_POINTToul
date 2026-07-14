@@ -15,9 +15,10 @@ import {
   type ScoreState,
 } from "./model";
 
-type AccountKey = "A" | "B" | "C";
+type AccountKey = "A" | "B" | "C" | "ADMIN";
 
 interface PracticeRecord {
+  account: Exclude<AccountKey, "ADMIN">;
   rowNumber: number;
   recordedAt: string;
   timeSeconds: number | null;
@@ -32,6 +33,16 @@ interface PracticeRecord {
   unjudged: number;
 }
 
+interface RecordFilters {
+  query: string;
+  dateFrom: string;
+  dateTo: string;
+  minScore: string;
+  maxScore: string;
+  account: "ALL" | "A" | "B" | "C";
+  sort: "newest" | "oldest" | "score-desc" | "score-asc";
+}
+
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
@@ -39,14 +50,28 @@ const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJ
 
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
+const API_KEY_KEY = "robomission-junior-api-key";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let activeAccount = loadAccount();
+let activeApiKey = loadApiKey();
 let state = loadState();
 let modal: { group: string } | null = null;
 let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
+let recordFilters: RecordFilters = {
+  query: "",
+  dateFrom: "",
+  dateTo: "",
+  minScore: "",
+  maxScore: "",
+  account: "ALL",
+  sort: "newest",
+};
+const adminRevealPressCounts = { rules: 0, links: 0 };
+let adminModeUnlocked = false;
+let adminError = "";
 type StopwatchStatus = "idle" | "running" | "paused";
 let stopwatchStatus: StopwatchStatus = "idle";
 let stopwatchElapsedMs = 0;
@@ -68,6 +93,7 @@ window.addEventListener("hashchange", () => {
   window.scrollTo(0, 0);
   render();
   if (location.hash === "#/records" && activeAccount) void loadRecords();
+  if (location.hash === "#/admin" && activeAccount === "ADMIN") void loadRecords();
 });
 window.addEventListener("keydown", (event) => {
   if (!modal) return;
@@ -87,7 +113,9 @@ render();
 function render() {
   const route = location.hash.replace(/^#\/?/, "") || "score";
   const content =
-    !activeAccount || route === "account"
+    route === "admin" && adminModeUnlocked
+      ? adminView()
+    : !activeAccount || route === "account"
       ? accountView()
       : route === "score"
       ? scoringView()
@@ -110,23 +138,24 @@ function render() {
 function shell(content: string, options: { back?: string; title?: string } = {}) {
   const route = location.hash.replace(/^#\/?/, "") || "score";
   const activeRoute = route === "result" ? "score" : route;
-  const modes = [
+  const modes: string[][] = [
     ["score", "採点"],
     ["photos", "判定写真"],
     ["records", "練習記録"],
     ["rules", "ルール"],
     ["links", "リンク"],
   ];
+  if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
   return `
     <header class="app-header">
       <div class="app-brand">
         <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Assist</strong></div>
         <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
-        ${activeAccount ? `<label class="account-switch">アカウント
+        ${activeAccount && activeAccount !== "ADMIN" ? `<label class="account-switch">アカウント
           <select id="header-account-select" aria-label="アカウントを切り替える">
-            ${(["A", "B", "C"] as AccountKey[]).map((key) => `<option value="${key}" ${key === activeAccount ? "selected" : ""}>${key}</option>`).join("")}
+            ${(["A", "B", "C"] as AccountKey[]).map((key) => `<option value="${key}" ${key === activeAccount ? "selected" : ""}>${accountLabel(key)}</option>`).join("")}
           </select>
-        </label>` : ""}
+        </label>` : activeAccount === "ADMIN" ? `<span class="admin-badge">管理モード</span>` : ""}
       </div>
       <nav class="mode-nav" aria-label="機能メニュー">
         ${modes.map(([target, label]) => `<button data-nav="${target}" class="${activeRoute === target ? "active" : ""}">${label}</button>`).join("")}
@@ -141,12 +170,27 @@ function accountView() {
       <div class="account-icon">鍵</div>
       <p class="eyebrow">アカウントを選択</p>
       <h1>APIキーを入力</h1>
-      <p>先生から伝えられた1文字のキーを入力してください。採点と記録はキーごとに分かれます。</p>
-      <label>APIキー<input id="account-key-input" type="password" maxlength="1" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
+      <p>先生から伝えられたAPIキーを入力してください。採点と記録はキーごとに分かれます。</p>
+      <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
       <button class="primary" data-action="login-account">このキーで始める</button>
     </section>
   `, { title: "アカウント" });
+}
+
+function adminView() {
+  if (activeAccount === "ADMIN") return recordsView();
+  return shell(`
+    <section class="account-login admin-login card">
+      <div class="account-icon">管理</div>
+      <p class="eyebrow">ADMINISTRATION</p>
+      <h1>管理者パスワード</h1>
+      <p>管理者用パスワードを入力してください。大文字・小文字を区別して確認します。</p>
+      <label>パスワード<input id="admin-password-input" type="password" maxlength="128" autocomplete="current-password" placeholder="管理者パスワード" /></label>
+      ${adminError ? `<p class="warning" role="alert">${escapeHtml(adminError)}</p>` : ""}
+      <button class="primary" data-action="login-admin">管理画面を開く</button>
+    </section>
+  `, { title: "管理ログイン" });
 }
 
 function scoringView() {
@@ -303,35 +347,90 @@ function resultView() {
     <section class="result-actions">
       <button class="secondary" data-nav="score">採点へ戻る</button>
     </section>
-    <section class="sheet-panel card">
+    ${activeAccount === "ADMIN" ? `<section class="sheet-panel card"><h2>管理アカウント</h2><p>管理アカウントでは記録の閲覧・検索・削除ができます。採点結果の保存はA・B・Cへ切り替えてください。</p></section>` : `<section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
       <p>アカウント<strong>${activeAccount}</strong>のシートへ、この結果を1行追加します。</p>
       <button class="primary" data-action="send-sheet">${activeAccount}の記録として保存</button>
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
-    </section>
+    </section>`}
     <button class="text-button new-score" data-action="new">＋ 新しい採点を始める</button>
   `, { back: "score", title: "採点結果" });
 }
 
 function recordsView() {
+  const filteredRecords = filteredPracticeRecords();
+  const isAdmin = activeAccount === "ADMIN";
   return shell(`
     <section class="page-intro records-intro">
-      <p class="eyebrow">アカウント ${activeAccount}</p>
+      <p class="eyebrow">${isAdmin ? "管理アカウント" : `アカウント ${activeAccount}`}</p>
       <h1>記録</h1>
-      <p>${activeAccount}に対応するシートの記録だけを表示しています。削除した記録は、シートの「削除」チェックを外すと再表示されます。完全に消す場合はシートで行を削除してください。</p>
-      <button class="secondary" data-action="load-records">↻ 記録を更新</button>
+      <p>${isAdmin ? "A・B・Cすべての練習記録を表示しています。" : `${activeAccount}に対応するシートの記録だけを表示しています。`} 削除した記録は、シートの「削除」チェックを外すと再表示されます。完全に消す場合はシートで行を削除してください。</p>
+      <div class="records-intro-actions"><button class="secondary" data-action="load-records">↻ 記録を更新</button>${isAdmin ? `<button class="secondary admin-logout" data-action="logout-admin">管理を終了</button>` : ""}</div>
     </section>
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
+    <section class="record-filters card" aria-label="記録の検索と並び替え">
+      <label class="record-search">検索
+        <input data-record-filter="query" type="search" value="${escapeHtml(recordFilters.query)}" placeholder="メモ・日付・点数を検索" />
+      </label>
+      <label>開始日<input data-record-filter="dateFrom" type="date" value="${recordFilters.dateFrom}" /></label>
+      <label>終了日<input data-record-filter="dateTo" type="date" value="${recordFilters.dateTo}" /></label>
+      <label>最低点<input data-record-filter="minScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.minScore}" placeholder="0" /></label>
+      <label>最高点<input data-record-filter="maxScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.maxScore}" placeholder="${MAX_SCORE}" /></label>
+      ${isAdmin ? `<label>アカウント<select data-record-filter="account">
+        ${(["ALL", "A", "B", "C"] as const).map((account) => `<option value="${account}" ${recordFilters.account === account ? "selected" : ""}>${account === "ALL" ? "すべて" : account}</option>`).join("")}
+      </select></label>` : ""}
+      <label>並び順<select data-record-filter="sort">
+        <option value="newest" ${recordFilters.sort === "newest" ? "selected" : ""}>新しい順</option>
+        <option value="oldest" ${recordFilters.sort === "oldest" ? "selected" : ""}>古い順</option>
+        <option value="score-desc" ${recordFilters.sort === "score-desc" ? "selected" : ""}>得点が高い順</option>
+        <option value="score-asc" ${recordFilters.sort === "score-asc" ? "selected" : ""}>得点が低い順</option>
+      </select></label>
+      <div class="record-filter-actions">
+        <button class="primary" data-action="apply-record-filters">検索・絞り込み</button>
+        <button class="secondary" data-action="reset-record-filters">条件をクリア</button>
+      </div>
+      <strong class="record-filter-count">${filteredRecords.length} / ${practiceRecords.length}件を表示</strong>
+    </section>
     <section class="records-list">
-      ${practiceRecords.length ? practiceRecords.map((record) => `
+      ${filteredRecords.length ? filteredRecords.map((record) => `
         <article class="record-card card">
-          <div><p>${formatRecordDate(record.recordedAt)}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
+          <div><p>${formatRecordDate(record.recordedAt)}${isAdmin ? `　<span class="record-account">${record.account}</span>` : ""}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
           <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
-          <button class="record-delete" data-action="delete-record" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">この記録を削除</button>
-        </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果から最初の記録を保存してください。</p></div>`}
+          <button class="record-delete" data-action="delete-record" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">この記録を削除</button>
+        </article>`).join("") : `<div class="empty-state card"><strong>${practiceRecords.length ? "条件に一致する記録がありません" : "まだ記録がありません"}</strong><p>${practiceRecords.length ? "検索条件を変更してください。" : "採点結果から最初の記録を保存してください。"}</p></div>`}
     </section>
-  `, { back: "score", title: `${activeAccount}の記録` });
+  `, { back: "score", title: isAdmin ? "全アカウントの記録" : `${activeAccount}の記録` });
+}
+
+function filteredPracticeRecords() {
+  const query = recordFilters.query.trim().toLowerCase();
+  const dateFrom = recordFilters.dateFrom ? new Date(`${recordFilters.dateFrom}T00:00:00`).getTime() : Number.NEGATIVE_INFINITY;
+  const dateTo = recordFilters.dateTo ? new Date(`${recordFilters.dateTo}T23:59:59.999`).getTime() : Number.POSITIVE_INFINITY;
+  const minScore = recordFilters.minScore === "" ? 0 : Math.max(0, Number(recordFilters.minScore));
+  const maxScore = recordFilters.maxScore === "" ? MAX_SCORE : Math.min(MAX_SCORE, Number(recordFilters.maxScore));
+  return practiceRecords.filter((record) => {
+    const recordedAt = new Date(record.recordedAt).getTime();
+    const searchable = `${record.account} ${record.notes} ${formatRecordDate(record.recordedAt)} ${record.total}`.toLowerCase();
+    const accountMatches = activeAccount !== "ADMIN" || recordFilters.account === "ALL" || record.account === recordFilters.account;
+    return accountMatches && recordedAt >= dateFrom && recordedAt <= dateTo && record.total >= minScore && record.total <= maxScore && (!query || searchable.includes(query));
+  }).sort((left, right) => {
+    if (recordFilters.sort === "oldest") return new Date(left.recordedAt).getTime() - new Date(right.recordedAt).getTime();
+    if (recordFilters.sort === "score-desc") return right.total - left.total;
+    if (recordFilters.sort === "score-asc") return left.total - right.total;
+    return new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime();
+  });
+}
+
+function updateRecordFiltersFromInputs() {
+  document.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-record-filter]").forEach((input) => {
+    const key = input.dataset.recordFilter as keyof RecordFilters;
+    if (key) (recordFilters[key] as string) = input.value;
+  });
+}
+
+function resetRecordFilters() {
+  recordFilters = { query: "", dateFrom: "", dateTo: "", minScore: "", maxScore: "", account: "ALL", sort: "newest" };
 }
 
 function resultRow(label: string, score: number, max: number) {
@@ -429,7 +528,17 @@ function modalView() {
 
 function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
-    element.addEventListener("click", () => (location.hash = `#/${element.dataset.nav}`)),
+    element.addEventListener("click", () => {
+      const target = element.dataset.nav!;
+      if ((target === "rules" || target === "links") && !adminModeUnlocked) {
+        adminRevealPressCounts[target] += 1;
+        if (adminRevealPressCounts[target] >= 10) {
+          adminModeUnlocked = true;
+          render();
+        }
+      }
+      location.hash = `#/${target}`;
+    }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
     button.addEventListener("click", () => toggleScore(button)),
@@ -438,7 +547,9 @@ function bindEvents() {
     const key = (event.currentTarget as HTMLSelectElement).value;
     if (!isAccountKey(key) || key === activeAccount) return;
     activeAccount = key;
+    activeApiKey = key;
     localStorage.setItem(ACCOUNT_KEY, key);
+    localStorage.setItem(API_KEY_KEY, key);
     state = loadState();
     practiceRecords = [];
     recordsStatus = "";
@@ -473,7 +584,10 @@ function bindEvents() {
     element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
   );
   document.querySelector<HTMLInputElement>("#account-key-input")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") loginAccount();
+    if (event.key === "Enter") void loginAccount();
+  });
+  document.querySelector<HTMLInputElement>("#admin-password-input")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") void loginAdmin();
   });
 }
 
@@ -502,8 +616,12 @@ function updateTime() {
 }
 
 function handleAction(action: string, element: HTMLElement) {
-  if (action === "login-account") loginAccount();
+  if (action === "login-account") void loginAccount();
+  if (action === "login-admin") void loginAdmin();
+  if (action === "logout-admin") logoutAdmin();
   if (action === "load-records") void loadRecords();
+  if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); render(); }
+  if (action === "reset-record-filters") { resetRecordFilters(); render(); }
   if (action === "delete-record") void deleteRecord(element);
   if (action === "timer-start") startStopwatch(true);
   if (action === "timer-lap") addStopwatchLap();
@@ -623,8 +741,11 @@ function stopStopwatchUpdates() {
 
 async function sendToSheet() {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || !activeAccount) {
+  if (!endpoint || !activeAccount || !activeApiKey) {
     sheetStatus = "記録先がまだ設定されていません。"; render(); return;
+  }
+  if (activeAccount === "ADMIN") {
+    sheetStatus = "管理アカウントから採点結果は保存できません。"; render(); return;
   }
   sheetStatus = "送信中…"; render();
   try {
@@ -648,7 +769,7 @@ async function sendToSheet() {
 function resultPayload() {
   const scores = sectionScores(state);
   return {
-    apiKey: activeAccount,
+    apiKey: activeApiKey,
     recordedAt: new Date().toISOString(),
     timeSeconds: state.timeSeconds,
     notes: state.notes,
@@ -658,28 +779,89 @@ function resultPayload() {
   };
 }
 
-function loginAccount() {
+async function loginAccount() {
   const input = document.querySelector<HTMLInputElement>("#account-key-input");
-  const key = input?.value.trim().toUpperCase() ?? "";
-  if (!isAccountKey(key)) {
-    accountError = "APIキーが違います。A・B・Cのいずれかを入力してください。";
+  const key = input?.value.trim() ?? "";
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!key || !endpoint) {
+    accountError = !key ? "APIキーを入力してください。" : "記録先がまだ設定されていません。";
     render();
     return;
   }
-  activeAccount = key;
-  localStorage.setItem(ACCOUNT_KEY, key);
-  accountError = "";
+  accountError = "確認中…";
+  render();
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("key", key);
+    const response = await fetch(url);
+    const result = await response.json() as { ok?: boolean; account?: string; records?: PracticeRecord[]; message?: string };
+    const verifiedAccount = result.account ?? null;
+    if (!response.ok || !result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
+    if (verifiedAccount === "ADMIN") throw new Error("管理者パスワードは管理画面から入力してください。");
+    activeAccount = verifiedAccount;
+    activeApiKey = key;
+    localStorage.setItem(ACCOUNT_KEY, activeAccount);
+    localStorage.setItem(API_KEY_KEY, key);
+    accountError = "";
+    practiceRecords = result.records ?? [];
+    recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
+    resetStopwatch();
+    state = loadState();
+    location.hash = "#/score";
+    render();
+  } catch (error) {
+    accountError = error instanceof Error ? error.message : "APIキーを確認できませんでした。";
+    render();
+  }
+}
+
+async function loginAdmin() {
+  const input = document.querySelector<HTMLInputElement>("#admin-password-input");
+  const password = input?.value ?? "";
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!password || !endpoint) {
+    adminError = !password ? "管理者パスワードを入力してください。" : "記録先がまだ設定されていません。";
+    render();
+    return;
+  }
+  adminError = "確認中…";
+  render();
+  try {
+    const url = new URL(endpoint);
+    url.searchParams.set("key", password);
+    const response = await fetch(url);
+    const result = await response.json() as { ok?: boolean; account?: string; records?: PracticeRecord[]; message?: string };
+    if (!response.ok || !result.ok || result.account !== "ADMIN") throw new Error(result.message || "管理者パスワードが違います。");
+    activeAccount = "ADMIN";
+    activeApiKey = password;
+    adminError = "";
+    practiceRecords = result.records ?? [];
+    resetRecordFilters();
+    recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
+    resetStopwatch();
+    location.hash = "#/admin";
+    render();
+  } catch (error) {
+    adminError = error instanceof Error ? error.message : "管理者パスワードを確認できませんでした。";
+    render();
+  }
+}
+
+function logoutAdmin() {
+  activeAccount = loadAccount();
+  activeApiKey = localStorage.getItem(API_KEY_KEY) || activeAccount;
   practiceRecords = [];
   recordsStatus = "";
-  resetStopwatch();
+  adminError = "";
+  resetRecordFilters();
   state = loadState();
-  location.hash = "#/score";
+  location.hash = activeAccount ? "#/score" : "#/account";
   render();
 }
 
 async function loadRecords() {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || !activeAccount) {
+  if (!endpoint || !activeAccount || !activeApiKey) {
     recordsStatus = "記録先がまだ設定されていません。";
     render();
     return;
@@ -688,7 +870,7 @@ async function loadRecords() {
   render();
   try {
     const url = new URL(endpoint);
-    url.searchParams.set("key", activeAccount);
+    url.searchParams.set("key", activeApiKey);
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json() as { ok?: boolean; records?: PracticeRecord[]; message?: string };
@@ -705,7 +887,8 @@ async function deleteRecord(element: HTMLElement) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   const rowNumber = Number(element.dataset.recordRow);
   const recordedAt = element.dataset.recordedAt ?? "";
-  if (!endpoint || !activeAccount || !Number.isInteger(rowNumber) || rowNumber < 2) return;
+  const recordAccount = element.dataset.recordAccount ?? activeAccount ?? "";
+  if (!endpoint || !activeAccount || !activeApiKey || !Number.isInteger(rowNumber) || rowNumber < 2) return;
   if (!confirm(`${formatRecordDate(recordedAt)}の記録を削除しますか？\nスプレッドシートでは「削除」にチェックが入り、赤い行で保管されます。`)) return;
   recordsStatus = "削除中…";
   render();
@@ -713,7 +896,7 @@ async function deleteRecord(element: HTMLElement) {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "delete", apiKey: activeAccount, rowNumber, recordedAt }),
+      body: JSON.stringify({ action: "delete", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const result = await response.json() as { ok?: boolean; message?: string };
@@ -759,7 +942,9 @@ function loadAccount(): AccountKey | null {
   return isAccountKey(key) ? key : null;
 }
 
-function isAccountKey(value: string | null): value is AccountKey { return value === "A" || value === "B" || value === "C"; }
+function loadApiKey() { return localStorage.getItem(API_KEY_KEY) || loadAccount(); }
+function isAccountKey(value: string | null): value is AccountKey { return value === "A" || value === "B" || value === "C" || value === "ADMIN"; }
+function accountLabel(value: AccountKey) { return value === "ADMIN" ? "管理" : value; }
 function scoreStorageKey() { return `${STORAGE_KEY}-${activeAccount ?? "none"}`; }
 function formatTime(seconds: number | null) {
   if (seconds === null) return "未入力";

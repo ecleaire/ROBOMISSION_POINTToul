@@ -22,6 +22,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .mode-nav button { min-width: 0; min-height: 43px; padding: 7px 13px; border: 1px solid #c8ddeb; border-radius: 10px; background: #f7fbfe; color: #46657e; font-size: .84rem; font-weight: 900; white-space: nowrap; }
 .mode-nav button:hover { border-color: #65addd; color: var(--blue); }
 .mode-nav button.active { border-color: #1488d1; color: white; background: var(--blue); box-shadow: 0 5px 14px rgba(18,97,166,.2); }
+.mode-nav button[data-nav="admin"] { border-color: #8f6bc0; background: #f4edff; color: #5a348b; }
+.mode-nav button[data-nav="admin"].active { border-color: #6f42a5; background: #6f42a5; color: white; }
+.admin-badge { margin-left: auto; padding: 7px 11px; border-radius: 99px; background: #efe5ff; color: #5a348b; font-size: .78rem; font-weight: 900; }
 .eyebrow { color: #4f718d; font-weight: 800; font-size: .72rem; letter-spacing: .11em; text-transform: uppercase; margin: 0 0 2px; }
 .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--blue); color: white; font-weight: 900; }
 .icon-button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: white; color: #183b56; font-size: 1.5rem; box-shadow: var(--shadow); }
@@ -218,12 +221,21 @@ body.stopwatch-mode { overflow: hidden; }
 .sheet-status { padding: 10px; background: var(--pale-blue); border-radius: 10px; color: #183b56 !important; font-weight: 700; }
 .records-intro { position: relative; }
 .records-intro .secondary { margin-top: 8px; }
+.records-intro-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.records-intro-actions .admin-logout { border-color: #b59ad5; color: #5a348b; background: #f7f1ff; }
 .records-status { margin: 0 0 12px; }
+.record-filters { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(5, minmax(120px, 1fr)); gap: 10px; margin: 0 0 14px; padding: 16px; }
+.record-filters label { display: grid; gap: 5px; color: #3f566b; font-size: .76rem; font-weight: 900; }
+.record-filters input, .record-filters select { width: 100%; min-height: 44px; margin: 0; padding: 8px 10px; border: 1px solid #adc4d6; border-radius: 9px; background: white; color: #102a43; font: inherit; font-size: .9rem; }
+.record-filter-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.record-filter-actions button { min-height: 44px; }
+.record-filter-count { grid-column: 1 / -1; color: var(--blue-dark); font-size: .84rem; }
 .records-list { display: grid; gap: 12px; }
 .record-card { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 20px; }
 .record-card p { margin: 0 0 4px; color: #71879a; font-size: .74rem; }
 .record-card h2 { margin: 0 0 5px; font-size: 1.1rem; }
 .record-card span { color: #5f7486; font-size: .82rem; }
+.record-card .record-account { display: inline-block; padding: 2px 7px; border-radius: 99px; background: var(--pale-blue); color: var(--blue); font-size: .72rem; font-weight: 900; }
 .record-card > strong { color: var(--green); font-size: 1.8rem; }
 .record-card > strong small { color: #71879a; font-size: .72rem; }
 .record-card em { grid-column: 1 / -1; width: fit-content; padding: 4px 8px; border-radius: 99px; color: #934f00; background: var(--pale-orange); font-size: .72rem; font-style: normal; font-weight: 800; }
@@ -261,6 +273,9 @@ code { overflow-wrap: anywhere; }
   .mode-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .mode-nav button { min-height: 38px; padding: 5px 2px; border-radius: 7px; font-size: .64rem; }
   main { padding: 12px 14px 60px; }
+  .record-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  .record-search, .record-filter-actions, .record-filter-count { grid-column: 1 / -1; }
+  .record-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sheet-footer-tools { grid-template-columns: 1fr; }
   .time-card { padding: 10px 8px; flex-direction: column; gap: 7px; border-right: 0; border-bottom: 1px solid #cbd8e3; }
   .time-card > div:first-child { text-align: center; }
