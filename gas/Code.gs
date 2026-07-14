@@ -22,32 +22,19 @@ function doGet(event) {
   const key = normalizeKey_(suppliedKey);
   if (!key) return json_({ ok: false, message: "APIキーが無効です。" });
   try {
-    if (key === "ADMIN") {
-      const records = Object.keys(ACCOUNT_SHEETS).reduce(function(allRecords, account) {
-        const accountSheet = getSheet_(account);
-        ensureHeader_(accountSheet);
-        return allRecords.concat(readRecords_(accountSheet, account));
-      }, []);
-      records.sort(function(left, right) {
-        return new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime();
-      });
-      return json_({ ok: true, account: key, records: records });
-    }
-    const sheet = getSheet_(key);
-    ensureHeader_(sheet);
-    return json_({ ok: true, account: key, records: readRecords_(sheet, key) });
+    return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
   } catch (error) {
     return json_({ ok: false, message: String(error && error.message ? error.message : error) });
   }
 }
 
 function doPost(event) {
-  const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(10000);
     const data = JSON.parse(event.postData.contents);
     const key = normalizeKey_(data.apiKey);
     if (!key) throw new Error("APIキーが無効です。");
+    if (data.action === "auth") return json_({ ok: true, account: key });
+    if (data.action === "records") return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
     if (key === "ADMIN" && data.action !== "delete") {
       throw new Error("管理アカウントから採点結果は保存できません。");
     }
@@ -55,33 +42,59 @@ function doPost(event) {
     if (!Object.prototype.hasOwnProperty.call(ACCOUNT_SHEETS, targetAccount)) {
       throw new Error("対象アカウントが無効です。");
     }
-    const sheet = getSheet_(targetAccount);
-    ensureHeader_(sheet);
-    if (data.action === "delete") {
-      archiveRecord_(sheet, data.rowNumber, data.recordedAt);
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+    try {
+      const sheet = getSheet_(targetAccount);
+      ensureHeader_(sheet);
+      if (data.action === "delete") {
+        archiveRecord_(sheet, data.rowNumber, data.recordedAt);
+        return json_({ ok: true });
+      }
+      const requestId = String(data.requestId || "").slice(0, 100);
+      const cache = CacheService.getScriptCache();
+      const requestCacheKey = requestId ? "score-" + targetAccount + "-" + requestId : "";
+      if (requestCacheKey && cache.get(requestCacheKey)) return json_({ ok: true, duplicate: true });
+      sheet.appendRow([
+        new Date(),
+        numberOrBlank_(data.timeSeconds),
+        number_(data.visitors),
+        number_(data.redTowers),
+        number_(data.yellowTowers),
+        number_(data.artifacts),
+        number_(data.dirt),
+        number_(data.bonus),
+        number_(data.total),
+        number_(data.unjudged),
+        safe_(data.notes),
+        "",
+        ""
+      ]);
+      ensureDeleteControls_(sheet);
+      if (requestCacheKey) cache.put(requestCacheKey, "1", 21600);
       return json_({ ok: true });
+    } finally {
+      lock.releaseLock();
     }
-    sheet.appendRow([
-      new Date(),
-      numberOrBlank_(data.timeSeconds),
-      number_(data.visitors),
-      number_(data.redTowers),
-      number_(data.yellowTowers),
-      number_(data.artifacts),
-      number_(data.dirt),
-      number_(data.bonus),
-      number_(data.total),
-      number_(data.unjudged),
-      safe_(data.notes),
-      "",
-      ""
-    ]);
-    return json_({ ok: true });
   } catch (error) {
     return json_({ ok: false, message: String(error && error.message ? error.message : error) });
-  } finally {
-    lock.releaseLock();
   }
+}
+
+function getRecordsForAccount_(key) {
+  if (key === "ADMIN") {
+    const records = Object.keys(ACCOUNT_SHEETS).reduce(function(allRecords, account) {
+      const accountSheet = getSheet_(account);
+      ensureHeader_(accountSheet);
+      return allRecords.concat(readRecords_(accountSheet, account));
+    }, []);
+    return records.sort(function(left, right) {
+      return new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime();
+    });
+  }
+  const sheet = getSheet_(key);
+  ensureHeader_(sheet);
+  return readRecords_(sheet, key);
 }
 
 function getSheet_(key) {
@@ -110,11 +123,13 @@ function ensureHeader_(sheet) {
   }
   if (sheet.getMaxColumns() < headers[0].length) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), headers[0].length - sheet.getMaxColumns());
-  } else if (sheet.getMaxColumns() > headers[0].length) {
-    sheet.deleteColumns(headers[0].length + 1, sheet.getMaxColumns() - headers[0].length);
   }
-  sheet.getRange(1, 1, 1, headers[0].length).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
-  sheet.setFrozenRows(1);
+  const headerRange = sheet.getRange(1, 1, 1, headers[0].length);
+  const currentHeader = sheet.getLastRow() ? headerRange.getValues()[0] : [];
+  if (headers[0].some(function(value, index) { return currentHeader[index] !== value; })) {
+    headerRange.setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
+  }
+  if (sheet.getFrozenRows() !== 1) sheet.setFrozenRows(1);
   ensureDeleteControls_(sheet);
 }
 
@@ -140,7 +155,7 @@ function readRecords_(sheet, account) {
     };
   }).filter(function(record, index) {
     return rows[index][11] !== true && String(rows[index][11] || "") !== "削除済み";
-  }).reverse().slice(0, 100);
+  }).reverse();
 }
 
 function archiveRecord_(sheet, rowNumberValue, recordedAt) {
@@ -160,21 +175,27 @@ function archiveRecord_(sheet, rowNumberValue, recordedAt) {
 }
 
 function ensureDeleteControls_(sheet) {
-  const rowCount = Math.max(sheet.getMaxRows() - 1, 1);
-  const checkboxRule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-  sheet.getRange(2, 12, rowCount, 1).setDataValidation(checkboxRule);
+  const rowCount = Math.max(sheet.getLastRow() - 1, 1);
+  const validationRange = sheet.getRange(2, 12, rowCount, 1);
+  if (!sheet.getRange(Math.max(sheet.getLastRow(), 2), 12).getDataValidation()) {
+    const checkboxRule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+    validationRange.setDataValidation(checkboxRule);
+  }
   const formula = "=$L2=TRUE";
-  const rules = sheet.getConditionalFormatRules().filter(function(rule) {
+  const rules = sheet.getConditionalFormatRules();
+  const hasDeleteRule = rules.some(function(rule) {
     const condition = rule.getBooleanCondition();
-    return !condition || String(condition.getCriteriaValues()[0] || "") !== formula;
+    return condition && String(condition.getCriteriaValues()[0] || "") === formula;
   });
-  rules.push(SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(formula)
-    .setBackground("#f4cccc")
-    .setFontColor("#990000")
-    .setRanges([sheet.getRange(2, 1, rowCount, 13)])
-    .build());
-  sheet.setConditionalFormatRules(rules);
+  if (!hasDeleteRule) {
+    rules.push(SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied(formula)
+      .setBackground("#f4cccc")
+      .setFontColor("#990000")
+      .setRanges([sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 13)])
+      .build());
+    sheet.setConditionalFormatRules(rules);
+  }
 }
 
 function normalizeKey_(value) {

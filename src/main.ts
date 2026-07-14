@@ -7,6 +7,7 @@ import {
   duplicateArtifactColors,
   isComplete,
   makeInitialState,
+  sanitizeScoreState,
   sectionScores,
   totalScore,
   unjudgedCount,
@@ -60,6 +61,11 @@ let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
+const RECORD_PAGE_SIZE = 50;
+let recordVisibleCount = RECORD_PAGE_SIZE;
+let recordsAbortController: AbortController | null = null;
+let sheetSending = false;
+let pendingRequestId = createRequestId();
 let recordFilters: RecordFilters = {
   query: "",
   dateFrom: "",
@@ -103,7 +109,7 @@ window.addEventListener("keydown", (event) => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () =>
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }),
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => undefined),
   );
 }
 
@@ -350,7 +356,7 @@ function resultView() {
     ${activeAccount === "ADMIN" ? `<section class="sheet-panel card"><h2>管理アカウント</h2><p>管理アカウントでは記録の閲覧・検索・削除ができます。採点結果の保存はA・B・Cへ切り替えてください。</p></section>` : `<section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
       <p>アカウント<strong>${activeAccount}</strong>のシートへ、この結果を1行追加します。</p>
-      <button class="primary" data-action="send-sheet">${activeAccount}の記録として保存</button>
+      <button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : `${activeAccount}の記録として保存`}</button>
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
     </section>`}
     <button class="text-button new-score" data-action="new">＋ 新しい採点を始める</button>
@@ -359,6 +365,7 @@ function resultView() {
 
 function recordsView() {
   const filteredRecords = filteredPracticeRecords();
+  const visibleRecords = filteredRecords.slice(0, recordVisibleCount);
   const isAdmin = activeAccount === "ADMIN";
   return shell(`
     <section class="page-intro records-intro">
@@ -389,16 +396,17 @@ function recordsView() {
         <button class="primary" data-action="apply-record-filters">検索・絞り込み</button>
         <button class="secondary" data-action="reset-record-filters">条件をクリア</button>
       </div>
-      <strong class="record-filter-count">${filteredRecords.length} / ${practiceRecords.length}件を表示</strong>
+      <strong class="record-filter-count">${visibleRecords.length} / ${filteredRecords.length}件を表示（全${practiceRecords.length}件）</strong>
     </section>
     <section class="records-list">
-      ${filteredRecords.length ? filteredRecords.map((record) => `
+      ${filteredRecords.length ? visibleRecords.map((record) => `
         <article class="record-card card">
           <div><p>${formatRecordDate(record.recordedAt)}${isAdmin ? `　<span class="record-account">${record.account}</span>` : ""}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
           <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
           <button class="record-delete" data-action="delete-record" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">この記録を削除</button>
         </article>`).join("") : `<div class="empty-state card"><strong>${practiceRecords.length ? "条件に一致する記録がありません" : "まだ記録がありません"}</strong><p>${practiceRecords.length ? "検索条件を変更してください。" : "採点結果から最初の記録を保存してください。"}</p></div>`}
+      ${visibleRecords.length < filteredRecords.length ? `<button class="secondary records-more" data-action="show-more-records">さらに${Math.min(RECORD_PAGE_SIZE, filteredRecords.length - visibleRecords.length)}件表示</button>` : ""}
     </section>
   `, { back: "score", title: isAdmin ? "全アカウントの記録" : `${activeAccount}の記録` });
 }
@@ -620,8 +628,9 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "login-admin") void loginAdmin();
   if (action === "logout-admin") logoutAdmin();
   if (action === "load-records") void loadRecords();
-  if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); render(); }
-  if (action === "reset-record-filters") { resetRecordFilters(); render(); }
+  if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
+  if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
+  if (action === "show-more-records") { recordVisibleCount += RECORD_PAGE_SIZE; render(); }
   if (action === "delete-record") void deleteRecord(element);
   if (action === "timer-start") startStopwatch(true);
   if (action === "timer-lap") addStopwatchLap();
@@ -740,6 +749,7 @@ function stopStopwatchUpdates() {
 }
 
 async function sendToSheet() {
+  if (sheetSending) return;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !activeAccount || !activeApiKey) {
     sheetStatus = "記録先がまだ設定されていません。"; render(); return;
@@ -747,11 +757,10 @@ async function sendToSheet() {
   if (activeAccount === "ADMIN") {
     sheetStatus = "管理アカウントから採点結果は保存できません。"; render(); return;
   }
+  sheetSending = true;
   sheetStatus = "送信中…"; render();
   try {
-    const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(resultPayload()) });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json() as { ok?: boolean; message?: string };
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, resultPayload());
     if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
     resetStopwatch();
     state = makeInitialState();
@@ -761,7 +770,9 @@ async function sendToSheet() {
     render();
     return;
   } catch (error) {
-    sheetStatus = `送信できませんでした。GASの公開設定を確認してください（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    sheetStatus = `送信できませんでした。${communicationError(error)}`;
+  } finally {
+    sheetSending = false;
   }
   render();
 }
@@ -770,6 +781,7 @@ function resultPayload() {
   const scores = sectionScores(state);
   return {
     apiKey: activeApiKey,
+    requestId: pendingRequestId,
     recordedAt: new Date().toISOString(),
     timeSeconds: state.timeSeconds,
     notes: state.notes,
@@ -791,20 +803,17 @@ async function loginAccount() {
   accountError = "確認中…";
   render();
   try {
-    const url = new URL(endpoint);
-    url.searchParams.set("key", key);
-    const response = await fetch(url);
-    const result = await response.json() as { ok?: boolean; account?: string; records?: PracticeRecord[]; message?: string };
+    const result = await postJson<{ ok?: boolean; account?: string; message?: string }>(endpoint, { action: "auth", apiKey: key });
     const verifiedAccount = result.account ?? null;
-    if (!response.ok || !result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
+    if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
     if (verifiedAccount === "ADMIN") throw new Error("管理者パスワードは管理画面から入力してください。");
     activeAccount = verifiedAccount;
     activeApiKey = key;
     localStorage.setItem(ACCOUNT_KEY, activeAccount);
     localStorage.setItem(API_KEY_KEY, key);
     accountError = "";
-    practiceRecords = result.records ?? [];
-    recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
+    practiceRecords = [];
+    recordsStatus = "";
     resetStopwatch();
     state = loadState();
     location.hash = "#/score";
@@ -827,20 +836,18 @@ async function loginAdmin() {
   adminError = "確認中…";
   render();
   try {
-    const url = new URL(endpoint);
-    url.searchParams.set("key", password);
-    const response = await fetch(url);
-    const result = await response.json() as { ok?: boolean; account?: string; records?: PracticeRecord[]; message?: string };
-    if (!response.ok || !result.ok || result.account !== "ADMIN") throw new Error(result.message || "管理者パスワードが違います。");
+    const result = await postJson<{ ok?: boolean; account?: string; message?: string }>(endpoint, { action: "auth", apiKey: password });
+    if (!result.ok || result.account !== "ADMIN") throw new Error(result.message || "管理者パスワードが違います。");
     activeAccount = "ADMIN";
     activeApiKey = password;
     adminError = "";
-    practiceRecords = result.records ?? [];
+    practiceRecords = [];
     resetRecordFilters();
-    recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
+    recordsStatus = "";
     resetStopwatch();
     location.hash = "#/admin";
     render();
+    void loadRecords();
   } catch (error) {
     adminError = error instanceof Error ? error.message : "管理者パスワードを確認できませんでした。";
     render();
@@ -868,17 +875,20 @@ async function loadRecords() {
   }
   recordsStatus = "読み込み中…";
   render();
+  recordsAbortController?.abort();
+  const controller = new AbortController();
+  recordsAbortController = controller;
   try {
-    const url = new URL(endpoint);
-    url.searchParams.set("key", activeApiKey);
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json() as { ok?: boolean; records?: PracticeRecord[]; message?: string };
+    const result = await postJson<{ ok?: boolean; records?: PracticeRecord[]; message?: string }>(endpoint, { action: "records", apiKey: activeApiKey }, controller);
     if (!result.ok) throw new Error(result.message || "記録を取得できませんでした");
     practiceRecords = result.records ?? [];
+    recordVisibleCount = RECORD_PAGE_SIZE;
     recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
   } catch (error) {
-    recordsStatus = `記録を読み込めませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    if (controller.signal.aborted && recordsAbortController !== controller) return;
+    recordsStatus = `記録を読み込めませんでした。${communicationError(error)}`;
+  } finally {
+    if (recordsAbortController === controller) recordsAbortController = null;
   }
   render();
 }
@@ -893,13 +903,7 @@ async function deleteRecord(element: HTMLElement) {
   recordsStatus = "削除中…";
   render();
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "delete", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt }),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const result = await response.json() as { ok?: boolean; message?: string };
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, { action: "delete", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt });
     if (!result.ok) throw new Error(result.message || "記録を削除できませんでした");
     await loadRecords();
   } catch (error) {
@@ -911,30 +915,40 @@ async function deleteRecord(element: HTMLElement) {
 function saveState() {
   if (!activeAccount) return;
   state.updatedAt = new Date().toISOString();
+  pendingRequestId = createRequestId();
   localStorage.setItem(scoreStorageKey(), JSON.stringify(state));
 }
 
 function loadState(): ScoreState {
   try {
-    const saved = JSON.parse(activeAccount ? localStorage.getItem(scoreStorageKey()) || "null" : "null") as Partial<ScoreState> | null;
-    const initial = makeInitialState();
-    if (!saved) return initial;
-    const scoreOrZero = (score: number | null | undefined) => typeof score === "number" ? score : 0;
-    return {
-      ...initial,
-      ...saved,
-      visitors: (saved.visitors ?? initial.visitors).map(scoreOrZero),
-      redTowers: (saved.redTowers ?? initial.redTowers).map(scoreOrZero),
-      yellowTowers: (saved.yellowTowers ?? initial.yellowTowers).map(scoreOrZero),
-      artifacts: (saved.artifacts ?? initial.artifacts).map((item, index) => ({
-        ...initial.artifacts[index],
-        ...item,
-        score: scoreOrZero(item?.score),
-      })),
-      dirt: (saved.dirt ?? initial.dirt).map(scoreOrZero),
-      bonus: (saved.bonus ?? initial.bonus).map(scoreOrZero),
-    };
+    return sanitizeScoreState(JSON.parse(activeAccount ? localStorage.getItem(scoreStorageKey()) || "null" : "null"));
   } catch { return makeInitialState(); }
+}
+
+async function postJson<T>(endpoint: string, payload: unknown, controller = new AbortController()): Promise<T> {
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json() as T;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function communicationError(error: unknown) {
+  return error instanceof DOMException && error.name === "AbortError"
+    ? "通信がタイムアウトしました。通信状態を確認して、もう一度お試しください。"
+    : `通信状態またはGASの公開設定を確認してください（${error instanceof Error ? error.message : "通信エラー"}）。`;
+}
+
+function createRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function loadAccount(): AccountKey | null {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isComplete, makeInitialState, totalScore, unjudgedCount } from "./model";
+import { isComplete, makeInitialState, sanitizeScoreState, totalScore, unjudgedCount } from "./model";
 
 describe("score calculation", () => {
   it("calculates the official maximum as 230", () => {
@@ -40,6 +40,27 @@ describe("score calculation", () => {
     expect(isComplete(state)).toBe(false);
     state.artifacts[0].color = "blue";
     expect(isComplete(state)).toBe(true);
+  });
+
+  it("repairs corrupted local data without allowing an invalid score", () => {
+    const state = sanitizeScoreState({
+      timeSeconds: -20,
+      notes: 123,
+      visitors: [999, 10],
+      redTowers: [15, "10"],
+      yellowTowers: null,
+      artifacts: [{ color: "purple", score: 99 }, { color: "blue", score: 15 }],
+      dirt: [2, 4],
+      bonus: [10, 20],
+    });
+    expect(state.timeSeconds).toBeNull();
+    expect(state.visitors).toEqual([0, 10, 0, 0]);
+    expect(state.redTowers).toEqual([15, 0]);
+    expect(state.artifacts[0]).toEqual({ color: "unused", score: 0 });
+    expect(state.artifacts[1]).toEqual({ color: "blue", score: 15 });
+    expect(state.dirt).toEqual([2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(state.bonus).toEqual([10, 0, 0]);
+    expect(totalScore(state)).toBeLessThanOrEqual(230);
   });
 });
 
