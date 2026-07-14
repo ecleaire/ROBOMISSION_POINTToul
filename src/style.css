@@ -35,6 +35,8 @@ main { max-width: 900px; margin: auto; padding: 18px 20px 60px; }
 .account-login > p:not(.eyebrow, .warning) { color: #5f7486; line-height: 1.7; }
 .account-login label { display: block; margin: 24px 0 12px; text-align: left; }
 .account-login input { text-align: center; font-size: 1.5rem; font-weight: 900; letter-spacing: .08em; }
+.account-login .remember-account, .account-switch-modal .remember-account { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: #3f566b; font-size: .9rem; font-weight: 800; text-align: left; cursor: pointer; }
+.account-login .remember-account input, .account-switch-modal .remember-account input { flex: 0 0 auto; width: 24px; height: 24px; min-height: 24px; margin: 0; padding: 0; accent-color: var(--blue); }
 .account-login .primary { width: 100%; margin-top: 8px; }
 .account-icon { width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 20px; background: var(--pale-blue); color: var(--blue); font-weight: 900; }
 button.primary, button.secondary, .quick-action { min-height: 48px; border-radius: 14px; padding: 12px 18px; font-weight: 800; border: 1px solid transparent; }

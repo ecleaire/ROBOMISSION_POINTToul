@@ -187,8 +187,9 @@ function accountView() {
       <div class="account-icon">鍵</div>
       <p class="eyebrow">アカウントを選択</p>
       <h1>APIキーを入力</h1>
-      <p>先生から伝えられたAPIキーを入力してください。採点と記録はキーごとに分かれます。</p>
+      <p>APIキーを入力してください。採点と記録はアカウントごとに分かれます。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
+      <label class="remember-account"><input id="remember-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
       <button class="primary" data-action="login-account">このキーで始める</button>
     </section>
@@ -200,6 +201,7 @@ function accountSwitchModal() {
     <section class="account-switch-modal card" role="dialog" aria-modal="true" aria-label="アカウントを切り替える">
       <header><div><strong>アカウントを切り替える</strong><small>チーム名はAPIキー確認後に表示されます</small></div><button class="icon-button" data-action="close-account-switch" aria-label="閉じる">×</button></header>
       <label>APIキー<input id="switch-account-key-input" type="password" maxlength="128" autocomplete="off" placeholder="切り替えるアカウントのAPIキー" /></label>
+      <label class="remember-account"><input id="remember-switch-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
       <button class="primary" data-action="switch-account">このアカウントへ切り替える</button>
     </section>
@@ -836,6 +838,7 @@ function resultPayload() {
 
 async function loginAccount(fromSwitch = false) {
   const input = document.querySelector<HTMLInputElement>(fromSwitch ? "#switch-account-key-input" : "#account-key-input");
+  const remember = document.querySelector<HTMLInputElement>(fromSwitch ? "#remember-switch-account-input" : "#remember-account-input")?.checked ?? false;
   const key = input?.value.trim() ?? "";
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!key || !endpoint) {
@@ -849,12 +852,37 @@ async function loginAccount(fromSwitch = false) {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key });
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
-    if (verifiedAccount === "ADMIN") throw new Error("管理者パスワードは管理画面から入力してください。");
+    if (verifiedAccount === "ADMIN") {
+      localStorage.removeItem(ACCOUNT_KEY);
+      localStorage.removeItem(API_KEY_KEY);
+      activeAccount = "ADMIN";
+      activeApiKey = key;
+      activeAccountName = "";
+      adminModeUnlocked = true;
+      adminError = "";
+      accountError = "";
+      accountSwitchOpen = false;
+      managedAccounts = [];
+      practiceRecords = [];
+      recordsStatus = "";
+      resetRecordFilters();
+      resetStopwatch();
+      location.hash = "#/admin";
+      render();
+      void loadRecords();
+      void loadManagedAccounts();
+      return;
+    }
     activeAccount = verifiedAccount;
     activeApiKey = key;
     activeAccountName = typeof result.accountName === "string" ? result.accountName.slice(0, 50) : "";
-    localStorage.setItem(ACCOUNT_KEY, activeAccount);
-    localStorage.setItem(API_KEY_KEY, key);
+    if (remember) {
+      localStorage.setItem(ACCOUNT_KEY, activeAccount);
+      localStorage.setItem(API_KEY_KEY, key);
+    } else {
+      localStorage.removeItem(ACCOUNT_KEY);
+      localStorage.removeItem(API_KEY_KEY);
+    }
     accountError = "";
     accountSwitchOpen = false;
     practiceRecords = [];
