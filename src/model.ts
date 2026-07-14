@@ -53,6 +53,7 @@ export const duplicateArtifactColors = (state: ScoreState) => {
 
 export const isComplete = (state: ScoreState) =>
   duplicateArtifactColors(state).length === 0 &&
-  state.artifacts.every((item) => item.color !== "unused");
+  state.artifacts.every((item) => item.score === 0 || item.color !== "unused");
 
 const sum = (values: Score[]) => values.reduce<number>((total, value) => total + value, 0);
+
