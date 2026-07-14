@@ -17,7 +17,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-brand strong { display: block; font-size: 1.25rem; letter-spacing: -.02em; }
 .current-mode { padding-left: 14px; border-left: 1px solid #c8ddeb; color: #60798e; font-size: .8rem; font-weight: 800; white-space: nowrap; }
 .account-switch { min-height: 34px; margin-left: auto; padding: 3px 5px 3px 9px; display: flex; align-items: center; gap: 5px; border: 1px solid #b7d5e9; border-radius: 8px; background: var(--pale-blue); color: var(--blue); font-size: .72rem; font-weight: 800; white-space: nowrap; }
-.account-switch select { width: 38px; min-height: 27px; margin: 0; padding: 2px 3px; border-radius: 5px; font-size: .75rem; font-weight: 900; }
+.account-switch span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.account-switch button { min-height: 30px; padding: 3px 9px; border: 1px solid #84b9db; border-radius: 6px; background: white; color: var(--blue); font-size: .72rem; font-weight: 900; }
 .mode-nav { display: grid; grid-template-columns: repeat(6, minmax(62px, auto)); gap: 7px; }
 .mode-nav button { min-width: 0; min-height: 43px; padding: 7px 13px; border: 1px solid #c8ddeb; border-radius: 10px; background: #f7fbfe; color: #46657e; font-size: .84rem; font-weight: 900; white-space: nowrap; }
 .mode-nav button:hover { border-color: #65addd; color: var(--blue); }
@@ -33,7 +34,7 @@ main { max-width: 900px; margin: auto; padding: 18px 20px 60px; }
 .account-login h1 { margin: 8px 0; font-size: 2rem; }
 .account-login > p:not(.eyebrow, .warning) { color: #5f7486; line-height: 1.7; }
 .account-login label { display: block; margin: 24px 0 12px; text-align: left; }
-.account-login input { text-align: center; text-transform: uppercase; font-size: 1.5rem; font-weight: 900; letter-spacing: .2em; }
+.account-login input { text-align: center; font-size: 1.5rem; font-weight: 900; letter-spacing: .08em; }
 .account-login .primary { width: 100%; margin-top: 8px; }
 .account-icon { width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 20px; background: var(--pale-blue); color: var(--blue); font-weight: 900; }
 button.primary, button.secondary, .quick-action { min-height: 48px; border-radius: 14px; padding: 12px 18px; font-weight: 800; border: 1px solid transparent; }
@@ -224,6 +225,27 @@ body.stopwatch-mode { overflow: hidden; }
 .records-intro-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .records-intro-actions .admin-logout { border-color: #b59ad5; color: #5a348b; background: #f7f1ff; }
 .records-status { margin: 0 0 12px; }
+.account-management { margin: 0 0 14px; padding: 18px; }
+.account-management-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-management h2, .account-management h3 { margin: 2px 0 8px; }
+.account-management > p:not(.eyebrow, .sheet-status) { color: #526b7e; line-height: 1.6; }
+.managed-account-list { display: grid; gap: 10px; margin: 14px 0; }
+.managed-account { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1.4fr) minmax(200px, 1.4fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #c9ddea; border-radius: 10px; background: #f8fbfd; }
+.managed-account > div { align-self: center; display: grid; gap: 3px; }
+.managed-account small { color: #6e8293; }
+.managed-account label, .new-managed-account label { display: grid; gap: 4px; color: #3f566b; font-size: .76rem; font-weight: 900; }
+.managed-account input, .new-managed-account input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #adc4d6; border-radius: 8px; background: white; color: #102a43; font: inherit; }
+.managed-account button { min-height: 44px; }
+.new-managed-account { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr) auto; align-items: end; gap: 10px; padding-top: 14px; border-top: 2px solid #dceaf3; }
+.new-managed-account h3 { grid-column: 1 / -1; }
+.new-managed-account button { min-height: 44px; }
+.account-switch-modal { width: min(520px, 100%); padding: 20px; }
+.account-switch-modal header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 18px; }
+.account-switch-modal header div { display: grid; gap: 3px; }
+.account-switch-modal header small { color: #657b8d; }
+.account-switch-modal label { display: grid; gap: 5px; font-weight: 900; }
+.account-switch-modal input { min-height: 52px; padding: 10px; border: 1px solid #adc4d6; border-radius: 9px; font-size: 1.15rem; }
+.account-switch-modal > .primary { width: 100%; margin-top: 12px; }
 .record-filters { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(5, minmax(120px, 1fr)); gap: 10px; margin: 0 0 14px; padding: 16px; }
 .record-filters label { display: grid; gap: 5px; color: #3f566b; font-size: .76rem; font-weight: 900; }
 .record-filters input, .record-filters select { width: 100%; min-height: 44px; margin: 0; padding: 8px 10px; border: 1px solid #adc4d6; border-radius: 9px; background: white; color: #102a43; font: inherit; font-size: .9rem; }
@@ -274,6 +296,9 @@ code { overflow-wrap: anywhere; }
   .mode-nav button { min-height: 38px; padding: 5px 2px; border-radius: 7px; font-size: .64rem; }
   main { padding: 12px 14px 60px; }
   .record-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
+  .managed-account, .new-managed-account { grid-template-columns: 1fr; }
+  .new-managed-account h3 { grid-column: 1; }
+  .account-management { padding: 12px; }
   .record-search, .record-filter-actions, .record-filter-count { grid-column: 1 / -1; }
   .record-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .sheet-footer-tools { grid-template-columns: 1fr; }

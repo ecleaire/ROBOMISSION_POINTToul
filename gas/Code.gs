@@ -13,19 +13,15 @@ const API_KEY_PROPERTIES = Object.freeze({
   B: "API_KEY_B",
   C: "API_KEY_C"
 });
+const ACCOUNT_NAME_PROPERTIES = Object.freeze({
+  A: "ACCOUNT_NAME_A",
+  B: "ACCOUNT_NAME_B",
+  C: "ACCOUNT_NAME_C"
+});
+const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
 
-function doGet(event) {
-  const suppliedKey = event && event.parameter && event.parameter.key;
-  if (!suppliedKey) {
-    return json_({ ok: true, message: "RoboMission Junior score endpoint is ready." });
-  }
-  const key = normalizeKey_(suppliedKey);
-  if (!key) return json_({ ok: false, message: "APIキーが無効です。" });
-  try {
-    return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
-  } catch (error) {
-    return json_({ ok: false, message: String(error && error.message ? error.message : error) });
-  }
+function doGet() {
+  return json_({ ok: true, message: "RoboMission Junior score endpoint is ready. Use POST for authenticated actions." });
 }
 
 function doPost(event) {
@@ -33,13 +29,25 @@ function doPost(event) {
     const data = JSON.parse(event.postData.contents);
     const key = normalizeKey_(data.apiKey);
     if (!key) throw new Error("APIキーが無効です。");
-    if (data.action === "auth") return json_({ ok: true, account: key });
+    if (data.action === "auth") return json_({ ok: true, account: key, accountName: accountName_(key) });
     if (data.action === "records") return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
+    if (key === "ADMIN" && data.action === "accounts") {
+      return json_({ ok: true, accounts: publicAccountList_() });
+    }
+    if (key === "ADMIN" && data.action === "saveAccount") {
+      const accountLock = LockService.getScriptLock();
+      accountLock.waitLock(10000);
+      try {
+        return json_({ ok: true, account: saveAccount_(data), accounts: publicAccountList_() });
+      } finally {
+        accountLock.releaseLock();
+      }
+    }
     if (key === "ADMIN" && data.action !== "delete") {
       throw new Error("管理アカウントから採点結果は保存できません。");
     }
     const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
-    if (!Object.prototype.hasOwnProperty.call(ACCOUNT_SHEETS, targetAccount)) {
+    if (!accountById_(targetAccount)) {
       throw new Error("対象アカウントが無効です。");
     }
     const lock = LockService.getScriptLock();
@@ -83,10 +91,10 @@ function doPost(event) {
 
 function getRecordsForAccount_(key) {
   if (key === "ADMIN") {
-    const records = Object.keys(ACCOUNT_SHEETS).reduce(function(allRecords, account) {
-      const accountSheet = getSheet_(account);
+    const records = accountConfigs_().reduce(function(allRecords, account) {
+      const accountSheet = getSheet_(account.id);
       ensureHeader_(accountSheet);
-      return allRecords.concat(readRecords_(accountSheet, account));
+      return allRecords.concat(readRecords_(accountSheet, account.id, account.name));
     }, []);
     return records.sort(function(left, right) {
       return new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime();
@@ -94,12 +102,12 @@ function getRecordsForAccount_(key) {
   }
   const sheet = getSheet_(key);
   ensureHeader_(sheet);
-  return readRecords_(sheet, key);
+  return readRecords_(sheet, key, accountName_(key));
 }
 
 function getSheet_(key) {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheetName = ACCOUNT_SHEETS[key];
+  const sheetName = ACCOUNT_SHEETS[key] || (accountById_(key) ? "練習記録_" + key.replace(/[^A-Z0-9_]/g, "") : "");
   if (!sheetName) throw new Error("対象シートが設定されていません。");
   return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
 }
@@ -133,13 +141,14 @@ function ensureHeader_(sheet) {
   ensureDeleteControls_(sheet);
 }
 
-function readRecords_(sheet, account) {
+function readRecords_(sheet, account, accountName) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   const rows = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
   return rows.map(function(row, index) {
     return {
       account: account,
+      accountName: accountName,
       rowNumber: index + 2,
       recordedAt: row[0] instanceof Date ? row[0].toISOString() : String(row[0] || ""),
       timeSeconds: row[1] === "" ? null : number_(row[1]),
@@ -199,15 +208,101 @@ function ensureDeleteControls_(sheet) {
   }
 }
 
+function accountConfigs_() {
+  const properties = PropertiesService.getScriptProperties();
+  const legacy = Object.keys(API_KEY_PROPERTIES).map(function(id) {
+    return {
+      id: id,
+      name: String(properties.getProperty(ACCOUNT_NAME_PROPERTIES[id]) || "アカウント " + id).slice(0, 50),
+      apiKey: String(properties.getProperty(API_KEY_PROPERTIES[id]) || "").trim(),
+      legacy: true
+    };
+  }).filter(function(account) { return Boolean(account.apiKey); });
+  let dynamic = [];
+  try {
+    const parsed = JSON.parse(properties.getProperty(DYNAMIC_ACCOUNTS_PROPERTY) || "[]");
+    if (Array.isArray(parsed)) dynamic = parsed;
+  } catch (_error) {
+    dynamic = [];
+  }
+  const usedIds = {};
+  return legacy.concat(dynamic.map(function(account) {
+    return {
+      id: String(account && account.id || "").toUpperCase(),
+      name: String(account && account.name || "").trim().slice(0, 50),
+      apiKey: String(account && account.apiKey || "").trim(),
+      legacy: false
+    };
+  })).filter(function(account) {
+    if (!/^[A-Z0-9_]{1,32}$/.test(account.id) || !account.name || !account.apiKey || usedIds[account.id]) return false;
+    usedIds[account.id] = true;
+    return true;
+  });
+}
+
+function accountById_(id) {
+  const accountId = String(id || "").toUpperCase();
+  return accountConfigs_().filter(function(account) { return account.id === accountId; })[0] || null;
+}
+
+function accountName_(id) {
+  if (id === "ADMIN") return "管理者";
+  const account = accountById_(id);
+  return account ? account.name : "";
+}
+
+function publicAccountList_() {
+  return accountConfigs_().map(function(account) {
+    return { id: account.id, name: account.name, legacy: account.legacy, hasApiKey: Boolean(account.apiKey) };
+  });
+}
+
+function saveAccount_(data) {
+  const name = String(data.name || "").trim().slice(0, 50);
+  const newApiKey = String(data.newApiKey || "").trim();
+  if (!name) throw new Error("チーム名を入力してください。");
+  if (newApiKey && newApiKey.length < 4) throw new Error("APIキーは4文字以上にしてください。");
+  const properties = PropertiesService.getScriptProperties();
+  let requestedId = String(data.accountId || "").toUpperCase();
+  const existing = requestedId ? accountById_(requestedId) : null;
+  if (requestedId && !existing) throw new Error("更新するアカウントが見つかりません。");
+  if (newApiKey) {
+    const duplicate = accountConfigs_().some(function(account) {
+      return account.id !== requestedId && account.apiKey === newApiKey;
+    });
+    if (duplicate || normalizeKey_(newApiKey) === "ADMIN") throw new Error("このAPIキーは既に使用されています。");
+  }
+  if (existing && existing.legacy) {
+    properties.setProperty(ACCOUNT_NAME_PROPERTIES[existing.id], name);
+    if (newApiKey) properties.setProperty(API_KEY_PROPERTIES[existing.id], newApiKey);
+    return { id: existing.id, name: name, legacy: true, hasApiKey: true };
+  }
+  let dynamic = accountConfigs_().filter(function(account) { return !account.legacy; });
+  if (existing) {
+    dynamic = dynamic.map(function(account) {
+      return account.id === existing.id
+        ? { id: account.id, name: name, apiKey: newApiKey || account.apiKey }
+        : { id: account.id, name: account.name, apiKey: account.apiKey };
+    });
+  } else {
+    if (!newApiKey) throw new Error("新しいアカウントのAPIキーを入力してください。");
+    const id = "ACC_" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
+    dynamic.push({ id: id, name: name, apiKey: newApiKey });
+    requestedId = id;
+  }
+  properties.setProperty(DYNAMIC_ACCOUNTS_PROPERTY, JSON.stringify(dynamic));
+  const savedId = existing ? existing.id : requestedId;
+  return { id: savedId, name: name, legacy: false, hasApiKey: true };
+}
+
 function normalizeKey_(value) {
   const apiKey = String(value || "").trim();
   if (!apiKey) return "";
   const properties = PropertiesService.getScriptProperties();
-  const accounts = Object.keys(API_KEY_PROPERTIES);
+  const accounts = accountConfigs_();
   for (let index = 0; index < accounts.length; index += 1) {
     const account = accounts[index];
-    const configuredKey = String(properties.getProperty(API_KEY_PROPERTIES[account]) || "").trim();
-    if (configuredKey && apiKey === configuredKey) return account;
+    if (account.apiKey && apiKey === account.apiKey) return account.id;
   }
   const allProperties = properties.getProperties();
   const masterPropertyNames = Object.keys(allProperties).filter(function(name) {
@@ -215,7 +310,7 @@ function normalizeKey_(value) {
   });
   for (let index = 0; index < masterPropertyNames.length; index += 1) {
     const configuredPassword = String(allProperties[masterPropertyNames[index]] || "");
-    if (configuredPassword && apiKey === configuredPassword) return "ADMIN";
+    if (configuredPassword && apiKey.toLocaleLowerCase() === configuredPassword.toLocaleLowerCase()) return "ADMIN";
   }
   return "";
 }
