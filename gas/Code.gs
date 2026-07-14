@@ -154,7 +154,8 @@ function readRecords_(sheet, account) {
       notes: String(row[10] || "")
     };
   }).filter(function(record, index) {
-    return rows[index][11] !== true && String(rows[index][11] || "") !== "削除済み";
+    return rows[index][0] !== "" && rows[index][0] != null &&
+      rows[index][11] !== true && String(rows[index][11] || "") !== "削除済み";
   }).reverse();
 }
 

@@ -881,7 +881,7 @@ async function loadRecords() {
   try {
     const result = await postJson<{ ok?: boolean; records?: PracticeRecord[]; message?: string }>(endpoint, { action: "records", apiKey: activeApiKey }, controller);
     if (!result.ok) throw new Error(result.message || "記録を取得できませんでした");
-    practiceRecords = result.records ?? [];
+    practiceRecords = sanitizePracticeRecords(result.records);
     recordVisibleCount = RECORD_PAGE_SIZE;
     recordsStatus = practiceRecords.length ? `${practiceRecords.length}件の記録を表示中` : "記録はまだありません。";
   } catch (error) {
@@ -945,6 +945,18 @@ function communicationError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError"
     ? "通信がタイムアウトしました。通信状態を確認して、もう一度お試しください。"
     : `通信状態またはGASの公開設定を確認してください（${error instanceof Error ? error.message : "通信エラー"}）。`;
+}
+
+function sanitizePracticeRecords(value: unknown): PracticeRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((record): record is PracticeRecord => {
+    if (!record || typeof record !== "object") return false;
+    const candidate = record as Partial<PracticeRecord>;
+    return (candidate.account === "A" || candidate.account === "B" || candidate.account === "C") &&
+      Number.isInteger(candidate.rowNumber) && Number(candidate.rowNumber) >= 2 &&
+      typeof candidate.recordedAt === "string" && Number.isFinite(new Date(candidate.recordedAt).getTime()) &&
+      typeof candidate.total === "number" && Number.isFinite(candidate.total) && candidate.total >= 0 && candidate.total <= MAX_SCORE;
+  });
 }
 
 function createRequestId() {
