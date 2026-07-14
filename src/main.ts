@@ -166,10 +166,10 @@ function scoringView() {
       ${visitorNames.map((name, index) => sheetScoreRow("visitors", index, name, state.visitors[index], [[10, "対応色エリア内・直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 10)).join("")}
       ${sheetSubtotal(scores.visitors, 40)}
       ${sheetSection("redTowers", "2. 塔を再建する（赤い塔）")}
-      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${["上", "下"][index]}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15)).join("")}
+      ${state.redTowers.map((score, index) => sheetScoreRow("redTowers", index, `赤い塔 ${["コース上", "コース下"][index]}`, score, [[15, "完全に入り、直立"], [10, "一部だけ入り、直立"], [0, "エリア外・倒れている"]], 15)).join("")}
       ${sheetSubtotal(scores.redTowers, 30)}
       ${sheetSection("yellowTowers", "2. 塔を再建する（黄色い塔）")}
-      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${["上", "下"][index]}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25)).join("")}
+      ${state.yellowTowers.map((score, index) => sheetScoreRow("yellowTowers", index, `黄色い塔 ${["コース上", "コース下"][index]}`, score, [[25, "上部が正しく、土台が完全に入る"], [15, "上部が正しく、土台が一部入る"], [0, "上部が不正・直立していない"]], 25)).join("")}
       ${sheetSubtotal(scores.yellowTowers, 50)}
       ${sheetSection("artifacts", "3. 遺物を博物館に運ぶ")}
       ${state.artifacts.map((artifact, index) => sheetScoreRow("artifacts", index, `遺物 ${index + 1}`, artifact.score, [[15, "対応色に完全に入り、直立"], [5, "一部だけ、または倒れている"], [0, "エリア外・違う色"]], 15, artifactColorSelect(index, artifact.color))).join("")}
