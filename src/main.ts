@@ -60,6 +60,15 @@ const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJ
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
 const API_KEY_KEY = "robomission-junior-api-key";
+const ACCOUNT_STORAGE_MIGRATION_KEY = "robomission-account-storage-version";
+const ACCOUNT_STORAGE_VERSION = "2026-07-15-optional-save-v1";
+
+if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
+  localStorage.removeItem(ACCOUNT_KEY);
+  localStorage.removeItem(API_KEY_KEY);
+  localStorage.setItem(ACCOUNT_STORAGE_MIGRATION_KEY, ACCOUNT_STORAGE_VERSION);
+}
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 let activeAccount = loadAccount();
 let activeApiKey = loadApiKey();
