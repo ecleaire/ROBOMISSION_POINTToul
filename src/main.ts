@@ -115,6 +115,8 @@ if ("serviceWorker" in navigator) {
 
 if (!location.hash) location.hash = "#/score";
 render();
+if (location.hash === "#/records" && activeAccount) void loadRecords();
+if (location.hash === "#/admin" && activeAccount === "ADMIN") void loadRecords();
 
 function render() {
   const route = location.hash.replace(/^#\/?/, "") || "score";
