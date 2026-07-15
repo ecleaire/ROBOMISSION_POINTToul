@@ -8,6 +8,7 @@ type GasContext = {
   saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string }) => { id: string; name: string };
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
   updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string) => void;
+  findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
 };
 
 function loadGas() {
@@ -83,5 +84,15 @@ describe("GAS account management", () => {
     expect(saved).toBe("次はゆっくり走る");
     expect(() => gas.updateRecordMemo_(sheet, 3, "2026-07-15T01:02:04.000Z", "誤った行"))
       .toThrow("記録の位置が変わりました");
+  });
+
+  it("finds an account-scoped free memo by its opaque id", () => {
+    const { gas } = loadGas();
+    const sheet = {
+      getLastRow: () => 4,
+      getRange: () => ({ getValues: () => [["memo-a"], ["memo-b"], ["memo-c"]] }),
+    };
+    expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
+    expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("自由メモが見つかりません");
   });
 });

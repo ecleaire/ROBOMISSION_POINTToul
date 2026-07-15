@@ -38,6 +38,15 @@ interface PracticeRecord {
   hasVideo: boolean;
 }
 
+interface FreeMemo {
+  account: string;
+  accountName: string;
+  memoId: string;
+  createdAt: string;
+  updatedAt: string;
+  content: string;
+}
+
 interface StoredVideo {
   name: string;
   type: string;
@@ -104,6 +113,8 @@ let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
+let freeMemos: FreeMemo[] = [];
+let freeMemoStatus = "";
 const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
@@ -791,9 +802,28 @@ function memoView() {
       <p class="eyebrow">${isAdmin ? "全アカウント" : escapeHtml(activeAccountName || "現在のアカウント")}</p>
       <h1>メモ</h1>
       <p>練習した回ごとに、気づいたことや次に試すことを記録できます。</p>
-      <button class="secondary" data-action="load-records">↻ 一覧を更新</button>
+      <button class="secondary" data-action="load-memo-data">↻ 一覧を更新</button>
     </section>
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
+    <section class="free-memo-section">
+      <div class="section-heading"><div><p class="eyebrow">FREE MEMO</p><h2>自由メモ</h2></div><span>練習回に関係なく保存できます</span></div>
+      <article class="memo-record free-memo-new card" data-free-memo>
+        <label>新しい自由メモ
+          <textarea data-free-memo-content maxlength="1000" placeholder="アイデア、準備物、次回試したいことなど"></textarea>
+        </label>
+        <div class="memo-save-row"><small>1000文字まで</small><button class="primary" data-action="save-free-memo">新しいメモを保存</button></div>
+      </article>
+      ${freeMemoStatus ? `<p class="sheet-status" role="status">${escapeHtml(freeMemoStatus)}</p>` : ""}
+      <div class="memo-list free-memo-list">
+        ${freeMemos.length ? freeMemos.map((memo) => `
+          <article class="memo-record card" data-free-memo>
+            <header><div><p>${formatRecordDate(memo.updatedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(memo.accountName || memo.account)}</span>` : ""}</p><strong>自由メモ</strong></div></header>
+            <label>内容<textarea data-free-memo-content maxlength="1000">${escapeHtml(memo.content)}</textarea></label>
+            <div class="memo-save-row"><button class="memo-delete" data-action="delete-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">削除</button><button class="primary" data-action="save-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">変更を保存</button></div>
+          </article>`).join("") : `<div class="empty-state card"><strong>自由メモはまだありません</strong><p>上の欄から最初のメモを作成できます。</p></div>`}
+      </div>
+    </section>
+    <div class="section-heading round-memo-heading"><div><p class="eyebrow">ROUND MEMO</p><h2>練習回のメモ</h2></div><span>採点結果に紐づくメモです</span></div>
     <section class="memo-list">
       ${records.length ? records.map((record) => `
         <article class="memo-record card" data-memo-record>
@@ -964,7 +994,8 @@ function bindEvents() {
       }
       const sameRoute = location.hash === `#/${target}`;
       location.hash = `#/${target}`;
-      if ((target === "records" || target === "memo") && sameRoute) void loadRecords();
+      if (target === "records" && sameRoute) void loadRecords();
+      if (target === "memo" && sameRoute) void loadMemoData();
     }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
@@ -1061,10 +1092,13 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "create-account") void saveManagedAccount();
   if (action === "update-account") void saveManagedAccount(element.dataset.accountId);
   if (action === "load-records") void loadRecords();
+  if (action === "load-memo-data") void loadMemoData();
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "show-more-records") { recordVisibleCount += RECORD_PAGE_SIZE; render(); }
   if (action === "save-record-memo") void saveRecordMemo(element);
+  if (action === "save-free-memo") void saveFreeMemo(element);
+  if (action === "delete-free-memo") void deleteFreeMemo(element);
   if (action === "delete-record") void deleteRecord(element);
   if (action === "play-record-video") void playRecordVideo(element);
   if (action === "close-record-video") closeRecordVideo();
@@ -1369,6 +1403,8 @@ async function loginAccount(fromSwitch = false) {
       accountSwitchOpen = false;
       managedAccounts = [];
       practiceRecords = [];
+      freeMemos = [];
+      freeMemoStatus = "";
       recordsStatus = "";
       resetRecordFilters();
       resetStopwatch();
@@ -1391,6 +1427,8 @@ async function loginAccount(fromSwitch = false) {
     accountError = "";
     accountSwitchOpen = false;
     practiceRecords = [];
+    freeMemos = [];
+    freeMemoStatus = "";
     recordsStatus = "";
     resetStopwatch();
     state = loadState();
@@ -1420,6 +1458,8 @@ async function loginAdmin() {
     activeApiKey = password;
     adminError = "";
     practiceRecords = [];
+    freeMemos = [];
+    freeMemoStatus = "";
     resetRecordFilters();
     recordsStatus = "";
     resetStopwatch();
@@ -1448,6 +1488,8 @@ function logoutAdmin() {
   adminModeUnlocked = false;
   managedAccounts = [];
   practiceRecords = [];
+  freeMemos = [];
+  freeMemoStatus = "";
   recordsStatus = "";
   adminError = "";
   resetRecordFilters();
@@ -1545,11 +1587,85 @@ function configureRecordsAutoRefresh() {
   if (recordsAutoRefreshTimer !== null) window.clearInterval(recordsAutoRefreshTimer);
   recordsAutoRefreshTimer = null;
   if (!activeAccount || (location.hash !== "#/records" && location.hash !== "#/memo")) return;
+  if (location.hash === "#/memo") {
+    void loadMemoData();
+    return;
+  }
   void loadRecords();
-  if (location.hash === "#/memo") return;
   recordsAutoRefreshTimer = window.setInterval(() => {
     if (!document.hidden && location.hash === "#/records") void loadRecords();
   }, 60000);
+}
+
+async function loadMemoData() {
+  await Promise.all([loadRecords(), loadFreeMemos()]);
+}
+
+async function loadFreeMemos() {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint || !activeAccount || !activeApiKey) {
+    freeMemoStatus = "メモの保存先がまだ設定されていません。";
+    render();
+    return;
+  }
+  freeMemoStatus = "自由メモを読み込み中…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; memos?: FreeMemo[]; message?: string }>(endpoint, { action: "freeMemos", apiKey: activeApiKey });
+    if (!result.ok) throw new Error(result.message || "自由メモを取得できませんでした");
+    freeMemos = (Array.isArray(result.memos) ? result.memos : []).filter((memo) =>
+      memo && typeof memo.memoId === "string" && typeof memo.content === "string",
+    ).map((memo) => ({
+      account: String(memo.account || ""), accountName: String(memo.accountName || ""), memoId: memo.memoId.slice(0, 80),
+      createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: memo.content.slice(0, 1000),
+    }));
+    freeMemoStatus = freeMemos.length ? `${freeMemos.length}件の自由メモを表示中` : "自由メモはまだありません。";
+  } catch (error) {
+    freeMemoStatus = `自由メモを読み込めませんでした。${communicationError(error)}`;
+  }
+  render();
+}
+
+async function saveFreeMemo(element: HTMLElement) {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  const card = element.closest<HTMLElement>("[data-free-memo]");
+  const content = card?.querySelector<HTMLTextAreaElement>("[data-free-memo-content]")?.value.trim() ?? "";
+  const memoId = element.dataset.memoId ?? "";
+  const memoAccount = element.dataset.memoAccount ?? activeAccount ?? "";
+  if (!content) { freeMemoStatus = "メモの内容を入力してください。"; render(); return; }
+  if (!endpoint || !activeApiKey || !activeAccount) return;
+  freeMemoStatus = "自由メモを保存中…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
+      action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content,
+    });
+    if (!result.ok) throw new Error(result.message || "自由メモを保存できませんでした");
+    await loadFreeMemos();
+    freeMemoStatus = "自由メモを保存しました。";
+  } catch (error) {
+    freeMemoStatus = `自由メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+  }
+  render();
+}
+
+async function deleteFreeMemo(element: HTMLElement) {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  const memoId = element.dataset.memoId ?? "";
+  const memoAccount = element.dataset.memoAccount ?? activeAccount ?? "";
+  if (!endpoint || !activeApiKey || !activeAccount || !memoId || !confirm("この自由メモを削除しますか？")) return;
+  freeMemoStatus = "自由メモを削除中…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
+      action: "deleteFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId,
+    });
+    if (!result.ok) throw new Error(result.message || "自由メモを削除できませんでした");
+    await loadFreeMemos();
+  } catch (error) {
+    freeMemoStatus = `自由メモを削除できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    render();
+  }
 }
 
 async function saveRecordMemo(element: HTMLElement) {

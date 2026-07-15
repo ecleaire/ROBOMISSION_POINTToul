@@ -33,6 +33,7 @@ function doPost(event) {
     if (!key) throw new Error("APIキーが無効です。");
     if (data.action === "auth") return json_({ ok: true, account: key, accountName: accountName_(key) });
     if (data.action === "records") return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
+    if (data.action === "freeMemos") return json_({ ok: true, account: key, memos: getFreeMemosForAccount_(key) });
     if (data.action === "video") return json_(getRecordVideo_(key, data));
     if (key === "ADMIN" && data.action === "accounts") {
       return json_({ ok: true, accounts: publicAccountList_() });
@@ -46,7 +47,7 @@ function doPost(event) {
         accountLock.releaseLock();
       }
     }
-    if (key === "ADMIN" && data.action !== "delete" && data.action !== "saveMemo") {
+    if (key === "ADMIN" && data.action !== "delete" && data.action !== "saveMemo" && data.action !== "saveFreeMemo" && data.action !== "deleteFreeMemo") {
       throw new Error("管理アカウントから採点結果は保存できません。");
     }
     const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
@@ -56,6 +57,14 @@ function doPost(event) {
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
+      if (data.action === "saveFreeMemo") {
+        saveFreeMemo_(getMemoSheet_(targetAccount), data);
+        return json_({ ok: true });
+      }
+      if (data.action === "deleteFreeMemo") {
+        deleteFreeMemo_(getMemoSheet_(targetAccount), data.memoId);
+        return json_({ ok: true });
+      }
       const sheet = getSheet_(targetAccount);
       ensureHeader_(sheet);
       if (data.action === "delete") {
@@ -163,6 +172,79 @@ function getSheet_(key) {
   const sheetName = ACCOUNT_SHEETS[key] || (accountById_(key) ? "練習記録_" + key.replace(/[^A-Z0-9_]/g, "") : "");
   if (!sheetName) throw new Error("対象シートが設定されていません。");
   return spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+}
+
+function getMemoSheet_(key) {
+  const account = accountById_(key);
+  if (!account) throw new Error("対象アカウントが無効です。");
+  const sheetName = "メモ_" + key.replace(/[^A-Z0-9_]/g, "");
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+  ensureMemoHeader_(sheet);
+  return sheet;
+}
+
+function ensureMemoHeader_(sheet) {
+  const headers = [["メモID", "作成日時", "更新日時", "内容", "削除"]];
+  const current = sheet.getLastRow() ? sheet.getRange(1, 1, 1, 5).getValues()[0] : [];
+  if (headers[0].some(function(value, index) { return current[index] !== value; })) {
+    sheet.getRange(1, 1, 1, 5).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
+  }
+  if (sheet.getFrozenRows() !== 1) sheet.setFrozenRows(1);
+}
+
+function getFreeMemosForAccount_(key) {
+  if (key === "ADMIN") {
+    return accountConfigs_().reduce(function(allMemos, account) {
+      return allMemos.concat(readFreeMemos_(getMemoSheet_(account.id), account.id, account.name));
+    }, []).sort(function(left, right) {
+      return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+    });
+  }
+  return readFreeMemos_(getMemoSheet_(key), key, accountName_(key));
+}
+
+function readFreeMemos_(sheet, account, accountName) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, 1, lastRow - 1, 5).getValues().map(function(row) {
+    return {
+      account: account,
+      accountName: accountName,
+      memoId: String(row[0] || ""),
+      createdAt: row[1] instanceof Date ? row[1].toISOString() : String(row[1] || ""),
+      updatedAt: row[2] instanceof Date ? row[2].toISOString() : String(row[2] || ""),
+      content: String(row[3] || ""),
+      deleted: row[4] === true
+    };
+  }).filter(function(memo) { return memo.memoId && memo.content && !memo.deleted; }).reverse();
+}
+
+function saveFreeMemo_(sheet, data) {
+  const content = safe_(String(data.content || "").trim().slice(0, 1000));
+  if (!content) throw new Error("メモの内容を入力してください。");
+  const memoId = String(data.memoId || "").trim();
+  const now = new Date();
+  if (!memoId) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 5).setValues([[Utilities.getUuid(), now, now, content, false]]);
+    return;
+  }
+  const rowNumber = findFreeMemoRow_(sheet, memoId);
+  sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
+}
+
+function deleteFreeMemo_(sheet, memoId) {
+  const rowNumber = findFreeMemoRow_(sheet, String(memoId || "").trim());
+  sheet.getRange(rowNumber, 5).setValue(true);
+}
+
+function findFreeMemoRow_(sheet, memoId) {
+  if (!memoId || sheet.getLastRow() < 2) throw new Error("自由メモが見つかりません。");
+  const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+  for (let index = 0; index < ids.length; index += 1) {
+    if (String(ids[index][0] || "") === memoId) return index + 2;
+  }
+  throw new Error("自由メモが見つかりません。");
 }
 
 function ensureHeader_(sheet) {
