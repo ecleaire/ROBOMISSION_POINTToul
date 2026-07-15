@@ -46,7 +46,7 @@ function doPost(event) {
         accountLock.releaseLock();
       }
     }
-    if (key === "ADMIN" && data.action !== "delete") {
+    if (key === "ADMIN" && data.action !== "delete" && data.action !== "saveMemo") {
       throw new Error("管理アカウントから採点結果は保存できません。");
     }
     const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
@@ -60,6 +60,10 @@ function doPost(event) {
       ensureHeader_(sheet);
       if (data.action === "delete") {
         archiveRecord_(sheet, data.rowNumber, data.recordedAt);
+        return json_({ ok: true });
+      }
+      if (data.action === "saveMemo") {
+        updateRecordMemo_(sheet, data.rowNumber, data.recordedAt, data.notes);
         return json_({ ok: true });
       }
       if (data.action === "attachVideo") {
@@ -236,6 +240,20 @@ function archiveRecord_(sheet, rowNumberValue, recordedAt) {
   }
   if (values[11] === true || String(values[11] || "") === "削除済み") return;
   sheet.getRange(rowNumber, 12, 1, 2).setValues([[true, new Date()]]);
+}
+
+function updateRecordMemo_(sheet, rowNumberValue, recordedAt, notes) {
+  const rowNumber = Number(rowNumberValue);
+  if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    throw new Error("メモを保存する記録が見つかりません。");
+  }
+  const currentValue = sheet.getRange(rowNumber, 1).getValue();
+  const currentDate = currentValue instanceof Date ? currentValue : new Date(currentValue);
+  const requestedDate = new Date(recordedAt);
+  if (!Number.isFinite(currentDate.getTime()) || !Number.isFinite(requestedDate.getTime()) || currentDate.getTime() !== requestedDate.getTime()) {
+    throw new Error("記録の位置が変わりました。一覧を更新してから、もう一度保存してください。");
+  }
+  sheet.getRange(rowNumber, 11).setValue(safe_(String(notes || "").slice(0, 500)));
 }
 
 function ensureDeleteControls_(sheet) {

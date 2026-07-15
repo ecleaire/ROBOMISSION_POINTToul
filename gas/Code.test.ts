@@ -7,6 +7,7 @@ type GasContext = {
   publicAccountList_: () => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean }>;
   saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string }) => { id: string; name: string };
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
+  updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string) => void;
 };
 
 function loadGas() {
@@ -66,5 +67,21 @@ describe("GAS account management", () => {
     expect(gas.canAccessVideo_("A", "A")).toBe(true);
     expect(gas.canAccessVideo_("A", "B")).toBe(false);
     expect(gas.canAccessVideo_("ADMIN", "A")).toBe(true);
+  });
+
+  it("updates the memo only when the saved row still matches the record date", () => {
+    const { gas } = loadGas();
+    let saved = "";
+    const recordedAt = "2026-07-15T01:02:03.000Z";
+    const sheet = {
+      getLastRow: () => 5,
+      getRange: (_row: number, column: number) => column === 1
+        ? { getValue: () => recordedAt }
+        : { setValue: (value: string) => { saved = value; } },
+    };
+    gas.updateRecordMemo_(sheet, 3, recordedAt, "次はゆっくり走る");
+    expect(saved).toBe("次はゆっくり走る");
+    expect(() => gas.updateRecordMemo_(sheet, 3, "2026-07-15T01:02:04.000Z", "誤った行"))
+      .toThrow("記録の位置が変わりました");
   });
 });

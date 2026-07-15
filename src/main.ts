@@ -226,6 +226,8 @@ function render() {
         ? resultView()
         : route === "records"
           ? recordsView()
+        : route === "memo"
+          ? memoView()
         : route === "photos"
           ? photoGalleryView()
           : route === "rules"
@@ -255,6 +257,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
     ["score", "採点"],
     ["photos", "判定写真"],
     ["records", "練習記録"],
+    ["memo", "メモ"],
     ["rules", "ルール"],
     ["links", "リンク"],
   ];
@@ -532,6 +535,7 @@ async function startCameraRecording() {
     videoRecordingTimer = window.setInterval(updateVideoRecordingTime, 250);
     videoRecordingLimitTimer = window.setTimeout(stopCameraRecording, MAX_RECORDING_MS);
     render();
+    enterCameraFullscreen();
   } catch (error) {
     stopCameraStream();
     videoRecordingStatus = "idle";
@@ -777,6 +781,35 @@ function recordsView() {
   `, { back: "score", title: isAdmin ? "管理" : `${escapeHtml(activeAccountName || "チーム")}の記録` });
 }
 
+function memoView() {
+  const isAdmin = activeAccount === "ADMIN";
+  const records = [...practiceRecords].sort((left, right) =>
+    new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime(),
+  );
+  return shell(`
+    <section class="page-intro memo-intro">
+      <p class="eyebrow">${isAdmin ? "全アカウント" : escapeHtml(activeAccountName || "現在のアカウント")}</p>
+      <h1>メモ</h1>
+      <p>練習した回ごとに、気づいたことや次に試すことを記録できます。</p>
+      <button class="secondary" data-action="load-records">↻ 一覧を更新</button>
+    </section>
+    ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
+    <section class="memo-list">
+      ${records.length ? records.map((record) => `
+        <article class="memo-record card" data-memo-record>
+          <header>
+            <div><p>${formatRecordDate(record.recordedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(record.accountName || record.account)}</span>` : ""}</p><strong>${record.total} / ${MAX_SCORE}点</strong></div>
+            <span>競技時間 ${formatTime(record.timeSeconds)}</span>
+          </header>
+          <label>${record.notes ? "この回のメモ" : "新しいメモ"}
+            <textarea data-record-memo maxlength="500" placeholder="ミスしたところ、良かったところ、次に試すことなど">${escapeHtml(record.notes)}</textarea>
+          </label>
+          <div class="memo-save-row"><small>500文字まで</small><button class="primary" data-action="save-record-memo" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">メモを保存</button></div>
+        </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果を保存すると、その回のメモをここで作れます。</p></div>`}
+    </section>
+  `, { back: "score", title: "メモ" });
+}
+
 function filteredPracticeRecords() {
   const query = recordFilters.query.trim().toLowerCase();
   const dateFrom = recordFilters.dateFrom ? new Date(`${recordFilters.dateFrom}T00:00:00`).getTime() : Number.NEGATIVE_INFINITY;
@@ -931,7 +964,7 @@ function bindEvents() {
       }
       const sameRoute = location.hash === `#/${target}`;
       location.hash = `#/${target}`;
-      if (target === "records" && sameRoute) void loadRecords();
+      if ((target === "records" || target === "memo") && sameRoute) void loadRecords();
     }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
@@ -1031,6 +1064,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "show-more-records") { recordVisibleCount += RECORD_PAGE_SIZE; render(); }
+  if (action === "save-record-memo") void saveRecordMemo(element);
   if (action === "delete-record") void deleteRecord(element);
   if (action === "play-record-video") void playRecordVideo(element);
   if (action === "close-record-video") closeRecordVideo();
@@ -1510,11 +1544,35 @@ async function loadRecords() {
 function configureRecordsAutoRefresh() {
   if (recordsAutoRefreshTimer !== null) window.clearInterval(recordsAutoRefreshTimer);
   recordsAutoRefreshTimer = null;
-  if (location.hash !== "#/records" || !activeAccount) return;
+  if (!activeAccount || (location.hash !== "#/records" && location.hash !== "#/memo")) return;
   void loadRecords();
+  if (location.hash === "#/memo") return;
   recordsAutoRefreshTimer = window.setInterval(() => {
     if (!document.hidden && location.hash === "#/records") void loadRecords();
   }, 60000);
+}
+
+async function saveRecordMemo(element: HTMLElement) {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  const card = element.closest<HTMLElement>("[data-memo-record]");
+  const notes = card?.querySelector<HTMLTextAreaElement>("[data-record-memo]")?.value.trim() ?? "";
+  const rowNumber = Number(element.dataset.recordRow);
+  const recordedAt = element.dataset.recordedAt ?? "";
+  const recordAccount = element.dataset.recordAccount ?? activeAccount ?? "";
+  if (!endpoint || !activeAccount || !activeApiKey || !Number.isInteger(rowNumber) || rowNumber < 2) return;
+  recordsStatus = "メモを保存中…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
+      action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes,
+    });
+    if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
+    await loadRecords();
+    recordsStatus = "メモを保存しました。";
+  } catch (error) {
+    recordsStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+  }
+  render();
 }
 
 async function deleteRecord(element: HTMLElement) {
