@@ -4,6 +4,9 @@
 
 WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webアプリです。スマートフォン、タブレット、PCで利用でき、PWAとしてインストールすると採点と一度表示した判定写真・ルールPDFをオフラインでも利用できます。
 
+# 公開 URL
+# https://ecleaire.github.io/ROBOMISSION_POINTToul/#/score  
+
 ## 主な機能
 
 - 6ミッション、最大230点の得点計算
