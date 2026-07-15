@@ -62,6 +62,16 @@ interface ManagedAccount {
   hasApiKey: boolean;
 }
 
+interface PendingVideoUpload {
+  file: File;
+  apiKey: string;
+  account: string;
+  rowNumber: number;
+  recordedAt: string;
+  status: "uploading" | "failed";
+  message: string;
+}
+
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
@@ -97,6 +107,7 @@ let practiceRecords: PracticeRecord[] = [];
 const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
+let recordsAutoRefreshTimer: number | null = null;
 let sheetSending = false;
 let pendingRequestId = createRequestId();
 let recordFilters: RecordFilters = {
@@ -125,6 +136,8 @@ let videoRecordingStatus: "idle" | "starting" | "recording" | "processing" = "id
 let videoRecordingTimer: number | null = null;
 let videoRecordingLimitTimer: number | null = null;
 let discardRecordedVideo = false;
+let pendingVideoUpload: PendingVideoUpload | null = null;
+let systemNotice = "";
 type StopwatchStatus = "idle" | "running" | "paused";
 let stopwatchStatus: StopwatchStatus = "idle";
 let stopwatchElapsedMs = 0;
@@ -145,8 +158,11 @@ const artifactColors: { value: ArtifactColor; label: string }[] = [
 window.addEventListener("hashchange", () => {
   window.scrollTo(0, 0);
   render();
-  if (location.hash === "#/records" && activeAccount) void loadRecords();
+  configureRecordsAutoRefresh();
   if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
+});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
 });
 window.addEventListener("keydown", (event) => {
   if (!modal && !accountSwitchOpen) return;
@@ -179,7 +195,7 @@ if ("serviceWorker" in navigator) {
 if (activeAccount === "ADMIN") location.hash = "#/admin";
 else if (!location.hash) location.hash = "#/score";
 render();
-if (location.hash === "#/records" && activeAccount) void loadRecords();
+configureRecordsAutoRefresh();
 if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
 if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
 
@@ -204,8 +220,18 @@ function render() {
               ? linksView()
             : scoringView();
 
-  app.innerHTML = `${content}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
+  app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
   bindEvents();
+}
+
+function systemNoticeView() {
+  if (pendingVideoUpload) {
+    return `<aside class="system-notice ${pendingVideoUpload.status === "failed" ? "error" : ""}" role="status">
+      <span>${escapeHtml(pendingVideoUpload.message)}</span>
+      ${pendingVideoUpload.status === "failed" ? `<button data-action="retry-video-upload">動画を再送</button>` : ""}
+    </aside>`;
+  }
+  return systemNotice ? `<aside class="system-notice" role="status"><span>${escapeHtml(systemNotice)}</span></aside>` : "";
 }
 
 function shell(content: string, options: { back?: string; title?: string } = {}) {
@@ -878,7 +904,9 @@ function bindEvents() {
           render();
         }
       }
+      const sameRoute = location.hash === `#/${target}`;
       location.hash = `#/${target}`;
+      if (target === "records" && sameRoute) void loadRecords();
     }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
@@ -982,6 +1010,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "play-record-video") void playRecordVideo(element);
   if (action === "close-record-video") closeRecordVideo();
   if (action === "remove-video") { selectedVideo = null; videoSelectionError = ""; render(); }
+  if (action === "retry-video-upload") void retryPendingVideoUpload();
   if (action === "camera-start") void startCameraRecording();
   if (action === "camera-stop") stopCameraRecording();
   if (action === "camera-expand") enterCameraFullscreen();
@@ -1148,19 +1177,33 @@ async function sendToSheet() {
     sheetStatus = "管理アカウントから採点結果は保存できません。"; render(); return;
   }
   sheetSending = true;
-  sheetStatus = selectedVideo ? "動画をアップロードして保存中…" : "送信中…"; render();
+  sheetStatus = "得点を保存中…"; render();
+  const videoFile = selectedVideo;
+  const preparedVideo = videoFile ? fileToStoredVideo(videoFile) : null;
   try {
-    const video = selectedVideo ? await fileToStoredVideo(selectedVideo) : undefined;
-    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, resultPayload(video), new AbortController(), selectedVideo ? 90000 : 15000);
+    const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, resultPayload(), new AbortController(), 15000);
     if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
+    if (videoFile && preparedVideo && Number.isInteger(result.rowNumber) && result.recordedAt) {
+      pendingVideoUpload = {
+        file: videoFile,
+        apiKey: activeApiKey,
+        account: activeAccount,
+        rowNumber: result.rowNumber!,
+        recordedAt: result.recordedAt,
+        status: "uploading",
+        message: "得点を保存しました。動画をバックグラウンドで送信中…",
+      };
+    }
     resetStopwatch();
     selectedVideo = null;
     videoSelectionError = "";
     state = makeInitialState();
     saveState();
     sheetStatus = "";
+    pendingRequestId = createRequestId();
     location.hash = "#/score";
     render();
+    if (pendingVideoUpload && preparedVideo) void uploadPendingVideo(preparedVideo);
     return;
   } catch (error) {
     sheetStatus = `送信できませんでした。${communicationError(error)}`;
@@ -1168,6 +1211,41 @@ async function sendToSheet() {
     sheetSending = false;
   }
   render();
+}
+
+async function uploadPendingVideo(preparedVideo?: Promise<StoredVideo>) {
+  const upload = pendingVideoUpload;
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!upload || !endpoint) return;
+  upload.status = "uploading";
+  upload.message = "得点を保存しました。動画をバックグラウンドで送信中…";
+  render();
+  try {
+    const video = preparedVideo ? await preparedVideo : await fileToStoredVideo(upload.file);
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
+      action: "attachVideo",
+      apiKey: upload.apiKey,
+      account: upload.account,
+      rowNumber: upload.rowNumber,
+      recordedAt: upload.recordedAt,
+      video,
+    }, new AbortController(), 90000);
+    if (!result.ok) throw new Error(result.message || "動画を保存できませんでした");
+    pendingVideoUpload = null;
+    systemNotice = "動画の保存が完了しました。";
+    render();
+    window.setTimeout(() => { systemNotice = ""; render(); }, 4000);
+  } catch (error) {
+    if (pendingVideoUpload !== upload) return;
+    upload.status = "failed";
+    upload.message = `得点は保存済みです。動画だけ送信できませんでした。${communicationError(error)}`;
+    render();
+  }
+}
+
+async function retryPendingVideoUpload() {
+  if (!pendingVideoUpload || pendingVideoUpload.status === "uploading") return;
+  await uploadPendingVideo();
 }
 
 function resultPayload(video?: StoredVideo) {
@@ -1402,6 +1480,16 @@ async function loadRecords() {
     if (recordsAbortController === controller) recordsAbortController = null;
   }
   render();
+}
+
+function configureRecordsAutoRefresh() {
+  if (recordsAutoRefreshTimer !== null) window.clearInterval(recordsAutoRefreshTimer);
+  recordsAutoRefreshTimer = null;
+  if (location.hash !== "#/records" || !activeAccount) return;
+  void loadRecords();
+  recordsAutoRefreshTimer = window.setInterval(() => {
+    if (!document.hidden && location.hash === "#/records") void loadRecords();
+  }, 60000);
 }
 
 async function deleteRecord(element: HTMLElement) {

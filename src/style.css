@@ -276,6 +276,9 @@ body.pdf-mode { overflow: hidden; }
 .sheet-panel p { color: #5f7486; font-size: .88rem; line-height: 1.6; }
 .sheet-panel button { width: 100%; margin-top: 10px; }
 .sheet-status { padding: 10px; background: var(--pale-blue); border-radius: 10px; color: #183b56 !important; font-weight: 700; }
+.system-notice { position: fixed; z-index: 260; top: max(12px, env(safe-area-inset-top)); left: 50%; width: min(92vw, 720px); min-height: 52px; padding: 10px 14px; display: flex; align-items: center; justify-content: center; gap: 12px; transform: translateX(-50%); border: 2px solid #68acd7; border-radius: 12px; color: #123b59; background: rgba(238,248,255,.97); box-shadow: 0 8px 28px rgba(7,42,68,.24); font-weight: 900; }
+.system-notice.error { border-color: #d98772; color: #7d2e22; background: rgba(255,241,237,.98); }
+.system-notice button { min-height: 40px; padding: 6px 12px; flex: 0 0 auto; border: 1px solid currentColor; border-radius: 8px; color: inherit; background: white; font-weight: 900; }
 .records-intro { position: relative; }
 .records-intro .secondary { margin-top: 8px; }
 .records-intro-actions { display: flex; flex-wrap: wrap; gap: 8px; }
