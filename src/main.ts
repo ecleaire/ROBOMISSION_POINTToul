@@ -383,10 +383,10 @@ function cameraRecorderView() {
       <video data-camera-preview muted playsinline></video>
       <span class="camera-placeholder">背面カメラ</span>
       ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-video-recording-time>00:00</span></strong>` : ""}
-      ${cameraStream ? `<button class="camera-expand" data-action="camera-expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
-        <button class="camera-collapse" data-action="camera-collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
+      ${cameraStream ? `<button type="button" class="camera-expand" data-action="camera-expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
+        <button type="button" class="camera-collapse" data-action="camera-collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
         ${isRecording ? `<div class="camera-stopwatch-overlay" data-camera-stopwatch-overlay>${cameraStopwatchContents()}</div>` : ""}
-        ${isRecording ? `<button class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
+        ${isRecording ? `<button type="button" class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
     </div>
     <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
     ${isRecording
@@ -583,7 +583,8 @@ function enterCameraFullscreen() {
   if (!preview || !cameraStream) return;
   preview.classList.add("camera-preview-expanded");
   document.body.classList.add("camera-mode");
-  if (!document.fullscreenElement && preview.requestFullscreen) {
+  const appleTouchDevice = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+  if (!appleTouchDevice && !document.fullscreenElement && preview.requestFullscreen) {
     void preview.requestFullscreen().catch(() => undefined);
   }
 }
