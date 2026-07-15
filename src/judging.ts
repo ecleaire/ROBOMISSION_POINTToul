@@ -7,6 +7,7 @@ export interface JudgingPhoto {
 
 export interface JudgingGroup {
   title: string;
+  rules: { score: string; label: string; description: string }[];
   photos: JudgingPhoto[];
 }
 
@@ -16,6 +17,11 @@ const image = (folder: string, name: string) =>
 export const judgingGroups: Record<string, JudgingGroup> = {
   visitors: {
     title: "訪問者の判定写真",
+    rules: [
+      { score: "10点", label: "満点", description: "対応する色のエリアに完全に入り、直立している。" },
+      { score: "5点", label: "部分点", description: "対応する色のエリアに一部だけ入っている、または倒れている。" },
+      { score: "0点", label: "0点", description: "エリア外、または違う色のエリアに入っている。" },
+    ],
     photos: [
       { src: image("visitors", "full-upright"), score: "10点", label: "満点", description: "対応色のエリアに完全に入り、直立しています。" },
       { src: image("visitors", "partial"), score: "5点", label: "部分点", description: "対応色のエリアに一部だけ入っています。" },
@@ -26,6 +32,11 @@ export const judgingGroups: Record<string, JudgingGroup> = {
   },
   redTowers: {
     title: "赤い塔の判定写真",
+    rules: [
+      { score: "15点", label: "満点", description: "赤い対象エリアに完全に入り、直立している。" },
+      { score: "10点", label: "部分点", description: "赤い対象エリアに一部だけ入り、直立している。" },
+      { score: "0点", label: "0点", description: "対象エリア外、または倒れている。" },
+    ],
     photos: [
       { src: image("red-towers", "full"), score: "15点", label: "満点", description: "赤い対象エリア（オレンジの境界を含む）に完全に入り、直立しています。" },
       { src: image("red-towers", "partial"), score: "10点", label: "部分点", description: "直立していますが、対象エリアには一部だけ入っています。" },
@@ -35,6 +46,11 @@ export const judgingGroups: Record<string, JudgingGroup> = {
   },
   yellowTowers: {
     title: "黄色い塔の判定写真",
+    rules: [
+      { score: "25点", label: "満点", description: "塔上部が正しく置かれ、土台が対象エリアに完全に入っている。" },
+      { score: "15点", label: "部分点", description: "塔上部が正しく置かれ、土台が対象エリアに一部だけ入っている。" },
+      { score: "0点", label: "0点", description: "塔上部が正しく置かれていない、または直立していない。" },
+    ],
     photos: [
       { src: image("yellow-towers", "full"), score: "25点", label: "満点", description: "上部が正しく置かれ、土台が対象エリアに完全に入っています。" },
       { src: image("yellow-towers", "partial"), score: "15点", label: "部分点", description: "上部は正しく置かれていますが、土台は対象エリアに一部だけ入っています。" },
@@ -44,6 +60,11 @@ export const judgingGroups: Record<string, JudgingGroup> = {
   },
   artifacts: {
     title: "遺物の判定写真",
+    rules: [
+      { score: "15点", label: "満点", description: "対応色の展示場所に完全に入り、直立している。" },
+      { score: "5点", label: "部分点", description: "対応色の展示場所に一部だけ入っている、または倒れている。" },
+      { score: "0点", label: "0点", description: "展示場所の外、または違う色の展示場所に入っている。" },
+    ],
     photos: [
       { src: image("artifacts", "full"), score: "15点", label: "満点", description: "対応色の展示場所に完全に入り、直立しています。" },
       { src: image("artifacts", "partial"), score: "5点", label: "部分点", description: "対応色の展示場所に一部だけ入っています。" },
@@ -54,6 +75,11 @@ export const judgingGroups: Record<string, JudgingGroup> = {
   },
   dirt: {
     title: "石畳の汚れの判定写真",
+    rules: [
+      { score: "2点/個", label: "満点", description: "汚れが石畳エリアに触れていない。" },
+      { score: "0点", label: "0点", description: "汚れが石畳エリアに触れている。" },
+      { score: "範囲", label: "補足", description: "茶色の範囲と赤いバリアの灰色エリアが石畳。線と訪問者エリアは含まない。" },
+    ],
     photos: [
       { src: image("dirt", "area"), score: "範囲", label: "石畳エリア", description: "茶色の範囲と赤いバリアの灰色エリアが石畳です。線と訪問者エリアは含みません。" },
       { src: image("dirt", "clear"), score: "2点/個", label: "満点", description: "汚れが石畳エリアに触れていません。" },
@@ -64,6 +90,10 @@ export const judgingGroups: Record<string, JudgingGroup> = {
   },
   bonus: {
     title: "バリア・オウムの判定写真",
+    rules: [
+      { score: "10点/個", label: "満点", description: "赤いバリア、白いバリア、オウムが移動も損傷もしていない。" },
+      { score: "0点", label: "0点", description: "対象が移動している、または損傷している。" },
+    ],
     photos: [
       { src: image("bonus", "red-ok"), score: "10点", label: "満点", description: "赤いバリアが移動も損傷もしていません。" },
       { src: image("bonus", "red-moved"), score: "0点", label: "0点", description: "赤いバリアが灰色エリアの外へ移動しています。" },

@@ -21,6 +21,8 @@ const ACCOUNT_NAME_PROPERTIES = Object.freeze({
 const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
 const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const HYOGO_NEWS_FEED_URL = "https://wro-hyogo.jp/feed/";
+const HYOGO_NEWS_CACHE_KEY = "hyogo-news-v1";
 
 function doGet() {
   return json_({ ok: true, message: "RoboMission Junior score endpoint is ready. Use POST for authenticated actions." });
@@ -29,6 +31,7 @@ function doGet() {
 function doPost(event) {
   try {
     const data = JSON.parse(event.postData.contents);
+    if (data.action === "news") return json_({ ok: true, news: getHyogoNews_() });
     const key = normalizeKey_(data.apiKey);
     if (!key) throw new Error("APIキーが無効です。");
     if (data.action === "auth") return json_({ ok: true, account: key, accountName: accountName_(key) });
@@ -230,6 +233,47 @@ function saveFreeMemo_(sheet, data) {
   const rowNumber = findFreeMemoRow_(sheet, memoId);
   sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
   return { memoId: memoId, updatedAt: now.toISOString(), content: content };
+}
+
+function getHyogoNews_() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get(HYOGO_NEWS_CACHE_KEY);
+  if (cached) return JSON.parse(cached);
+  const response = UrlFetchApp.fetch(HYOGO_NEWS_FEED_URL, {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: { "User-Agent": "RoboMission Assist news reader" }
+  });
+  if (response.getResponseCode() !== 200) throw new Error("兵庫予選会のお知らせを取得できませんでした。");
+  const news = parseHyogoNewsFeed_(response.getContentText()).slice(0, 3);
+  if (!news.length) throw new Error("兵庫予選会のお知らせを解析できませんでした。");
+  cache.put(HYOGO_NEWS_CACHE_KEY, JSON.stringify(news), 1800);
+  return news;
+}
+
+function parseHyogoNewsFeed_(xml) {
+  return String(xml || "").match(/<item>[\s\S]*?<\/item>/gi)?.map(function(item) {
+    const title = feedValue_(item, "title");
+    const link = feedValue_(item, "link");
+    const publishedAt = feedValue_(item, "pubDate");
+    const date = new Date(publishedAt);
+    return {
+      source: "兵庫",
+      title: title,
+      url: /^https:\/\/wro-hyogo\.jp\//i.test(link) ? link : "https://wro-hyogo.jp/",
+      updatedAt: Number.isFinite(date.getTime()) ? Utilities.formatDate(date, "Asia/Tokyo", "yyyy.MM.dd") : ""
+    };
+  }).filter(function(item) { return item.title && item.updatedAt; }) || [];
+}
+
+function feedValue_(item, tagName) {
+  const match = String(item).match(new RegExp("<" + tagName + "(?:\\s[^>]*)?>([\\s\\S]*?)<\\/" + tagName + ">", "i"));
+  if (!match) return "";
+  return decodeXmlText_(match[1].replace(/^<!\[CDATA\[|\]\]>$/g, "").replace(/<[^>]+>/g, "").trim());
+}
+
+function decodeXmlText_(value) {
+  return String(value).replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#039;|&apos;/g, "'");
 }
 
 function deleteFreeMemo_(sheet, memoId) {

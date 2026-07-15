@@ -9,6 +9,7 @@ type GasContext = {
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
   updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string) => void;
   findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
+  parseHyogoNewsFeed_: (xml: string) => Array<{ source: string; title: string; url: string; updatedAt: string }>;
 };
 
 function loadGas() {
@@ -26,7 +27,10 @@ function loadGas() {
   };
   const context = vm.createContext({
     PropertiesService: { getScriptProperties: () => propertyStore },
-    Utilities: { getUuid: () => "12345678-1234-1234-1234-123456789abc" },
+    Utilities: {
+      getUuid: () => "12345678-1234-1234-1234-123456789abc",
+      formatDate: (date: Date) => date.toISOString().slice(0, 10).replaceAll("-", "."),
+    },
   });
   vm.runInContext(readFileSync(new URL("./Code.gs", import.meta.url), "utf8"), context);
   return { gas: context as unknown as GasContext, values };
@@ -100,5 +104,14 @@ describe("GAS account management", () => {
     };
     expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
     expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("メモが見つかりません");
+  });
+
+  it("parses the latest Hyogo qualifier news from RSS", () => {
+    const { gas } = loadGas();
+    const items = gas.parseHyogoNewsFeed_(`
+      <rss><channel><item><title><![CDATA[〖2026〗選手・コーチのみなさまへ]]></title>
+      <link>https://wro-hyogo.jp/news-one/</link><pubDate>Wed, 15 Jul 2026 01:00:00 +0000</pubDate></item></channel></rss>
+    `);
+    expect(items).toEqual([{ source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/news-one/", updatedAt: "2026.07.15" }]);
   });
 });

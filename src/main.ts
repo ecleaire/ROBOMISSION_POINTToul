@@ -71,6 +71,13 @@ interface ManagedAccount {
   hasApiKey: boolean;
 }
 
+interface NewsItem {
+  source: string;
+  title: string;
+  url: string;
+  updatedAt: string;
+}
+
 interface PendingVideoUpload {
   file: File;
   apiKey: string;
@@ -88,6 +95,7 @@ const PUBLIC_RULES_PDF_URL = `${PUBLIC_APP_URL}assets/rules/WRO-2026-Junior-Goog
 const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(PUBLIC_RULES_PDF_URL)}`;
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
+const HYOGO_LOCAL_RULES_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk";
 
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
@@ -99,6 +107,14 @@ const MAX_RECORDING_MS = 3 * 60 * 1000;
 const VIDEO_RECORDING_BITRATE = 1_000_000;
 const RECORD_VIDEO_CACHE_NAME = "robomission-record-videos-v1";
 const MAX_CACHED_RECORD_VIDEOS = 3;
+const NEWS_CACHE_KEY = "robomission-hyogo-news-v1";
+const HYOGO_EVENT_URL = "https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/";
+const HYOGO_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}`;
+const FALLBACK_HYOGO_NEWS: NewsItem[] = [
+  { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
+  { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
+  { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" },
+];
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
   localStorage.removeItem(ACCOUNT_KEY);
@@ -125,6 +141,9 @@ const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
 let recordsAutoRefreshTimer: number | null = null;
+let newsItems = loadNewsCache();
+let newsStatus = "保存済みのお知らせを表示しています。";
+let newsLoading = false;
 let sheetSending = false;
 let pendingRequestId = createRequestId();
 let recordFilters: RecordFilters = {
@@ -145,6 +164,8 @@ let selectedVideo: File | null = null;
 let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
 let rulesConnectionsPrepared = false;
+let persistentRulesFrame: HTMLIFrameElement | null = null;
+let rulesFrameParking: HTMLDivElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
@@ -180,6 +201,7 @@ window.addEventListener("hashchange", () => {
   render();
   configureRecordsAutoRefresh();
   if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
+  if (location.hash === "#/news") void loadHyogoNews();
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
@@ -192,7 +214,9 @@ document.addEventListener("pointerdown", (event) => {
 }, { capture: true });
 window.addEventListener("keydown", (event) => {
   if (!modal && !accountSwitchOpen) return;
-  if (event.key === "Escape") { modal = null; accountSwitchOpen = false; }
+  if (event.key !== "Escape") return;
+  modal = null;
+  accountSwitchOpen = false;
   render();
 });
 function handleFullscreenChange() {
@@ -232,9 +256,11 @@ else if (!location.hash) location.hash = "#/score";
 render();
 configureRecordsAutoRefresh();
 if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
+if (location.hash === "#/news" && activeAccount) void loadHyogoNews();
 if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
 
 function render() {
+  parkRulesFrame();
   const route = location.hash.replace(/^#\/?/, "") || "score";
   const content =
     route === "admin" && adminModeUnlocked
@@ -251,6 +277,8 @@ function render() {
           ? memoView()
         : route === "photos"
           ? photoGalleryView()
+        : route === "news"
+          ? newsView()
           : route === "rules"
             ? rulesView()
             : route === "links"
@@ -259,6 +287,7 @@ function render() {
 
   app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
   bindEvents();
+  attachRulesFrame();
 }
 
 function systemNoticeView() {
@@ -279,8 +308,9 @@ function shell(content: string, options: { back?: string; title?: string } = {})
     ["photos", "判定写真"],
     ["records", "練習記録"],
     ["memo", "メモ"],
+    ["news", "ニュース"],
     ["rules", "ルール"],
-    ["links", "リンク"],
+    ["links", "リンク・大会情報"],
   ];
   if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
   return `
@@ -790,6 +820,7 @@ function recordsView() {
   const filteredRecords = filteredPracticeRecords();
   const visibleRecords = filteredRecords.slice(0, recordVisibleCount);
   const isAdmin = activeAccount === "ADMIN";
+  const activeFilterCount = [recordFilters.query, recordFilters.dateFrom, recordFilters.dateTo, recordFilters.minScore, recordFilters.maxScore, isAdmin && recordFilters.account !== "ALL" ? recordFilters.account : ""].filter(Boolean).length;
   return shell(`
     <section class="page-intro records-intro">
       <p class="eyebrow">${isAdmin ? "管理アカウント" : escapeHtml(activeAccountName || "現在のアカウント")}</p>
@@ -800,28 +831,37 @@ function recordsView() {
     ${isAdmin ? accountManagementView() : ""}
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
     <section class="record-filters card" aria-label="記録の検索と並び替え">
+      <header class="record-filter-header">
+        <div><p class="eyebrow">SEARCH / SORT</p><h2>履歴を探す</h2><span>${activeFilterCount ? `${activeFilterCount}個の条件で絞り込み中` : "すべての記録を表示"}</span></div>
+        <label class="record-sort">並び順<select data-record-filter="sort" aria-label="履歴の並び順">
+          <option value="newest" ${recordFilters.sort === "newest" ? "selected" : ""}>新しい順</option>
+          <option value="oldest" ${recordFilters.sort === "oldest" ? "selected" : ""}>古い順</option>
+          <option value="score-desc" ${recordFilters.sort === "score-desc" ? "selected" : ""}>得点が高い順</option>
+          <option value="score-asc" ${recordFilters.sort === "score-asc" ? "selected" : ""}>得点が低い順</option>
+        </select></label>
+      </header>
       <label class="record-search">検索
         <input data-record-filter="query" type="search" value="${escapeHtml(recordFilters.query)}" placeholder="メモ・日付・点数を検索" />
       </label>
-      <label>開始日<input data-record-filter="dateFrom" type="date" value="${recordFilters.dateFrom}" /></label>
-      <label>終了日<input data-record-filter="dateTo" type="date" value="${recordFilters.dateTo}" /></label>
-      <label>最低点<input data-record-filter="minScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.minScore}" placeholder="0" /></label>
-      <label>最高点<input data-record-filter="maxScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.maxScore}" placeholder="${MAX_SCORE}" /></label>
-      ${isAdmin ? `<label>アカウント<select data-record-filter="account">
-        <option value="ALL" ${recordFilters.account === "ALL" ? "selected" : ""}>すべて</option>
-        ${managedAccounts.map((account) => `<option value="${account.id}" ${recordFilters.account === account.id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}
-      </select></label>` : ""}
-      <label>並び順<select data-record-filter="sort">
-        <option value="newest" ${recordFilters.sort === "newest" ? "selected" : ""}>新しい順</option>
-        <option value="oldest" ${recordFilters.sort === "oldest" ? "selected" : ""}>古い順</option>
-        <option value="score-desc" ${recordFilters.sort === "score-desc" ? "selected" : ""}>得点が高い順</option>
-        <option value="score-asc" ${recordFilters.sort === "score-asc" ? "selected" : ""}>得点が低い順</option>
-      </select></label>
+      <div class="record-filter-groups">
+        <fieldset><legend>期間</legend><div class="filter-range">
+          <label>開始日<input data-record-filter="dateFrom" type="date" value="${recordFilters.dateFrom}" /></label><span>〜</span>
+          <label>終了日<input data-record-filter="dateTo" type="date" value="${recordFilters.dateTo}" /></label>
+        </div></fieldset>
+        <fieldset><legend>得点</legend><div class="filter-range score-range">
+          <label>最低点<input data-record-filter="minScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.minScore}" placeholder="0" /></label><span>〜</span>
+          <label>最高点<input data-record-filter="maxScore" type="number" min="0" max="${MAX_SCORE}" inputmode="numeric" value="${recordFilters.maxScore}" placeholder="${MAX_SCORE}" /></label>
+        </div></fieldset>
+        ${isAdmin ? `<fieldset><legend>アカウント</legend><label>表示するチーム<select data-record-filter="account">
+          <option value="ALL" ${recordFilters.account === "ALL" ? "selected" : ""}>すべてのチーム</option>
+          ${managedAccounts.map((account) => `<option value="${account.id}" ${recordFilters.account === account.id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}
+        </select></label></fieldset>` : ""}
+      </div>
       <div class="record-filter-actions">
         <button class="primary" data-action="apply-record-filters">検索・絞り込み</button>
-        <button class="secondary" data-action="reset-record-filters">条件をクリア</button>
+        <button class="secondary" data-action="reset-record-filters" ${activeFilterCount ? "" : "disabled"}>条件をクリア</button>
       </div>
-      <strong class="record-filter-count">${visibleRecords.length} / ${filteredRecords.length}件を表示（全${practiceRecords.length}件）</strong>
+      <strong class="record-filter-count">${filteredRecords.length}件ヒット・${visibleRecords.length}件表示 <small>（全${practiceRecords.length}件）</small></strong>
     </section>
     <section class="records-list">
       ${filteredRecords.length ? visibleRecords.map((record) => `
@@ -937,28 +977,50 @@ function photoGalleryView() {
 
 function rulesView() {
   const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-  const viewerUrl = useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
   return shell(`
     <section class="page-intro rules-intro">
       <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>${useDriveViewer ? "iPad向けの複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
-      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a></div>
+      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a><a class="hyogo-rule-button pdf-open" href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会 ルール補足 ↗</a></div>
     </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <iframe src="${viewerUrl}" loading="eager" allow="fullscreen" referrerpolicy="no-referrer" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <div class="rules-frame-host" data-rules-frame-host></div>
       <p>${useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
 
+function newsView() {
+  return shell(`
+    <section class="page-intro news-intro">
+      <div><p class="eyebrow">WRO HYOGO UPDATES</p><h1>ニュース</h1><p>兵庫予選会公式サイトの直近3件を表示します。</p></div>
+      <button class="primary" data-action="load-news" ${newsLoading ? "disabled" : ""}>${newsLoading ? "確認中…" : "↻ 最新情報を確認"}</button>
+    </section>
+    ${newsStatus ? `<p class="news-status" role="status">${escapeHtml(newsStatus)}</p>` : ""}
+    <section class="news-list" aria-label="兵庫予選会の最新情報">
+      ${newsItems.map((item) => `<article class="news-card card"><span class="news-source">${escapeHtml(item.source)}</span><h2>【${escapeHtml(item.source)}】「${escapeHtml(item.title)}」が更新されました。</h2><time datetime="${item.updatedAt.replaceAll(".", "-")}">更新日時：${escapeHtml(item.updatedAt)}</time><a href="${item.url}" target="_blank" rel="noopener noreferrer">記事を見る <b aria-hidden="true">↗</b></a></article>`).join("")}
+    </section>
+    <a class="news-source-link" href="https://wro-hyogo.jp/" target="_blank" rel="noopener noreferrer">WRO Japan 2026 公認 兵庫予選会 公式サイトを見る ↗</a>
+  `, { title: "ニュース" });
+}
+
 function linksView() {
   return shell(`
     <section class="page-intro links-intro">
-      <p class="eyebrow">RELATED LINKS</p>
-      <h1>関連リンク</h1>
-      <p>WROの公式情報、ルール、関連動画、このアプリの公開先をまとめています。</p>
+      <p class="eyebrow">EVENT / RELATED LINKS</p>
+      <h1>リンク・大会情報</h1>
+      <p>兵庫予選会の大会情報と、WROの公式情報・ルール・関連動画をまとめています。</p>
     </section>
     <section class="link-groups">
+      <article class="event-info link-section card">
+        <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式の開催概要 ↗</a></header>
+        <div class="event-info-grid">
+          <section><h3>■ スケジュール</h3><p class="event-date">2026年7月26日（日）</p><dl class="event-schedule">
+            ${[["12:00 ～ 12:15", "開場・受付"], ["12:15 ～ 12:45", "開会式"], ["12:45 ～ 13:45", "調整①"], ["13:45 ～ 14:15", "抽選・競技①"], ["14:15 ～ 14:25", "エクストラチャレンジルール発表"], ["14:25 ～ 15:45", "調整②"], ["15:45 ～ 16:15", "抽選・競技②"], ["16:15 ～ 16:40", "片付け・スコア集計・チャペル移動"], ["16:40 ～ 17:10", "閉会式"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
+          </dl></section>
+          <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
+        </div>
+      </article>
       ${linkGroup("WRO ホームページ", [
         ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
         ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
@@ -967,6 +1029,7 @@ function linksView() {
       ${linkGroup("ルール関連", [
         ["Google翻訳", "RoboMission JuniorルールのGoogle翻訳版", GOOGLE_TRANSLATED_RULES_URL],
         ["世界大会ルール", "RoboMission Juniorの世界大会ルール", WORLD_RULES_URL],
+        ["兵庫予選会 ルール補足及びローカルルール", "兵庫予選会で適用される補足・ローカルルール", HYOGO_LOCAL_RULES_URL],
         ["Q&A", "WRO国際サイトの質問・回答", "https://wro-association.org/competition/questions-answers/"],
       ])}
       ${linkGroup("その他", [
@@ -987,7 +1050,7 @@ function linksView() {
         <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
       </article>
     </section>
-  `, { back: "score", title: "リンク" });
+  `, { back: "score", title: "リンク・大会情報" });
 }
 
 function linkGroup(title: string, links: [string, string, string][]) {
@@ -1007,6 +1070,10 @@ function modalView() {
   return `<div class="modal-backdrop" data-action="close-modal">
     <section class="photo-modal" role="dialog" aria-modal="true" aria-label="${group.title}">
       <header><div><strong>${group.title}</strong><small>${group.photos.length}件の判定例を一覧表示</small></div><button class="icon-button" data-action="close-modal" aria-label="閉じる">×</button></header>
+      <section class="judging-rules" aria-label="判定ルール">
+        <h3>判定ルール</h3>
+        <div>${group.rules.map((rule) => `<article><span class="photo-label ${rule.label === "満点" ? "full" : rule.label === "部分点" ? "partial" : rule.score === "0点" ? "zero" : "info"}">${rule.score}</span><p><strong>${escapeHtml(rule.label)}</strong>${escapeHtml(rule.description)}</p></article>`).join("")}</div>
+      </section>
       <div class="photo-matrix">
         ${group.photos.map((photo) => `<article class="photo-example">
           <img src="${photo.src}" alt="${escapeHtml(photo.description)}" loading="lazy" decoding="async" />
@@ -1048,6 +1115,7 @@ function bindEvents() {
       location.hash = `#/${target}`;
       if (target === "records" && sameRoute) void loadRecords();
       if (target === "memo" && sameRoute) void loadMemoData();
+      if (target === "news" && sameRoute) void loadHyogoNews();
     }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
@@ -1091,6 +1159,22 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-photos]").forEach((button) =>
     button.addEventListener("click", () => { modal = { group: button.dataset.photos! }; render(); }),
   );
+  document.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-record-filter]").forEach((input) => {
+    if (input.dataset.recordFilter !== "query") {
+      input.addEventListener("change", () => {
+        updateRecordFiltersFromInputs();
+        recordVisibleCount = RECORD_PAGE_SIZE;
+        render();
+      });
+    }
+  });
+  document.querySelector<HTMLInputElement>('[data-record-filter="query"]')?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      updateRecordFiltersFromInputs();
+      recordVisibleCount = RECORD_PAGE_SIZE;
+      render();
+    }
+  });
   document.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
     element.addEventListener("click", (event) => {
       if (element.classList.contains("modal-backdrop") && event.target !== element) return;
@@ -1132,6 +1216,32 @@ function prepareRulesConnections() {
   document.head.appendChild(dnsPrefetch);
 }
 
+function parkRulesFrame() {
+  if (!persistentRulesFrame?.isConnected) return;
+  if (!rulesFrameParking) {
+    rulesFrameParking = document.createElement("div");
+    rulesFrameParking.className = "rules-frame-parking";
+    rulesFrameParking.setAttribute("aria-hidden", "true");
+    document.body.appendChild(rulesFrameParking);
+  }
+  rulesFrameParking.appendChild(persistentRulesFrame);
+}
+
+function attachRulesFrame() {
+  const host = document.querySelector<HTMLElement>("[data-rules-frame-host]");
+  if (!host) return;
+  if (!persistentRulesFrame) {
+    const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+    persistentRulesFrame = document.createElement("iframe");
+    persistentRulesFrame.src = useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+    persistentRulesFrame.loading = "eager";
+    persistentRulesFrame.allow = "fullscreen";
+    persistentRulesFrame.referrerPolicy = "no-referrer";
+    persistentRulesFrame.title = "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
+  }
+  host.appendChild(persistentRulesFrame);
+}
+
 function toggleScore(button: HTMLButtonElement) {
   const section = button.dataset.scoreSection!;
   const index = Number(button.dataset.scoreIndex);
@@ -1167,6 +1277,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "create-account") void saveManagedAccount();
   if (action === "update-account") void saveManagedAccount(element.dataset.accountId);
   if (action === "load-records") void loadRecords();
+  if (action === "load-news") void loadHyogoNews();
   if (action === "load-memo-data") void loadMemoData();
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
@@ -1954,6 +2065,44 @@ async function postJson<T>(endpoint: string, payload: unknown, controller = new 
     return await response.json() as T;
   } finally {
     window.clearTimeout(timeout);
+  }
+}
+
+function sanitizeNews(value: unknown): NewsItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 3).filter((item): item is NewsItem => {
+    if (!item || typeof item !== "object") return false;
+    const candidate = item as Partial<NewsItem>;
+    try {
+      return candidate.source === "兵庫" && typeof candidate.title === "string" && candidate.title.length > 0 && candidate.title.length <= 160 && typeof candidate.updatedAt === "string" && /^\d{4}\.\d{2}\.\d{2}$/.test(candidate.updatedAt) && typeof candidate.url === "string" && new URL(candidate.url).origin === "https://wro-hyogo.jp";
+    } catch { return false; }
+  });
+}
+
+function loadNewsCache(): NewsItem[] {
+  try {
+    const cached = sanitizeNews(JSON.parse(localStorage.getItem(NEWS_CACHE_KEY) || "null"));
+    return cached.length ? cached : FALLBACK_HYOGO_NEWS;
+  } catch { return FALLBACK_HYOGO_NEWS; }
+}
+
+async function loadHyogoNews() {
+  if (newsLoading) return;
+  newsLoading = true;
+  newsStatus = "兵庫予選会サイトの最新情報を確認しています…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; news?: unknown; message?: string }>(DEFAULT_GAS_WEB_APP_URL, { action: "news" }, new AbortController(), 10000);
+    const latest = sanitizeNews(result.news);
+    if (!result.ok || !latest.length) throw new Error(result.message || "最新情報を取得できませんでした。");
+    newsItems = latest;
+    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(latest));
+    newsStatus = "兵庫予選会公式サイトから最新3件を取得しました。";
+  } catch {
+    newsStatus = "通信できなかったため、保存済みのお知らせを表示しています。";
+  } finally {
+    newsLoading = false;
+    if (location.hash === "#/news") render();
   }
 }
 
