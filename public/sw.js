@@ -1,5 +1,38 @@
-const CACHE = "robomission-junior-v22";
-const PRECACHE = ["./manifest.webmanifest", "./assets/icons/icon-192.png"];
+const CACHE = "robomission-junior-v23";
+const PRECACHE = [
+  "./manifest.webmanifest",
+  "./assets/icons/icon-192.png",
+  "./assets/judging/visitors/full-upright.webp",
+  "./assets/judging/visitors/partial.webp",
+  "./assets/judging/visitors/fallen.webp",
+  "./assets/judging/visitors/outside.webp",
+  "./assets/judging/visitors/wrong-color.webp",
+  "./assets/judging/red-towers/full.webp",
+  "./assets/judging/red-towers/partial.webp",
+  "./assets/judging/red-towers/outside.webp",
+  "./assets/judging/red-towers/fallen.webp",
+  "./assets/judging/yellow-towers/full.webp",
+  "./assets/judging/yellow-towers/partial.webp",
+  "./assets/judging/yellow-towers/outside.webp",
+  "./assets/judging/yellow-towers/incorrect.webp",
+  "./assets/judging/artifacts/full.webp",
+  "./assets/judging/artifacts/partial.webp",
+  "./assets/judging/artifacts/fallen.webp",
+  "./assets/judging/artifacts/outside.webp",
+  "./assets/judging/artifacts/wrong-color.webp",
+  "./assets/judging/dirt/area.webp",
+  "./assets/judging/dirt/clear.webp",
+  "./assets/judging/dirt/touching.webp",
+  "./assets/judging/dirt/visitor-area.webp",
+  "./assets/judging/dirt/line.webp",
+  "./assets/judging/bonus/red-ok.webp",
+  "./assets/judging/bonus/red-moved.webp",
+  "./assets/judging/bonus/red-damaged.webp",
+  "./assets/judging/bonus/white-ok.webp",
+  "./assets/judging/bonus/white-moved.webp",
+  "./assets/judging/bonus/parrot-ok.webp",
+  "./assets/judging/bonus/parrot-moved.webp",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
