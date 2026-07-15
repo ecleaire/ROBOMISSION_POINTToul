@@ -359,6 +359,7 @@ function cameraRecorderView() {
       ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-video-recording-time>00:00</span></strong>` : ""}
       ${cameraStream ? `<button class="camera-expand" data-action="camera-expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
         <button class="camera-collapse" data-action="camera-collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
+        ${isRecording ? `<div class="camera-stopwatch-overlay" data-camera-stopwatch-overlay>${cameraStopwatchContents()}</div>` : ""}
         ${isRecording ? `<button class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
     </div>
     <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
@@ -380,6 +381,19 @@ function stopwatchContents() {
   return `<div class="stopwatch-time"><span>STOPWATCH</span><strong data-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong></div>
     <div class="stopwatch-controls">${timerControls}${fullscreenControl}</div>
     ${stopwatchLaps.length ? `<ol class="stopwatch-laps" aria-label="ラップ記録">${stopwatchLaps.map((lap, index) => `<li><span>ラップ ${index + 1}</span><strong>${formatStopwatch(lap)}</strong></li>`).join("")}</ol>` : ""}`;
+}
+
+function cameraStopwatchContents() {
+  const controls = stopwatchStatus === "idle"
+    ? `<button class="camera-timer-lap" type="button" disabled>⚑<span>ラップ</span></button><button class="camera-timer-start" data-action="timer-start">▶<span>競技開始</span></button>`
+    : stopwatchStatus === "running"
+      ? `<button class="camera-timer-lap" data-action="timer-lap">⚑<span>ラップ</span></button><button class="camera-timer-pause" data-action="timer-pause">Ⅱ<span>停止</span></button>`
+      : `<button class="camera-timer-finish" data-action="timer-finish">■<span>競技終了</span></button><button class="camera-timer-resume" data-action="timer-resume">▶<span>再開</span></button>`;
+  const latestLap = stopwatchLaps.at(-1);
+  return `<span class="camera-stopwatch-label">競技ストップウォッチ</span>
+    <strong data-camera-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong>
+    <div class="camera-stopwatch-controls">${controls}</div>
+    ${latestLap === undefined ? "" : `<small>ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
 }
 
 function sheetSection(id: string, title: string, action = "") {
@@ -972,10 +986,10 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "camera-stop") stopCameraRecording();
   if (action === "camera-expand") enterCameraFullscreen();
   if (action === "camera-collapse") exitCameraFullscreen();
-  if (action === "timer-start") startStopwatch(true);
+  if (action === "timer-start") startStopwatch(true, !element.closest(".camera-preview-wrap"));
   if (action === "timer-lap") addStopwatchLap();
   if (action === "timer-pause") pauseStopwatch();
-  if (action === "timer-resume") startStopwatch(false);
+  if (action === "timer-resume") startStopwatch(false, !element.closest(".camera-preview-wrap"));
   if (action === "timer-finish") finishStopwatch();
   if (action === "timer-expand") enterStopwatchFullscreen();
   if (action === "timer-collapse") exitStopwatchFullscreen();
@@ -1010,14 +1024,15 @@ function currentStopwatchElapsed() {
   return stopwatchStatus === "running" ? stopwatchElapsedMs + performance.now() - stopwatchStartedAt : stopwatchElapsedMs;
 }
 
-function startStopwatch(reset: boolean) {
+function startStopwatch(reset: boolean, expand = true) {
   if (reset) {
     stopwatchElapsedMs = 0;
     stopwatchLaps = [];
   }
   stopwatchStartedAt = performance.now();
   stopwatchStatus = "running";
-  enterStopwatchFullscreen();
+  if (expand) enterStopwatchFullscreen();
+  else refreshStopwatch();
   startStopwatchUpdates();
 }
 
@@ -1062,10 +1077,13 @@ function finishStopwatch() {
   saveState();
   stopwatchStatus = "idle";
   stopStopwatchUpdates();
+  if (document.body.classList.contains("camera-mode")) {
+    refreshStopwatch();
+    return;
+  }
   const finish = () => {
     document.body.classList.remove("stopwatch-mode");
-    if (videoRecordingStatus === "recording") stopCameraRecording();
-    else render();
+    render();
   };
   if (document.fullscreenElement) {
     void document.exitFullscreen().catch(() => undefined).finally(finish);
@@ -1076,13 +1094,21 @@ function finishStopwatch() {
 
 function refreshStopwatch() {
   const stopwatch = document.querySelector<HTMLElement>(".stopwatch");
-  if (!stopwatch) return;
-  stopwatch.innerHTML = stopwatchContents();
-  stopwatch.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
-    element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
-  );
-  const laps = stopwatch.querySelector<HTMLOListElement>(".stopwatch-laps");
-  if (laps) laps.scrollTop = laps.scrollHeight;
+  if (stopwatch) {
+    stopwatch.innerHTML = stopwatchContents();
+    stopwatch.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
+      element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
+    );
+    const laps = stopwatch.querySelector<HTMLOListElement>(".stopwatch-laps");
+    if (laps) laps.scrollTop = laps.scrollHeight;
+  }
+  const cameraStopwatch = document.querySelector<HTMLElement>("[data-camera-stopwatch-overlay]");
+  if (cameraStopwatch) {
+    cameraStopwatch.innerHTML = cameraStopwatchContents();
+    cameraStopwatch.querySelectorAll<HTMLElement>("[data-action]").forEach((element) =>
+      element.addEventListener("click", () => handleAction(element.dataset.action!, element)),
+    );
+  }
 }
 
 function resetStopwatch() {
@@ -1099,8 +1125,10 @@ function resetStopwatch() {
 function startStopwatchUpdates() {
   stopStopwatchUpdates();
   stopwatchTimer = window.setInterval(() => {
-    const display = document.querySelector<HTMLElement>("[data-stopwatch-display]");
-    if (display) display.textContent = formatStopwatch(currentStopwatchElapsed());
+    const formatted = formatStopwatch(currentStopwatchElapsed());
+    document.querySelectorAll<HTMLElement>("[data-stopwatch-display], [data-camera-stopwatch-display]").forEach((display) => {
+      display.textContent = formatted;
+    });
   }, 31);
 }
 
