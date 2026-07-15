@@ -63,6 +63,12 @@ describe("GAS account management", () => {
     expect(() => gas.saveAccount_({ name: "Duplicate Team", newApiKey: "ALPHA-KEY" })).toThrow("このAPIキーは既に使用されています。");
   });
 
+  it("allows a one-character API key", () => {
+    const { gas } = loadGas();
+    const created = gas.saveAccount_({ name: "Short Key Team", newApiKey: "x" });
+    expect(gas.normalizeKey_("X")).toBe(created.id);
+  });
+
   it("allows videos only for their account and administrators", () => {
     const { gas } = loadGas();
     expect(gas.canAccessVideo_("A", "A")).toBe(true);
@@ -93,6 +99,6 @@ describe("GAS account management", () => {
       getRange: () => ({ getValues: () => [["memo-a"], ["memo-b"], ["memo-c"]] }),
     };
     expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
-    expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("自由メモが見つかりません");
+    expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("メモが見つかりません");
   });
 });

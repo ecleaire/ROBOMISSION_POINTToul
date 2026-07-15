@@ -95,6 +95,8 @@ const ACCOUNT_STORAGE_VERSION = "2026-07-15-optional-save-v1";
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
 const VIDEO_RECORDING_BITRATE = 1_000_000;
+const RECORD_VIDEO_CACHE_NAME = "robomission-record-videos-v1";
+const MAX_CACHED_RECORD_VIDEOS = 3;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
   localStorage.removeItem(ACCOUNT_KEY);
@@ -150,6 +152,7 @@ let videoRecordingLimitTimer: number | null = null;
 let discardRecordedVideo = false;
 let pendingVideoUpload: PendingVideoUpload | null = null;
 let systemNotice = "";
+if (!activeAccount) void clearRecordVideoCache();
 type StopwatchStatus = "idle" | "running" | "paused";
 let stopwatchStatus: StopwatchStatus = "idle";
 let stopwatchElapsedMs = 0;
@@ -345,7 +348,7 @@ function accountManagementView() {
     <div class="new-managed-account">
       <h3>新しいアカウントを追加</h3>
       <label>チーム名<input id="new-account-name" maxlength="50" placeholder="チーム名" /></label>
-      <label>APIキー<input id="new-account-key" type="password" minlength="4" maxlength="128" autocomplete="new-password" placeholder="4文字以上のAPIキー" /></label>
+      <label>APIキー<input id="new-account-key" type="password" maxlength="128" autocomplete="new-password" placeholder="APIキー" /></label>
       <button class="primary" data-action="create-account">アカウントを追加</button>
     </div>
   </section>`;
@@ -731,12 +734,12 @@ function resultView() {
     <section class="result-actions">
       <button class="secondary" data-nav="score">採点へ戻る</button>
     </section>
-    ${activeAccount === "ADMIN" ? `<section class="sheet-panel card"><h2>管理アカウント</h2><p>管理アカウントでは記録とアカウントを管理できます。採点結果の保存は通常アカウントへ切り替えてください。</p></section>` : `<section class="sheet-panel card">
+    <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
-      <p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>
+      ${activeAccount === "ADMIN" ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`}
       <button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : "このチームの記録として保存"}</button>
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
-    </section>`}
+    </section>
     <button class="text-button new-score" data-action="new">＋ 新しい採点を始める</button>
   `, { back: "score", title: "採点結果" });
 }
@@ -806,9 +809,15 @@ function memoView() {
     </section>
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
     <section class="free-memo-section">
-      <div class="section-heading"><div><p class="eyebrow">FREE MEMO</p><h2>自由メモ</h2></div><span>練習回に関係なく保存できます</span></div>
+      <div class="section-heading"><div><p class="eyebrow">MEMO</p><h2>メモ</h2></div><span>練習回に関係なく保存できます</span></div>
       <article class="memo-record free-memo-new card" data-free-memo>
-        <label>新しい自由メモ
+        ${isAdmin ? `<label>保存先アカウント
+          <select data-free-memo-account-select>
+            <option value="">選択してください</option>
+            ${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}
+          </select>
+        </label>` : ""}
+        <label>新しいメモ
           <textarea data-free-memo-content maxlength="1000" placeholder="アイデア、準備物、次回試したいことなど"></textarea>
         </label>
         <div class="memo-save-row"><small>1000文字まで</small><button class="primary" data-action="save-free-memo">新しいメモを保存</button></div>
@@ -817,10 +826,10 @@ function memoView() {
       <div class="memo-list free-memo-list">
         ${freeMemos.length ? freeMemos.map((memo) => `
           <article class="memo-record card" data-free-memo>
-            <header><div><p>${formatRecordDate(memo.updatedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(memo.accountName || memo.account)}</span>` : ""}</p><strong>自由メモ</strong></div></header>
+            <header><div><p>${formatRecordDate(memo.updatedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(memo.accountName || memo.account)}</span>` : ""}</p><strong>メモ</strong></div></header>
             <label>内容<textarea data-free-memo-content maxlength="1000">${escapeHtml(memo.content)}</textarea></label>
             <div class="memo-save-row"><button class="memo-delete" data-action="delete-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">削除</button><button class="primary" data-action="save-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">変更を保存</button></div>
-          </article>`).join("") : `<div class="empty-state card"><strong>自由メモはまだありません</strong><p>上の欄から最初のメモを作成できます。</p></div>`}
+          </article>`).join("") : `<div class="empty-state card"><strong>メモはまだありません</strong><p>上の欄から最初のメモを作成できます。</p></div>`}
       </div>
     </section>
     <div class="section-heading round-memo-heading"><div><p class="eyebrow">ROUND MEMO</p><h2>練習回のメモ</h2></div><span>採点結果に紐づくメモです</span></div>
@@ -894,7 +903,7 @@ function rulesView() {
     </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <iframe src="${viewerUrl}" loading="lazy" allow="fullscreen" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <iframe src="${viewerUrl}" loading="eager" allow="fullscreen" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
       <p>${useDriveViewer ? `通信できない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDFを開く</a>を押してください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
@@ -933,7 +942,7 @@ function linksView() {
         <h2>ライセンス / クレジット</h2>
         <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Juniorの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
         <p>WROおよびWROロゴはWorld Robot Olympiad Association Ltd.の商標です。正式な情報と判定はWRO公式サイトおよび各大会の案内を確認してください。</p>
-        <p><strong>開発：</strong>ecleaire　<strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
+        <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
       </article>
     </section>
   `, { back: "score", title: "リンク" });
@@ -1266,21 +1275,22 @@ async function sendToSheet() {
   if (!endpoint || !activeAccount || !activeApiKey) {
     sheetStatus = "記録先がまだ設定されていません。"; render(); return;
   }
-  if (activeAccount === "ADMIN") {
-    sheetStatus = "管理アカウントから採点結果は保存できません。"; render(); return;
-  }
+  const targetAccount = activeAccount === "ADMIN"
+    ? document.querySelector<HTMLSelectElement>("[data-admin-score-account]")?.value ?? ""
+    : activeAccount;
+  if (!targetAccount) { sheetStatus = "保存先アカウントを選択してください。"; render(); return; }
   sheetSending = true;
   sheetStatus = "得点を保存中…"; render();
   const videoFile = selectedVideo;
   const preparedVideo = videoFile ? fileToStoredVideo(videoFile) : null;
   try {
-    const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, resultPayload(), new AbortController(), 15000);
+    const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, resultPayload(targetAccount), new AbortController(), 15000);
     if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
     if (videoFile && preparedVideo && Number.isInteger(result.rowNumber) && result.recordedAt) {
       pendingVideoUpload = {
         file: videoFile,
         apiKey: activeApiKey,
-        account: activeAccount,
+        account: targetAccount,
         rowNumber: result.rowNumber!,
         recordedAt: result.recordedAt,
         status: "uploading",
@@ -1341,10 +1351,11 @@ async function retryPendingVideoUpload() {
   await uploadPendingVideo();
 }
 
-function resultPayload(video?: StoredVideo) {
+function resultPayload(targetAccount?: string, video?: StoredVideo) {
   const scores = sectionScores(state);
   return {
     apiKey: activeApiKey,
+    account: targetAccount || activeAccount,
     requestId: pendingRequestId,
     recordedAt: new Date().toISOString(),
     timeSeconds: state.timeSeconds,
@@ -1387,6 +1398,7 @@ async function loginAccount(fromSwitch = false) {
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
     if (verifiedAccount === "ADMIN") {
+      if (activeAccount !== "ADMIN") void clearRecordVideoCache();
       if (remember) {
         localStorage.setItem(ACCOUNT_KEY, "ADMIN");
         localStorage.setItem(API_KEY_KEY, key);
@@ -1414,6 +1426,7 @@ async function loginAccount(fromSwitch = false) {
       if (!routeChanged) { void loadRecords(); void loadManagedAccounts(); }
       return;
     }
+    if (activeAccount !== verifiedAccount) void clearRecordVideoCache();
     activeAccount = verifiedAccount;
     activeApiKey = key;
     activeAccountName = typeof result.accountName === "string" ? result.accountName.slice(0, 50) : "";
@@ -1454,6 +1467,7 @@ async function loginAdmin() {
   try {
     const result = await postJson<{ ok?: boolean; account?: string; message?: string }>(endpoint, { action: "auth", apiKey: password });
     if (!result.ok || result.account !== "ADMIN") throw new Error(result.message || "管理者パスワードが違います。");
+    if (activeAccount !== "ADMIN") void clearRecordVideoCache();
     activeAccount = "ADMIN";
     activeApiKey = password;
     adminError = "";
@@ -1474,6 +1488,7 @@ async function loginAdmin() {
 }
 
 function logoutAdmin() {
+  void clearRecordVideoCache();
   const storedAccount = loadAccount();
   if (storedAccount === "ADMIN") {
     localStorage.removeItem(ACCOUNT_KEY);
@@ -1535,8 +1550,8 @@ async function saveManagedAccount(accountId?: string) {
   const keyInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-key="${accountId}"]` : "#new-account-key");
   const name = nameInput?.value.trim() ?? "";
   const newApiKey = keyInput?.value.trim() ?? "";
-  if (!name || (!accountId && newApiKey.length < 4)) {
-    accountManagementStatus = !name ? "チーム名を入力してください。" : "APIキーは4文字以上にしてください。";
+  if (!name || (!accountId && !newApiKey)) {
+    accountManagementStatus = !name ? "チーム名を入力してください。" : "APIキーを入力してください。";
     render();
     return;
   }
@@ -1598,7 +1613,7 @@ function configureRecordsAutoRefresh() {
 }
 
 async function loadMemoData() {
-  await Promise.all([loadRecords(), loadFreeMemos()]);
+  await Promise.all([loadRecords(), loadFreeMemos(), ...(activeAccount === "ADMIN" ? [loadManagedAccounts()] : [])]);
 }
 
 async function loadFreeMemos() {
@@ -1608,20 +1623,20 @@ async function loadFreeMemos() {
     render();
     return;
   }
-  freeMemoStatus = "自由メモを読み込み中…";
+  freeMemoStatus = "メモを読み込み中…";
   render();
   try {
     const result = await postJson<{ ok?: boolean; memos?: FreeMemo[]; message?: string }>(endpoint, { action: "freeMemos", apiKey: activeApiKey });
-    if (!result.ok) throw new Error(result.message || "自由メモを取得できませんでした");
+    if (!result.ok) throw new Error(result.message || "メモを取得できませんでした");
     freeMemos = (Array.isArray(result.memos) ? result.memos : []).filter((memo) =>
       memo && typeof memo.memoId === "string" && typeof memo.content === "string",
     ).map((memo) => ({
       account: String(memo.account || ""), accountName: String(memo.accountName || ""), memoId: memo.memoId.slice(0, 80),
       createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: memo.content.slice(0, 1000),
     }));
-    freeMemoStatus = freeMemos.length ? `${freeMemos.length}件の自由メモを表示中` : "自由メモはまだありません。";
+    freeMemoStatus = freeMemos.length ? `${freeMemos.length}件のメモを表示中` : "メモはまだありません。";
   } catch (error) {
-    freeMemoStatus = `自由メモを読み込めませんでした。${communicationError(error)}`;
+    freeMemoStatus = `メモを読み込めませんでした。${communicationError(error)}`;
   }
   render();
 }
@@ -1631,20 +1646,22 @@ async function saveFreeMemo(element: HTMLElement) {
   const card = element.closest<HTMLElement>("[data-free-memo]");
   const content = card?.querySelector<HTMLTextAreaElement>("[data-free-memo-content]")?.value.trim() ?? "";
   const memoId = element.dataset.memoId ?? "";
-  const memoAccount = element.dataset.memoAccount ?? activeAccount ?? "";
+  const selectedAccount = card?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value ?? "";
+  const memoAccount = element.dataset.memoAccount || selectedAccount || activeAccount || "";
   if (!content) { freeMemoStatus = "メモの内容を入力してください。"; render(); return; }
+  if (activeAccount === "ADMIN" && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
   if (!endpoint || !activeApiKey || !activeAccount) return;
-  freeMemoStatus = "自由メモを保存中…";
+  freeMemoStatus = "メモを保存中…";
   render();
   try {
     const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
       action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content,
     });
-    if (!result.ok) throw new Error(result.message || "自由メモを保存できませんでした");
+    if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
     await loadFreeMemos();
-    freeMemoStatus = "自由メモを保存しました。";
+    freeMemoStatus = "メモを保存しました。";
   } catch (error) {
-    freeMemoStatus = `自由メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    freeMemoStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
 }
@@ -1653,17 +1670,17 @@ async function deleteFreeMemo(element: HTMLElement) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   const memoId = element.dataset.memoId ?? "";
   const memoAccount = element.dataset.memoAccount ?? activeAccount ?? "";
-  if (!endpoint || !activeApiKey || !activeAccount || !memoId || !confirm("この自由メモを削除しますか？")) return;
-  freeMemoStatus = "自由メモを削除中…";
+  if (!endpoint || !activeApiKey || !activeAccount || !memoId || !confirm("このメモを削除しますか？")) return;
+  freeMemoStatus = "メモを削除中…";
   render();
   try {
     const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
       action: "deleteFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId,
     });
-    if (!result.ok) throw new Error(result.message || "自由メモを削除できませんでした");
+    if (!result.ok) throw new Error(result.message || "メモを削除できませんでした");
     await loadFreeMemos();
   } catch (error) {
-    freeMemoStatus = `自由メモを削除できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
+    freeMemoStatus = `メモを削除できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
     render();
   }
 }
@@ -1719,6 +1736,14 @@ async function playRecordVideo(element: HTMLElement) {
   recordsStatus = "動画を読み込み中…";
   render();
   try {
+    const cachedVideo = await getCachedRecordVideo(recordAccount, rowNumber, recordedAt);
+    if (cachedVideo) {
+      closeRecordVideo(false);
+      recordVideoModal = { url: URL.createObjectURL(cachedVideo.blob), name: cachedVideo.name };
+      recordsStatus = "端末に保存した動画を表示中";
+      render();
+      return;
+    }
     const result = await postJson<{ ok?: boolean; video?: StoredVideo; message?: string }>(endpoint, {
       action: "video", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt,
     }, new AbortController(), 90000);
@@ -1728,12 +1753,65 @@ async function playRecordVideo(element: HTMLElement) {
       throw new Error("動画データが無効です。");
     }
     closeRecordVideo(false);
-    recordVideoModal = { url: URL.createObjectURL(base64ToBlob(video.base64, video.type)), name: video.name };
+    const blob = base64ToBlob(video.base64, video.type);
+    recordVideoModal = { url: URL.createObjectURL(blob), name: video.name };
+    void cacheRecordVideo(recordAccount, rowNumber, recordedAt, video.name, blob);
     recordsStatus = `${practiceRecords.length}件の記録を表示中`;
   } catch (error) {
     recordsStatus = `動画を読み込めませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
+}
+
+function recordVideoCacheUrl(account: string, rowNumber: number, recordedAt: string) {
+  const url = new URL(`${import.meta.env.BASE_URL}__record_video_cache__`, location.origin);
+  url.searchParams.set("account", account);
+  url.searchParams.set("row", String(rowNumber));
+  url.searchParams.set("date", recordedAt);
+  return url.toString();
+}
+
+async function getCachedRecordVideo(account: string, rowNumber: number, recordedAt: string) {
+  if (!("caches" in window)) return null;
+  try {
+    const cache = await caches.open(RECORD_VIDEO_CACHE_NAME);
+    const request = recordVideoCacheUrl(account, rowNumber, recordedAt);
+    const response = await cache.match(request);
+    if (!response) return null;
+    const blob = await response.blob();
+    if (!blob.type.startsWith("video/") || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) {
+      await cache.delete(request);
+      return null;
+    }
+    const encodedName = response.headers.get("x-video-name") || "record-video";
+    return { blob, name: decodeURIComponent(encodedName) };
+  } catch {
+    return null;
+  }
+}
+
+async function cacheRecordVideo(account: string, rowNumber: number, recordedAt: string, name: string, blob: Blob) {
+  if (!("caches" in window) || !blob.type.startsWith("video/") || blob.size > MAX_VIDEO_BYTES) return;
+  try {
+    const cache = await caches.open(RECORD_VIDEO_CACHE_NAME);
+    const request = recordVideoCacheUrl(account, rowNumber, recordedAt);
+    const existing = await cache.match(request);
+    if (!existing) {
+      const keys = [...await cache.keys()];
+      while (keys.length >= MAX_CACHED_RECORD_VIDEOS) {
+        const oldest = keys.shift();
+        if (oldest) await cache.delete(oldest);
+      }
+    }
+    await cache.put(request, new Response(blob, { headers: { "content-type": blob.type, "x-video-name": encodeURIComponent(name) } }));
+  } catch {
+    // Storage limits vary by browser. Playback still works without the local cache.
+  }
+}
+
+async function clearRecordVideoCache() {
+  if (!("caches" in window)) return;
+  try { await caches.delete(RECORD_VIDEO_CACHE_NAME); } catch { /* キャッシュ非対応端末 */ }
 }
 
 function closeRecordVideo(shouldRender = true) {

@@ -47,9 +47,6 @@ function doPost(event) {
         accountLock.releaseLock();
       }
     }
-    if (key === "ADMIN" && data.action !== "delete" && data.action !== "saveMemo" && data.action !== "saveFreeMemo" && data.action !== "deleteFreeMemo") {
-      throw new Error("管理アカウントから採点結果は保存できません。");
-    }
     const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
     if (!accountById_(targetAccount)) {
       throw new Error("対象アカウントが無効です。");
@@ -239,12 +236,12 @@ function deleteFreeMemo_(sheet, memoId) {
 }
 
 function findFreeMemoRow_(sheet, memoId) {
-  if (!memoId || sheet.getLastRow() < 2) throw new Error("自由メモが見つかりません。");
+  if (!memoId || sheet.getLastRow() < 2) throw new Error("メモが見つかりません。");
   const ids = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
   for (let index = 0; index < ids.length; index += 1) {
     if (String(ids[index][0] || "") === memoId) return index + 2;
   }
-  throw new Error("自由メモが見つかりません。");
+  throw new Error("メモが見つかりません。");
 }
 
 function ensureHeader_(sheet) {
@@ -496,7 +493,6 @@ function saveAccount_(data) {
   const name = String(data.name || "").trim().slice(0, 50);
   const newApiKey = String(data.newApiKey || "").trim();
   if (!name) throw new Error("チーム名を入力してください。");
-  if (newApiKey && newApiKey.length < 4) throw new Error("APIキーは4文字以上にしてください。");
   const properties = PropertiesService.getScriptProperties();
   let requestedId = String(data.accountId || "").toUpperCase();
   const existing = requestedId ? accountById_(requestedId) : null;
