@@ -62,15 +62,24 @@ function doPost(event) {
         archiveRecord_(sheet, data.rowNumber, data.recordedAt);
         return json_({ ok: true });
       }
+      if (data.action === "attachVideo") {
+        return json_(attachVideoToRecord_(sheet, targetAccount, data));
+      }
       const requestId = String(data.requestId || "").slice(0, 100);
       const cache = CacheService.getScriptCache();
       const requestCacheKey = requestId ? "score-" + targetAccount + "-" + requestId : "";
-      if (requestCacheKey && cache.get(requestCacheKey)) return json_({ ok: true, duplicate: true });
+      const cachedResult = requestCacheKey ? cache.get(requestCacheKey) : "";
+      if (cachedResult) {
+        try { return json_(Object.assign({ ok: true, duplicate: true }, JSON.parse(cachedResult))); }
+        catch (cacheError) { return json_({ ok: true, duplicate: true }); }
+      }
       let videoFile = null;
       try {
         videoFile = data.video ? saveVideo_(targetAccount, data.video) : null;
-        sheet.appendRow([
-          new Date(),
+        const recordedAt = new Date();
+        const rowNumber = sheet.getLastRow() + 1;
+        sheet.getRange(rowNumber, 1, 1, 14).setValues([[
+          recordedAt,
           numberOrBlank_(data.timeSeconds),
           number_(data.visitors),
           number_(data.redTowers),
@@ -84,21 +93,48 @@ function doPost(event) {
           "",
           "",
           videoFile ? videoFile.getId() : ""
-        ]);
+        ]]);
+        const savedRecord = { rowNumber: rowNumber, recordedAt: recordedAt.toISOString() };
+        ensureDeleteControlForRow_(sheet, rowNumber);
+        if (requestCacheKey) cache.put(requestCacheKey, JSON.stringify(savedRecord), 21600);
+        return json_(Object.assign({ ok: true }, savedRecord));
       } catch (error) {
         if (videoFile) {
           try { videoFile.setTrashed(true); } catch (cleanupError) { /* 保存失敗時の後片付け */ }
         }
         throw error;
       }
-      ensureDeleteControls_(sheet);
-      if (requestCacheKey) cache.put(requestCacheKey, "1", 21600);
-      return json_({ ok: true });
     } finally {
       lock.releaseLock();
     }
   } catch (error) {
     return json_({ ok: false, message: String(error && error.message ? error.message : error) });
+  }
+}
+
+function attachVideoToRecord_(sheet, targetAccount, data) {
+  const rowNumber = Number(data.rowNumber);
+  if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
+    throw new Error("動画を追加する記録が見つかりません。");
+  }
+  const row = sheet.getRange(rowNumber, 1, 1, 14);
+  const values = row.getValues()[0];
+  const currentDate = values[0] instanceof Date ? values[0] : new Date(values[0]);
+  const requestedDate = new Date(data.recordedAt);
+  if (!Number.isFinite(currentDate.getTime()) || !Number.isFinite(requestedDate.getTime()) || currentDate.getTime() !== requestedDate.getTime()) {
+    throw new Error("記録の位置が変わりました。動画を追加できません。");
+  }
+  if (values[13]) return { ok: true, duplicate: true };
+  let videoFile = null;
+  try {
+    videoFile = saveVideo_(targetAccount, data.video);
+    sheet.getRange(rowNumber, 14).setValue(videoFile.getId());
+    return { ok: true };
+  } catch (error) {
+    if (videoFile) {
+      try { videoFile.setTrashed(true); } catch (cleanupError) { /* 保存失敗時の後片付け */ }
+    }
+    throw error;
   }
 }
 
@@ -126,6 +162,9 @@ function getSheet_(key) {
 }
 
 function ensureHeader_(sheet) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = "sheet-ready-v2-" + sheet.getSheetId();
+  if (cache.get(cacheKey)) return;
   const headers = [[
     "記録日時", "競技時間（秒）", "訪問者", "赤い塔", "黄色い塔", "遺物",
     "汚れ", "ボーナス", "合計", "未判定数", "メモ", "削除", "削除日時", "動画ID（非公開）"
@@ -152,6 +191,7 @@ function ensureHeader_(sheet) {
   }
   if (sheet.getFrozenRows() !== 1) sheet.setFrozenRows(1);
   ensureDeleteControls_(sheet);
+  cache.put(cacheKey, "1", 21600);
 }
 
 function readRecords_(sheet, account, accountName) {
@@ -219,6 +259,13 @@ function ensureDeleteControls_(sheet) {
       .setRanges([sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 14)])
       .build());
     sheet.setConditionalFormatRules(rules);
+  }
+}
+
+function ensureDeleteControlForRow_(sheet, rowNumber) {
+  const cell = sheet.getRange(rowNumber, 12);
+  if (!cell.getDataValidation()) {
+    cell.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
   }
 }
 
