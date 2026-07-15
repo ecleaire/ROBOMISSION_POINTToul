@@ -164,6 +164,12 @@ window.addEventListener("hashchange", () => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
 });
+document.addEventListener("pointerdown", (event) => {
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action="camera-expand"]') : null;
+  if (!target) return;
+  event.preventDefault();
+  enterCameraFullscreen();
+}, { capture: true });
 window.addEventListener("keydown", (event) => {
   if (!modal && !accountSwitchOpen) return;
   if (event.key === "Escape") { modal = null; accountSwitchOpen = false; }
@@ -389,9 +395,12 @@ function cameraRecorderView() {
         ${isRecording ? `<button type="button" class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
     </div>
     <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
-    ${isRecording
-      ? `<button class="camera-stop" data-action="camera-stop">■ 録画停止</button>`
-      : `<button class="camera-start" data-action="camera-start" ${isBusy ? "disabled" : ""}>${videoRecordingStatus === "starting" ? "カメラ準備中…" : videoRecordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
+    <div class="camera-recorder-actions">
+      ${cameraStream ? `<button type="button" class="camera-main-expand" data-action="camera-expand">⛶ カメラを全画面</button>` : ""}
+      ${isRecording
+        ? `<button type="button" class="camera-stop" data-action="camera-stop">■ 録画停止</button>`
+        : `<button type="button" class="camera-start" data-action="camera-start" ${isBusy ? "disabled" : ""}>${videoRecordingStatus === "starting" ? "カメラ準備中…" : videoRecordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
+    </div>
   </section>`;
 }
 
@@ -583,10 +592,6 @@ function enterCameraFullscreen() {
   if (!preview || !cameraStream) return;
   preview.classList.add("camera-preview-expanded");
   document.body.classList.add("camera-mode");
-  const appleTouchDevice = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-  if (!appleTouchDevice && !document.fullscreenElement && preview.requestFullscreen) {
-    void preview.requestFullscreen().catch(() => undefined);
-  }
 }
 
 function collapseCameraFullscreen() {

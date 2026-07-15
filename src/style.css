@@ -98,6 +98,9 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .camera-recorder-info strong { color: var(--blue-dark); font-size: .96rem; }
 .camera-recorder-info small { margin-top: 4px; color: #60798e; font-size: .72rem; line-height: 1.45; }
 .camera-recorder button { min-width: 126px; min-height: 48px; padding: 8px 12px; border-radius: 9px; font-weight: 900; }
+.camera-recorder-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.camera-recorder-actions button { min-width: 142px; }
+.camera-main-expand { border: 2px solid #2f82bd; color: white; background: #1261a6; touch-action: manipulation; }
 .camera-start { border: 2px solid #b83f38; color: #9d2923; background: #fff1ee; }
 .camera-stop { border: 2px solid #8f1717; color: white; background: #b52121; }
 .camera-recorder.recording { background: #fff5f3; }
@@ -392,7 +395,8 @@ code { overflow-wrap: anywhere; }
   .stopwatch-laps { grid-column: auto; }
   .camera-recorder { grid-template-columns: 112px minmax(0, 1fr); gap: 8px; padding: 8px; }
   .camera-preview-wrap { width: 112px; }
-  .camera-recorder button { width: 100%; grid-column: 1 / -1; }
+  .camera-recorder-actions { width: 100%; grid-column: 1 / -1; }
+  .camera-recorder-actions button { width: 100%; min-width: 0; }
   .camera-preview-wrap .camera-expand, .camera-preview-wrap .camera-collapse, .camera-preview-wrap .camera-overlay-stop { width: auto; grid-column: auto; }
   .camera-recorder-info small { font-size: .66rem; }
   .score-sheet { --sheet-columns: 31% 20% 20% 15% 14%; font-size: .7rem; }
