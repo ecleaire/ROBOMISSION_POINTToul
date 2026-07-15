@@ -23,6 +23,11 @@ const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 const HYOGO_NEWS_FEED_URL = "https://wro-hyogo.jp/feed/";
 const HYOGO_NEWS_CACHE_KEY = "hyogo-news-v1";
+const HYOGO_NEWS_FALLBACK = Object.freeze([
+  { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
+  { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
+  { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" }
+]);
 
 function doGet() {
   return json_({ ok: true, message: "RoboMission Junior score endpoint is ready. Use POST for authenticated actions." });
@@ -239,16 +244,20 @@ function getHyogoNews_() {
   const cache = CacheService.getScriptCache();
   const cached = cache.get(HYOGO_NEWS_CACHE_KEY);
   if (cached) return JSON.parse(cached);
-  const response = UrlFetchApp.fetch(HYOGO_NEWS_FEED_URL, {
-    muteHttpExceptions: true,
-    followRedirects: true,
-    headers: { "User-Agent": "RoboMission Assist news reader" }
-  });
-  if (response.getResponseCode() !== 200) throw new Error("兵庫予選会のお知らせを取得できませんでした。");
-  const news = parseHyogoNewsFeed_(response.getContentText()).slice(0, 3);
-  if (!news.length) throw new Error("兵庫予選会のお知らせを解析できませんでした。");
-  cache.put(HYOGO_NEWS_CACHE_KEY, JSON.stringify(news), 1800);
-  return news;
+  try {
+    const response = UrlFetchApp.fetch(HYOGO_NEWS_FEED_URL, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: { "User-Agent": "RoboMission Assist news reader" }
+    });
+    if (response.getResponseCode() !== 200) throw new Error("feed unavailable");
+    const news = parseHyogoNewsFeed_(response.getContentText()).slice(0, 3);
+    if (!news.length) throw new Error("feed parse failed");
+    cache.put(HYOGO_NEWS_CACHE_KEY, JSON.stringify(news), 1800);
+    return news;
+  } catch (error) {
+    return HYOGO_NEWS_FALLBACK.slice();
+  }
 }
 
 function parseHyogoNewsFeed_(xml) {
