@@ -112,8 +112,9 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .camera-collapse { display: none; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); border: 2px solid #ffaaa3; background: #b72e27; font-size: 1rem; }
 .camera-overlay-stop { display: none; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); border: 2px solid #ff8b82; background: #a91e1e; font-size: 1rem; }
 .camera-stopwatch-overlay { display: none; }
-body.camera-mode { overflow: hidden; }
-.camera-preview-wrap.camera-preview-expanded { position: fixed; z-index: 1000; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; border-radius: 0; background: #000; }
+html:has(body.camera-mode), body.camera-mode { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.camera-mode { position: fixed; inset: 0; touch-action: none; }
+.camera-preview-wrap.camera-preview-expanded { position: fixed !important; z-index: 2147483647; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100svh !important; height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; aspect-ratio: auto; border-radius: 0; background: #000; touch-action: manipulation; }
 .camera-preview-wrap.camera-preview-expanded video { object-fit: contain; }
 .camera-preview-wrap.camera-preview-expanded .camera-expand { display: none; }
 .camera-preview-wrap.camera-preview-expanded .camera-collapse,
@@ -385,6 +386,16 @@ code { overflow-wrap: anywhere; }
   .app-header { grid-template-columns: 1fr; }
   .mode-nav, .mode-nav:has([data-nav="admin"]) { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
 }
+@media (max-width: 1050px) {
+  .account-switch { min-height: 44px; }
+  .account-switch button { min-width: 56px; min-height: 44px; }
+  .mode-nav button { min-height: 44px; }
+  .sheet-row > * { min-height: 44px; }
+  .sheet-section { min-height: 44px; }
+  .sheet-section button { min-height: 44px; padding-inline: 12px; }
+  .sheet-target select, .dirt-count-cell select, .time-selects select { min-height: 44px; }
+  .record-delete { min-height: 44px; }
+}
 @media (max-width: 640px) {
   :root { font-size: 16px; }
   input, select, textarea { font-size: 16px; }
@@ -393,9 +404,11 @@ code { overflow-wrap: anywhere; }
   .app-brand p { display: none; }
   .app-brand strong { font-size: 1rem; }
   .current-mode { display: none; }
-  .account-switch { min-height: 30px; }
+  .account-switch { min-height: 44px; }
+  .account-switch button { min-width: 56px; min-height: 44px; }
+  .icon-button { min-width: 44px; }
   .mode-nav, .mode-nav:has([data-nav="admin"]) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-  .mode-nav button { min-height: 38px; padding: 5px 2px; border-radius: 7px; font-size: .64rem; }
+  .mode-nav button { min-height: 44px; padding: 6px 2px; border-radius: 7px; font-size: .68rem; }
   main { padding: 12px 14px 60px; }
   .record-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px; }
   .managed-account, .new-managed-account { grid-template-columns: 1fr; }
@@ -414,7 +427,7 @@ code { overflow-wrap: anywhere; }
   .time-card > div:first-child strong { font-size: .8rem; }
   .time-selects { gap: 5px; }
   .time-selects label { gap: 2px; }
-  .time-selects select { width: 55px; min-height: 36px; padding: 4px; font-size: .78rem; }
+  .time-selects select { width: 55px; min-height: 44px; padding: 4px; font-size: .78rem; }
   .time-selects label:first-child select { width: 48px; }
   .time-selects span { font-size: .62rem; }
   .notes-card { grid-template-columns: 1fr; gap: 4px; }
@@ -436,12 +449,16 @@ code { overflow-wrap: anywhere; }
   .score-sheet-title { font-size: .92rem; }
   .score-sheet-guide { font-size: .62rem; }
   .score-sheet-guide span { display: block; }
-  .sheet-row > * { min-height: 38px; padding-inline: 3px; }
+  .sheet-row > * { min-height: 44px; padding-inline: 3px; }
   .sheet-columns > * { min-height: 42px; font-size: .62rem; }
   .sheet-target { gap: 2px; }
   .sheet-target > strong { font-size: .78rem; }
-  .sheet-target select { width: 60px; min-height: 28px; font-size: .62rem; }
+  .sheet-target select { width: 60px; min-height: 44px; font-size: .68rem; }
   .sheet-section > strong { font-size: .72rem; }
+  .sheet-section { min-height: 44px; }
+  .sheet-section button { min-height: 44px; padding-inline: 12px; }
+  .dirt-count-cell select { min-height: 44px; }
+  .record-delete { min-height: 44px; }
   .sheet-check-cell .check-box { width: 25px; height: 25px; font-size: .8rem; }
   .sheet-check-cell small { display: none; }
   .mission-header { grid-template-columns: 32px 1fr auto; }

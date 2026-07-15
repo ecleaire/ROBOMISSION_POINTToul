@@ -187,15 +187,15 @@ document.addEventListener("pointerdown", (event) => {
   const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action="camera-expand"]') : null;
   if (!target) return;
   event.preventDefault();
-  enterCameraFullscreen();
+  enterCameraFullscreen(true);
 }, { capture: true });
 window.addEventListener("keydown", (event) => {
   if (!modal && !accountSwitchOpen) return;
   if (event.key === "Escape") { modal = null; accountSwitchOpen = false; }
   render();
 });
-document.addEventListener("fullscreenchange", () => {
-  if (document.fullscreenElement) return;
+function handleFullscreenChange() {
+  if (activeFullscreenElement()) return;
   if (document.body.classList.contains("pdf-mode")) {
     document.body.classList.remove("pdf-mode");
     document.querySelector<HTMLElement>(".pdf-viewer")?.classList.remove("pdf-viewer-expanded");
@@ -208,7 +208,9 @@ document.addEventListener("fullscreenchange", () => {
   if (document.body.classList.contains("camera-mode")) {
     collapseCameraFullscreen();
   }
-});
+}
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.addEventListener("controllerchange", () => {
@@ -553,7 +555,7 @@ async function startCameraRecording() {
     videoRecordingTimer = window.setInterval(updateVideoRecordingTime, 250);
     videoRecordingLimitTimer = window.setTimeout(stopCameraRecording, MAX_RECORDING_MS);
     render();
-    enterCameraFullscreen();
+    enterCameraFullscreen(false);
   } catch (error) {
     stopCameraStream();
     videoRecordingStatus = "idle";
@@ -617,7 +619,33 @@ function stopCameraStream() {
   cameraStream = null;
 }
 
-function enterCameraFullscreen() {
+type FullscreenCapableElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+type FullscreenCapableDocument = Document & {
+  webkitExitFullscreen?: () => Promise<void> | void;
+  webkitFullscreenElement?: Element | null;
+};
+
+function activeFullscreenElement() {
+  const fullscreenDocument = document as FullscreenCapableDocument;
+  return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
+}
+
+function requestElementFullscreen(element: FullscreenCapableElement) {
+  if (activeFullscreenElement()) return;
+  try {
+    const request = element.requestFullscreen?.bind(element) ?? element.webkitRequestFullscreen?.bind(element);
+    if (!request) return;
+    const result = request();
+    if (result instanceof Promise) void result.catch(() => undefined);
+  } catch {
+    // iOSなど全画面API非対応端末ではCSS全面表示を維持する。
+  }
+}
+
+function enterCameraFullscreen(requestNativeFullscreen = true) {
   const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
   if (!preview || !cameraStream) return;
   if (!preview.classList.contains("camera-preview-expanded")) {
@@ -627,6 +655,7 @@ function enterCameraFullscreen() {
   }
   preview.classList.add("camera-preview-expanded");
   document.body.classList.add("camera-mode");
+  if (requestNativeFullscreen) requestElementFullscreen(preview);
 }
 
 function collapseCameraFullscreen() {
@@ -641,8 +670,16 @@ function collapseCameraFullscreen() {
 }
 
 function exitCameraFullscreen() {
-  if (document.fullscreenElement && document.body.classList.contains("camera-mode")) {
-    void document.exitFullscreen().catch(() => undefined).finally(collapseCameraFullscreen);
+  const fullscreenDocument = document as FullscreenCapableDocument;
+  const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
+  if (activeFullscreenElement() && document.body.classList.contains("camera-mode") && exit) {
+    try {
+      const result = exit();
+      if (result instanceof Promise) void result.catch(() => undefined).finally(collapseCameraFullscreen);
+      else collapseCameraFullscreen();
+    } catch {
+      collapseCameraFullscreen();
+    }
   } else {
     collapseCameraFullscreen();
   }
