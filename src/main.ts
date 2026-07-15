@@ -162,6 +162,10 @@ document.addEventListener("fullscreenchange", () => {
     document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
     refreshStopwatch();
   }
+  if (document.body.classList.contains("camera-mode")) {
+    document.body.classList.remove("camera-mode");
+    document.querySelector<HTMLElement>(".camera-preview-wrap")?.classList.remove("camera-preview-expanded");
+  }
 });
 
 if ("serviceWorker" in navigator) {
@@ -351,6 +355,9 @@ function cameraRecorderView() {
       <video data-camera-preview muted playsinline></video>
       <span class="camera-placeholder">背面カメラ</span>
       ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-video-recording-time>00:00</span></strong>` : ""}
+      ${cameraStream ? `<button class="camera-expand" data-action="camera-expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
+        <button class="camera-collapse" data-action="camera-collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
+        ${isRecording ? `<button class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
     </div>
     <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
     ${isRecording
@@ -478,6 +485,7 @@ async function startCameraRecording() {
 
 function stopCameraRecording() {
   if (!videoRecorder || videoRecorder.state === "inactive") return;
+  exitCameraFullscreen();
   videoRecordingStatus = "processing";
   clearVideoRecordingTimers();
   videoRecorder.stop();
@@ -523,8 +531,32 @@ function discardVideoRecordingNow() {
 }
 
 function stopCameraStream() {
+  collapseCameraFullscreen();
   cameraStream?.getTracks().forEach((track) => track.stop());
   cameraStream = null;
+}
+
+function enterCameraFullscreen() {
+  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
+  if (!preview || !cameraStream) return;
+  preview.classList.add("camera-preview-expanded");
+  document.body.classList.add("camera-mode");
+  if (!document.fullscreenElement && preview.requestFullscreen) {
+    void preview.requestFullscreen().catch(() => undefined);
+  }
+}
+
+function collapseCameraFullscreen() {
+  document.body.classList.remove("camera-mode");
+  document.querySelector<HTMLElement>(".camera-preview-wrap")?.classList.remove("camera-preview-expanded");
+}
+
+function exitCameraFullscreen() {
+  if (document.fullscreenElement && document.body.classList.contains("camera-mode")) {
+    void document.exitFullscreen().catch(() => undefined).finally(collapseCameraFullscreen);
+  } else {
+    collapseCameraFullscreen();
+  }
 }
 
 function clearVideoRecordingTimers() {
@@ -717,7 +749,7 @@ function photoGalleryView() {
     <section class="page-intro"><p class="eyebrow">公式ルール掲載例</p><h1>判定写真</h1><p>見たいミッションを選んでください。写真は端末に保存され、オフラインでも確認できます。</p></section>
     <div class="gallery-grid">${Object.entries(judgingGroups).map(([key, group]) => `
       <button class="gallery-card" data-photos="${key}">
-        <img src="${group.photos[0].src}" alt="" /><span><strong>${group.title.replace("の判定写真", "")}</strong><small>${group.photos.length}枚の判定例</small></span>
+        <img src="${group.photos[0].src}" alt="" loading="lazy" decoding="async" /><span><strong>${group.title.replace("の判定写真", "")}</strong><small>${group.photos.length}枚の判定例</small></span>
       </button>`).join("")}</div>
   `, { back: "score", title: "判定写真" });
 }
@@ -730,7 +762,7 @@ function rulesView() {
     </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <iframe src="${RULES_PDF_URL}#page=1&zoom=page-width" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <iframe src="${RULES_PDF_URL}#page=1&zoom=page-width" loading="lazy" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
       <p>この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。</p>
     </section>
   `, { back: "score", title: "ルール" });
@@ -761,7 +793,7 @@ function linksView() {
       <article class="link-section card qr-section">
         <h2>公開URL QRコード</h2>
         <a class="public-qr" href="${PUBLIC_APP_URL}" target="_blank" rel="noopener noreferrer">
-          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Assist 公開URL QRコード" />
+          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Assist 公開URL QRコード" loading="lazy" decoding="async" />
           <span><strong>RoboMission Assist</strong><small>${PUBLIC_APP_URL}</small></span>
         </a>
       </article>
@@ -794,7 +826,7 @@ function modalView() {
       <header><div><strong>${group.title}</strong><small>${group.photos.length}件の判定例を一覧表示</small></div><button class="icon-button" data-action="close-modal" aria-label="閉じる">×</button></header>
       <div class="photo-matrix">
         ${group.photos.map((photo) => `<article class="photo-example">
-          <img src="${photo.src}" alt="${escapeHtml(photo.description)}" />
+          <img src="${photo.src}" alt="${escapeHtml(photo.description)}" loading="lazy" decoding="async" />
           <div><span class="photo-label ${photo.label === "満点" ? "full" : photo.label === "部分点" ? "partial" : photo.score === "0点" ? "zero" : "info"}">${photo.score}</span><strong>${photo.label}</strong><p>${escapeHtml(photo.description)}</p></div>
         </article>`).join("")}
       </div>
@@ -934,6 +966,8 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "remove-video") { selectedVideo = null; videoSelectionError = ""; render(); }
   if (action === "camera-start") void startCameraRecording();
   if (action === "camera-stop") stopCameraRecording();
+  if (action === "camera-expand") enterCameraFullscreen();
+  if (action === "camera-collapse") exitCameraFullscreen();
   if (action === "timer-start") startStopwatch(true);
   if (action === "timer-lap") addStopwatchLap();
   if (action === "timer-pause") pauseStopwatch();
@@ -1169,10 +1203,10 @@ async function loginAccount(fromSwitch = false) {
       recordsStatus = "";
       resetRecordFilters();
       resetStopwatch();
+      const routeChanged = location.hash !== "#/admin";
       location.hash = "#/admin";
       render();
-      void loadRecords();
-      void loadManagedAccounts();
+      if (!routeChanged) { void loadRecords(); void loadManagedAccounts(); }
       return;
     }
     activeAccount = verifiedAccount;
@@ -1220,10 +1254,10 @@ async function loginAdmin() {
     resetRecordFilters();
     recordsStatus = "";
     resetStopwatch();
+    const routeChanged = location.hash !== "#/admin";
     location.hash = "#/admin";
     render();
-    void loadRecords();
-    void loadManagedAccounts();
+    if (!routeChanged) { void loadRecords(); void loadManagedAccounts(); }
   } catch (error) {
     adminError = error instanceof Error ? error.message : "管理者パスワードを確認できませんでした。";
     render();

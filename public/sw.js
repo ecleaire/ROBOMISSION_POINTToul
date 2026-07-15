@@ -1,22 +1,16 @@
-const CACHE = "robomission-junior-v10";
-const PHOTOS = [
-  "visitors/full-upright", "visitors/partial", "visitors/fallen", "visitors/outside", "visitors/wrong-color",
-  "red-towers/full", "red-towers/partial", "red-towers/outside", "red-towers/fallen",
-  "yellow-towers/full", "yellow-towers/partial", "yellow-towers/outside", "yellow-towers/incorrect",
-  "artifacts/full", "artifacts/partial", "artifacts/fallen", "artifacts/outside", "artifacts/wrong-color",
-  "dirt/area", "dirt/clear", "dirt/touching", "dirt/visitor-area", "dirt/line",
-  "bonus/red-ok", "bonus/red-moved", "bonus/red-damaged", "bonus/white-ok", "bonus/white-moved", "bonus/parrot-ok", "bonus/parrot-moved"
-].map((path) => `./assets/judging/${path}.webp`);
-const PRECACHE = ["./", "./index.html", "./manifest.webmanifest", "./assets/icons/icon-192.png", "./assets/icons/icon-512.png", "./assets/robomission-public-url-qr.png", "./assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf", ...PHOTOS];
+const CACHE = "robomission-junior-v11";
+const PRECACHE = ["./manifest.webmanifest", "./assets/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await cache.addAll(PRECACHE);
     const response = await fetch("./index.html", { cache: "no-store" });
     const html = await response.text();
     const bundles = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)].map((match) => match[1]);
-    if (bundles.length) await cache.addAll(bundles);
+    await cache.put("./index.html", new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } }));
+    await Promise.all([...PRECACHE, ...bundles].map(async (url) => {
+      try { await cache.add(url); } catch { /* 必須でないファイルの失敗ではインストールを止めない */ }
+    }));
     await self.skipWaiting();
   })());
 });
