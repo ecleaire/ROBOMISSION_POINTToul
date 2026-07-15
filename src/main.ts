@@ -1,5 +1,6 @@
 import "./style.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
+import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
 import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
@@ -62,6 +63,7 @@ interface ManagedAccount {
 }
 
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
+const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
@@ -755,15 +757,17 @@ function photoGalleryView() {
 }
 
 function rulesView() {
+  const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+  const viewerUrl = useDriveViewer ? RULES_DRIVE_PREVIEW_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
   return shell(`
     <section class="page-intro rules-intro">
-      <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。</p></div>
-      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a></div>
+      <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>${useDriveViewer ? "iPad向けの複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
+      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a></div>
     </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <iframe src="${RULES_PDF_URL}#page=1&zoom=page-width" loading="lazy" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
-      <p>この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。</p>
+      <iframe src="${viewerUrl}" loading="lazy" allow="fullscreen" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <p>${useDriveViewer ? `通信できない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDFを開く</a>を押してください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
