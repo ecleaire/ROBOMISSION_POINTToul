@@ -7,10 +7,6 @@
     <meta name="description" content="WRO 2026 RoboMission Juniorの得点計算・記録ツール" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./assets/icons/icon-192.png" />
-    <link rel="preconnect" href="https://drive.google.com" crossorigin />
-    <link rel="preconnect" href="https://docs.google.com" crossorigin />
-    <link rel="dns-prefetch" href="https://lh3.googleusercontent.com" />
-    <link rel="prefetch" href="./assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf" as="document" type="application/pdf" />
     <title>RoboMission Junior 得点計算</title>
   </head>
   <body>
@@ -19,13 +15,6 @@
         得点表を読み込んでいます…
       </p>
     </div>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("./sw.js", { scope: "./" }).then((registration) => registration.update()).catch(() => {});
-        });
-      }
-    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

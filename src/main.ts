@@ -144,6 +144,7 @@ let accountManagementStatus = "";
 let selectedVideo: File | null = null;
 let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
+let rulesConnectionsPrepared = false;
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
@@ -1030,6 +1031,7 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
     element.addEventListener("click", () => {
       const target = element.dataset.nav!;
+      if (target === "rules") prepareRulesConnections();
       if (target === "result" && videoRecordingStatus !== "idle") {
         videoSelectionError = "録画を停止して動画の処理が完了してから、結果を開いてください。";
         render();
@@ -1114,6 +1116,20 @@ function bindEvents() {
     if (event.key === "Enter") void loginAdmin();
   });
   attachCameraPreview();
+}
+
+function prepareRulesConnections() {
+  if (rulesConnectionsPrepared || !isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) return;
+  rulesConnectionsPrepared = true;
+  const preconnect = document.createElement("link");
+  preconnect.rel = "preconnect";
+  preconnect.href = "https://docs.google.com";
+  preconnect.crossOrigin = "anonymous";
+  document.head.appendChild(preconnect);
+  const dnsPrefetch = document.createElement("link");
+  dnsPrefetch.rel = "dns-prefetch";
+  dnsPrefetch.href = "https://lh3.googleusercontent.com";
+  document.head.appendChild(dnsPrefetch);
 }
 
 function toggleScore(button: HTMLButtonElement) {
@@ -1582,11 +1598,11 @@ async function refreshAccountIdentity() {
   }
 }
 
-async function loadManagedAccounts() {
+async function loadManagedAccounts(shouldRender = true) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || activeAccount !== "ADMIN" || !activeApiKey) return;
   accountManagementStatus = "アカウント情報を読み込み中…";
-  render();
+  if (shouldRender) render();
   try {
     const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: activeApiKey });
     if (!result.ok) throw new Error(result.message || "アカウント情報を取得できませんでした");
@@ -1595,7 +1611,7 @@ async function loadManagedAccounts() {
   } catch (error) {
     accountManagementStatus = `読み込めませんでした。${communicationError(error)}`;
   }
-  render();
+  if (shouldRender) render();
 }
 
 async function saveManagedAccount(accountId?: string) {
@@ -1626,15 +1642,15 @@ async function saveManagedAccount(accountId?: string) {
   }
 }
 
-async function loadRecords() {
+async function loadRecords(shouldRender = true) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !activeAccount || !activeApiKey) {
     recordsStatus = "記録先がまだ設定されていません。";
-    render();
+    if (shouldRender) render();
     return;
   }
   recordsStatus = "読み込み中…";
-  render();
+  if (shouldRender) render();
   recordsAbortController?.abort();
   const controller = new AbortController();
   recordsAbortController = controller;
@@ -1650,7 +1666,7 @@ async function loadRecords() {
   } finally {
     if (recordsAbortController === controller) recordsAbortController = null;
   }
-  render();
+  if (shouldRender) render();
 }
 
 function configureRecordsAutoRefresh() {
@@ -1668,18 +1684,27 @@ function configureRecordsAutoRefresh() {
 }
 
 async function loadMemoData() {
-  await Promise.all([loadRecords(), loadFreeMemos(), ...(activeAccount === "ADMIN" ? [loadManagedAccounts()] : [])]);
+  recordsStatus = "読み込み中…";
+  freeMemoStatus = "メモを読み込み中…";
+  if (activeAccount === "ADMIN") accountManagementStatus = "アカウント情報を読み込み中…";
+  render();
+  await Promise.all([
+    loadRecords(false),
+    loadFreeMemos(false),
+    ...(activeAccount === "ADMIN" ? [loadManagedAccounts(false)] : []),
+  ]);
+  render();
 }
 
-async function loadFreeMemos() {
+async function loadFreeMemos(shouldRender = true) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !activeAccount || !activeApiKey) {
     freeMemoStatus = "メモの保存先がまだ設定されていません。";
-    render();
+    if (shouldRender) render();
     return;
   }
   freeMemoStatus = "メモを読み込み中…";
-  render();
+  if (shouldRender) render();
   try {
     const result = await postJson<{ ok?: boolean; memos?: FreeMemo[]; message?: string }>(endpoint, { action: "freeMemos", apiKey: activeApiKey });
     if (!result.ok) throw new Error(result.message || "メモを取得できませんでした");
@@ -1693,7 +1718,7 @@ async function loadFreeMemos() {
   } catch (error) {
     freeMemoStatus = `メモを読み込めませんでした。${communicationError(error)}`;
   }
-  render();
+  if (shouldRender) render();
 }
 
 async function saveFreeMemo(element: HTMLElement) {
