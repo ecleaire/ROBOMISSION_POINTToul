@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v20";
+const CACHE = "robomission-junior-v21";
 const PRECACHE = ["./manifest.webmanifest", "./assets/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {

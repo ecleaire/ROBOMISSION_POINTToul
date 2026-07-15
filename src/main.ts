@@ -84,6 +84,8 @@ interface PendingVideoUpload {
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
+const PUBLIC_RULES_PDF_URL = `${PUBLIC_APP_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
+const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(PUBLIC_RULES_PDF_URL)}`;
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
 
@@ -111,6 +113,8 @@ let activeAccountName = "";
 let state = loadState();
 let modal: { group: string } | null = null;
 let accountSwitchOpen = false;
+let accountSwitchDraft = "";
+let accountSwitchRemember = false;
 let sheetStatus = "";
 let accountError = "";
 let recordsStatus = "";
@@ -281,7 +285,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
       <div class="app-brand">
         <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
         <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
-        ${activeAccount && activeAccount !== "ADMIN" ? `<div class="account-switch"><span>${escapeHtml(activeAccountName || "アカウント")}</span><button data-action="open-account-switch">切替</button></div>` : activeAccount === "ADMIN" ? `<span class="admin-badge">管理モード</span>` : ""}
+        ${activeAccount ? `<div class="account-switch ${activeAccount === "ADMIN" ? "admin-account-switch" : ""}"><span>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || "アカウント")}</span><button type="button" data-action="open-account-switch">切替</button></div>` : ""}
       </div>
       <nav class="mode-nav" aria-label="機能メニュー">
         ${modes.map(([target, label]) => `<button data-nav="${target}" class="${activeRoute === target ? "active" : ""}">${label}</button>`).join("")}
@@ -307,13 +311,13 @@ function accountView() {
 
 function accountSwitchModal() {
   return `<div class="modal-backdrop" data-action="close-account-switch">
-    <section class="account-switch-modal card" role="dialog" aria-modal="true" aria-label="アカウントを切り替える">
-      <header><div><strong>アカウントを切り替える</strong><small>チーム名はAPIキー確認後に表示されます</small></div><button class="icon-button" data-action="close-account-switch" aria-label="閉じる">×</button></header>
-      <label>APIキー<input id="switch-account-key-input" type="password" maxlength="128" autocomplete="off" placeholder="切り替えるアカウントのAPIキー" /></label>
-      <label class="remember-account"><input id="remember-switch-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
+    <form class="account-switch-modal card" data-account-switch-form role="dialog" aria-modal="true" aria-label="アカウントを切り替える">
+      <header><div><strong>アカウントを切り替える</strong><small>チーム名はAPIキー確認後に表示されます</small></div><button class="icon-button" type="button" data-action="close-account-switch" aria-label="閉じる">×</button></header>
+      <label>APIキー<input id="switch-account-key-input" type="password" maxlength="128" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" inputmode="text" value="${escapeHtml(accountSwitchDraft)}" placeholder="切り替えるアカウントのAPIキー" /></label>
+      <label class="remember-account"><input id="remember-switch-account-input" type="checkbox" ${accountSwitchRemember ? "checked" : ""} /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
-      <button class="primary" data-action="switch-account">このアカウントへ切り替える</button>
-    </section>
+      <button class="primary" type="submit">このアカウントへ切り替える</button>
+    </form>
   </div>`;
 }
 
@@ -341,7 +345,7 @@ function accountManagementView() {
       ${managedAccounts.map((account) => `<article class="managed-account" data-managed-account="${account.id}">
         <div><strong>${escapeHtml(account.name)}</strong><small>ID: ${escapeHtml(account.id)}${account.legacy ? "・既存アカウント" : ""}</small></div>
         <label>チーム名<input data-managed-name="${account.id}" maxlength="50" value="${escapeHtml(account.name)}" /></label>
-        <label>新しいAPIキー<input data-managed-key="${account.id}" type="password" minlength="4" maxlength="128" autocomplete="new-password" placeholder="変更しない場合は空欄" /></label>
+        <label>新しいAPIキー<input data-managed-key="${account.id}" type="password" maxlength="128" autocomplete="new-password" placeholder="変更しない場合は空欄" /></label>
         <button class="primary" data-action="update-account" data-account-id="${account.id}">変更を保存</button>
       </article>`).join("") || `<p class="empty-account-list">アカウント情報を読み込んでいます…</p>`}
     </div>
@@ -895,7 +899,7 @@ function photoGalleryView() {
 
 function rulesView() {
   const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-  const viewerUrl = useDriveViewer ? RULES_DRIVE_PREVIEW_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+  const viewerUrl = useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
   return shell(`
     <section class="page-intro rules-intro">
       <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>${useDriveViewer ? "iPad向けの複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
@@ -903,8 +907,8 @@ function rulesView() {
     </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <iframe src="${viewerUrl}" loading="eager" allow="fullscreen" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
-      <p>${useDriveViewer ? `通信できない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDFを開く</a>を押してください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
+      <iframe src="${viewerUrl}" loading="eager" allow="fullscreen" referrerpolicy="no-referrer" title="WRO 2026 RoboMission Junior Google翻訳版ルールPDF"></iframe>
+      <p>${useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
@@ -1057,9 +1061,18 @@ function bindEvents() {
   document.querySelector<HTMLInputElement>("#account-key-input")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void loginAccount();
   });
-  document.querySelector<HTMLInputElement>("#switch-account-key-input")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") void loginAccount(true);
+  const switchInput = document.querySelector<HTMLInputElement>("#switch-account-key-input");
+  switchInput?.addEventListener("input", () => { accountSwitchDraft = switchInput.value; });
+  document.querySelector<HTMLInputElement>("#remember-switch-account-input")?.addEventListener("change", (event) => {
+    accountSwitchRemember = (event.currentTarget as HTMLInputElement).checked;
   });
+  document.querySelector<HTMLFormElement>("[data-account-switch-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loginAccount(true);
+  });
+  if (accountSwitchOpen && switchInput && document.activeElement !== switchInput) {
+    window.requestAnimationFrame(() => switchInput.focus());
+  }
   document.querySelector<HTMLInputElement>("#admin-password-input")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") void loginAdmin();
   });
@@ -1093,8 +1106,8 @@ function updateTime() {
 function handleAction(action: string, element: HTMLElement) {
   if (action === "login-account") void loginAccount();
   if (action === "switch-account") void loginAccount(true);
-  if (action === "open-account-switch") { accountError = ""; accountSwitchOpen = true; render(); }
-  if (action === "close-account-switch") { accountSwitchOpen = false; accountError = ""; render(); }
+  if (action === "open-account-switch") { accountError = ""; accountSwitchDraft = ""; accountSwitchRemember = false; accountSwitchOpen = true; render(); }
+  if (action === "close-account-switch") { accountSwitchOpen = false; accountSwitchDraft = ""; accountSwitchRemember = false; accountError = ""; render(); }
   if (action === "login-admin") void loginAdmin();
   if (action === "logout-admin") logoutAdmin();
   if (action === "load-accounts") void loadManagedAccounts();
@@ -1383,8 +1396,9 @@ function fileToStoredVideo(file: File): Promise<StoredVideo> {
 
 async function loginAccount(fromSwitch = false) {
   const input = document.querySelector<HTMLInputElement>(fromSwitch ? "#switch-account-key-input" : "#account-key-input");
-  const remember = document.querySelector<HTMLInputElement>(fromSwitch ? "#remember-switch-account-input" : "#remember-account-input")?.checked ?? false;
+  const remember = fromSwitch ? accountSwitchRemember : document.querySelector<HTMLInputElement>("#remember-account-input")?.checked ?? false;
   const key = input?.value.trim() ?? "";
+  if (fromSwitch) accountSwitchDraft = key;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!key || !endpoint) {
     accountError = !key ? "APIキーを入力してください。" : "記録先がまだ設定されていません。";
@@ -1412,6 +1426,8 @@ async function loginAccount(fromSwitch = false) {
       adminModeUnlocked = true;
       adminError = "";
       accountError = "";
+      accountSwitchDraft = "";
+      accountSwitchRemember = false;
       accountSwitchOpen = false;
       managedAccounts = [];
       practiceRecords = [];
@@ -1438,6 +1454,8 @@ async function loginAccount(fromSwitch = false) {
       localStorage.removeItem(API_KEY_KEY);
     }
     accountError = "";
+    accountSwitchDraft = "";
+    accountSwitchRemember = false;
     accountSwitchOpen = false;
     practiceRecords = [];
     freeMemos = [];
@@ -1651,16 +1669,29 @@ async function saveFreeMemo(element: HTMLElement) {
   if (!content) { freeMemoStatus = "メモの内容を入力してください。"; render(); return; }
   if (activeAccount === "ADMIN" && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
   if (!endpoint || !activeApiKey || !activeAccount) return;
+  const previousMemos = freeMemos.map((memo) => ({ ...memo }));
+  const now = new Date().toISOString();
+  const optimisticId = memoId || `saving-${Date.now()}`;
+  const accountName = managedAccounts.find((account) => account.id === memoAccount)?.name || activeAccountName || memoAccount;
+  const existingIndex = freeMemos.findIndex((memo) => memo.memoId === memoId && memo.account === memoAccount);
+  const optimisticMemo: FreeMemo = { account: memoAccount, accountName, memoId: optimisticId, createdAt: now, updatedAt: now, content };
+  if (existingIndex >= 0) freeMemos[existingIndex] = { ...freeMemos[existingIndex], content, updatedAt: now };
+  else freeMemos = [optimisticMemo, ...freeMemos];
   freeMemoStatus = "メモを保存中…";
   render();
   try {
-    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
+    const result = await postJson<{ ok?: boolean; memo?: Partial<FreeMemo>; message?: string }>(endpoint, {
       action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content,
     });
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
-    await loadFreeMemos();
+    if (!memoId && result.memo?.memoId) {
+      freeMemos = freeMemos.map((memo) => memo.memoId === optimisticId ? {
+        ...memo, memoId: String(result.memo!.memoId), createdAt: String(result.memo!.createdAt || now), updatedAt: String(result.memo!.updatedAt || now),
+      } : memo);
+    }
     freeMemoStatus = "メモを保存しました。";
   } catch (error) {
+    freeMemos = previousMemos;
     freeMemoStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
@@ -1671,6 +1702,8 @@ async function deleteFreeMemo(element: HTMLElement) {
   const memoId = element.dataset.memoId ?? "";
   const memoAccount = element.dataset.memoAccount ?? activeAccount ?? "";
   if (!endpoint || !activeApiKey || !activeAccount || !memoId || !confirm("このメモを削除しますか？")) return;
+  const previousMemos = freeMemos;
+  freeMemos = freeMemos.filter((memo) => !(memo.memoId === memoId && memo.account === memoAccount));
   freeMemoStatus = "メモを削除中…";
   render();
   try {
@@ -1678,8 +1711,10 @@ async function deleteFreeMemo(element: HTMLElement) {
       action: "deleteFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId,
     });
     if (!result.ok) throw new Error(result.message || "メモを削除できませんでした");
-    await loadFreeMemos();
+    freeMemoStatus = "メモを削除しました。";
+    render();
   } catch (error) {
+    freeMemos = previousMemos;
     freeMemoStatus = `メモを削除できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
     render();
   }
@@ -1693,6 +1728,9 @@ async function saveRecordMemo(element: HTMLElement) {
   const recordedAt = element.dataset.recordedAt ?? "";
   const recordAccount = element.dataset.recordAccount ?? activeAccount ?? "";
   if (!endpoint || !activeAccount || !activeApiKey || !Number.isInteger(rowNumber) || rowNumber < 2) return;
+  const record = practiceRecords.find((item) => item.account === recordAccount && item.rowNumber === rowNumber && item.recordedAt === recordedAt);
+  const previousNotes = record?.notes ?? "";
+  if (record) record.notes = notes;
   recordsStatus = "メモを保存中…";
   render();
   try {
@@ -1700,9 +1738,9 @@ async function saveRecordMemo(element: HTMLElement) {
       action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes,
     });
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
-    await loadRecords();
     recordsStatus = "メモを保存しました。";
   } catch (error) {
+    if (record) record.notes = previousNotes;
     recordsStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();

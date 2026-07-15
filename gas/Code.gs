@@ -55,8 +55,8 @@ function doPost(event) {
     lock.waitLock(10000);
     try {
       if (data.action === "saveFreeMemo") {
-        saveFreeMemo_(getMemoSheet_(targetAccount), data);
-        return json_({ ok: true });
+        const savedMemo = saveFreeMemo_(getMemoSheet_(targetAccount), data);
+        return json_({ ok: true, memo: savedMemo });
       }
       if (data.action === "deleteFreeMemo") {
         deleteFreeMemo_(getMemoSheet_(targetAccount), data.memoId);
@@ -223,11 +223,13 @@ function saveFreeMemo_(sheet, data) {
   const memoId = String(data.memoId || "").trim();
   const now = new Date();
   if (!memoId) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 5).setValues([[Utilities.getUuid(), now, now, content, false]]);
-    return;
+    const createdId = Utilities.getUuid();
+    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 5).setValues([[createdId, now, now, content, false]]);
+    return { memoId: createdId, createdAt: now.toISOString(), updatedAt: now.toISOString(), content: content };
   }
   const rowNumber = findFreeMemoRow_(sheet, memoId);
   sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
+  return { memoId: memoId, updatedAt: now.toISOString(), content: content };
 }
 
 function deleteFreeMemo_(sheet, memoId) {
