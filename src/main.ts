@@ -128,6 +128,7 @@ let selectedVideo: File | null = null;
 let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
 let cameraStream: MediaStream | null = null;
+let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
 let videoChunks: Blob[] = [];
 let videoRecordingBytes = 0;
@@ -187,14 +188,21 @@ document.addEventListener("fullscreenchange", () => {
     refreshStopwatch();
   }
   if (document.body.classList.contains("camera-mode")) {
-    document.body.classList.remove("camera-mode");
-    document.querySelector<HTMLElement>(".camera-preview-wrap")?.classList.remove("camera-preview-expanded");
+    collapseCameraFullscreen();
   }
 });
 
 if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const reloadKey = `robomission-sw-reloaded-${APP_VERSION}`;
+    if (videoRecordingStatus !== "idle" || sessionStorage.getItem(reloadKey)) return;
+    sessionStorage.setItem(reloadKey, "1");
+    location.reload();
+  });
   window.addEventListener("load", () =>
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => undefined),
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+      .then((registration) => registration.update())
+      .catch(() => undefined),
   );
 }
 
@@ -590,13 +598,24 @@ function stopCameraStream() {
 function enterCameraFullscreen() {
   const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
   if (!preview || !cameraStream) return;
+  if (!preview.classList.contains("camera-preview-expanded")) {
+    cameraPreviewPlaceholder = document.createComment("camera-preview-home");
+    preview.before(cameraPreviewPlaceholder);
+    document.body.appendChild(preview);
+  }
   preview.classList.add("camera-preview-expanded");
   document.body.classList.add("camera-mode");
 }
 
 function collapseCameraFullscreen() {
   document.body.classList.remove("camera-mode");
-  document.querySelector<HTMLElement>(".camera-preview-wrap")?.classList.remove("camera-preview-expanded");
+  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
+  preview?.classList.remove("camera-preview-expanded");
+  if (preview && cameraPreviewPlaceholder?.parentNode) {
+    cameraPreviewPlaceholder.parentNode.insertBefore(preview, cameraPreviewPlaceholder);
+    cameraPreviewPlaceholder.remove();
+  }
+  cameraPreviewPlaceholder = null;
 }
 
 function exitCameraFullscreen() {

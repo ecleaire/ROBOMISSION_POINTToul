@@ -104,19 +104,19 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .camera-start { border: 2px solid #b83f38; color: #9d2923; background: #fff1ee; }
 .camera-stop { border: 2px solid #8f1717; color: white; background: #b52121; }
 .camera-recorder.recording { background: #fff5f3; }
-.camera-recorder .camera-expand, .camera-recorder .camera-collapse, .camera-recorder .camera-overlay-stop { position: absolute; z-index: 4; width: auto; min-width: 0; min-height: 40px; padding: 6px 10px; border-radius: 999px; color: white; font-size: .72rem; font-weight: 900; box-shadow: 0 4px 14px rgba(0,0,0,.38); }
+.camera-expand, .camera-collapse, .camera-overlay-stop { position: absolute; z-index: 4; width: auto; min-width: 0; min-height: 40px; padding: 6px 10px; border-radius: 999px; color: white; font-size: .72rem; font-weight: 900; box-shadow: 0 4px 14px rgba(0,0,0,.38); }
 .camera-expand { z-index: 8 !important; top: 6px; right: 6px; border: 1px solid rgba(255,255,255,.65); background: rgba(12,48,76,.9); touch-action: manipulation; pointer-events: auto; }
 .camera-collapse { display: none; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); border: 2px solid #ffaaa3; background: #b72e27; font-size: 1rem; }
 .camera-overlay-stop { display: none; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); border: 2px solid #ff8b82; background: #a91e1e; font-size: 1rem; }
 .camera-stopwatch-overlay { display: none; }
 body.camera-mode { overflow: hidden; }
-.camera-preview-wrap.camera-preview-expanded, .camera-preview-wrap:fullscreen, .camera-preview-wrap:-webkit-full-screen { position: fixed; z-index: 230; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; border-radius: 0; background: #000; }
-.camera-preview-wrap.camera-preview-expanded video, .camera-preview-wrap:fullscreen video, .camera-preview-wrap:-webkit-full-screen video { object-fit: contain; }
-.camera-preview-wrap.camera-preview-expanded .camera-expand, .camera-preview-wrap:fullscreen .camera-expand, .camera-preview-wrap:-webkit-full-screen .camera-expand { display: none; }
-.camera-preview-wrap.camera-preview-expanded .camera-collapse, .camera-preview-wrap:fullscreen .camera-collapse, .camera-preview-wrap:-webkit-full-screen .camera-collapse,
-.camera-preview-wrap.camera-preview-expanded .camera-overlay-stop, .camera-preview-wrap:fullscreen .camera-overlay-stop, .camera-preview-wrap:-webkit-full-screen .camera-overlay-stop { display: block; }
-.camera-preview-wrap.camera-preview-expanded .recording-indicator, .camera-preview-wrap:fullscreen .recording-indicator, .camera-preview-wrap:-webkit-full-screen .recording-indicator { left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); bottom: auto; padding: 8px 12px; font-size: 1rem; }
-.camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay, .camera-preview-wrap:fullscreen .camera-stopwatch-overlay, .camera-preview-wrap:-webkit-full-screen .camera-stopwatch-overlay { position: absolute; z-index: 3; top: 50%; left: 50%; width: min(92vw, 680px); padding: clamp(14px, 3vw, 28px); display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 2vh, 18px); transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.26); border-radius: 22px; color: white; background: rgba(0,0,0,.48); box-shadow: 0 14px 40px rgba(0,0,0,.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.camera-preview-wrap.camera-preview-expanded { position: fixed; z-index: 1000; inset: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; aspect-ratio: auto; border-radius: 0; background: #000; }
+.camera-preview-wrap.camera-preview-expanded video { object-fit: contain; }
+.camera-preview-wrap.camera-preview-expanded .camera-expand { display: none; }
+.camera-preview-wrap.camera-preview-expanded .camera-collapse,
+.camera-preview-wrap.camera-preview-expanded .camera-overlay-stop { display: block; }
+.camera-preview-wrap.camera-preview-expanded .recording-indicator { left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); bottom: auto; padding: 8px 12px; font-size: 1rem; }
+.camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { position: absolute; z-index: 3; top: 50%; left: 50%; width: min(92vw, 680px); padding: clamp(14px, 3vw, 28px); display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 2vh, 18px); transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.26); border-radius: 22px; color: white; background: rgba(0,0,0,.48); box-shadow: 0 14px 40px rgba(0,0,0,.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
 .camera-stopwatch-label { font-size: clamp(.8rem, 2.2vw, 1.1rem); font-weight: 900; letter-spacing: .12em; }
 .camera-stopwatch-overlay > strong { font: 300 clamp(3.2rem, 13vw, 8.5rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.07em; text-shadow: 0 3px 14px #000; }
 .camera-stopwatch-controls { width: min(420px, 100%); display: flex; justify-content: space-between; gap: 20px; }
