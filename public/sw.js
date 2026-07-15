@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v9";
+const CACHE = "robomission-junior-v10";
 const PHOTOS = [
   "visitors/full-upright", "visitors/partial", "visitors/fallen", "visitors/outside", "visitors/wrong-color",
   "red-towers/full", "red-towers/partial", "red-towers/outside", "red-towers/fallen",

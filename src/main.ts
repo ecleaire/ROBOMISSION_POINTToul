@@ -107,7 +107,7 @@ let recordFilters: RecordFilters = {
   sort: "newest",
 };
 const adminRevealPressCounts = { rules: 0, links: 0 };
-let adminModeUnlocked = false;
+let adminModeUnlocked = activeAccount === "ADMIN";
 let adminError = "";
 let managedAccounts: ManagedAccount[] = [];
 let accountManagementStatus = "";
@@ -170,10 +170,11 @@ if ("serviceWorker" in navigator) {
   );
 }
 
-if (!location.hash) location.hash = "#/score";
+if (activeAccount === "ADMIN") location.hash = "#/admin";
+else if (!location.hash) location.hash = "#/score";
 render();
 if (location.hash === "#/records" && activeAccount) void loadRecords();
-if (location.hash === "#/admin" && activeAccount === "ADMIN") void loadRecords();
+if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
 if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
 
 function render() {
@@ -232,7 +233,7 @@ function accountView() {
       <div class="account-icon">鍵</div>
       <p class="eyebrow">アカウントを選択</p>
       <h1>APIキーを入力</h1>
-      <p>APIキーを入力してください。採点と記録はアカウントごとに分かれます。</p>
+      <p>通常アカウントのAPIキー、または管理者パスワードを入力してください。管理者の場合は管理画面を開きます。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
       <label class="remember-account"><input id="remember-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
@@ -1149,8 +1150,13 @@ async function loginAccount(fromSwitch = false) {
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
     if (verifiedAccount === "ADMIN") {
-      localStorage.removeItem(ACCOUNT_KEY);
-      localStorage.removeItem(API_KEY_KEY);
+      if (remember) {
+        localStorage.setItem(ACCOUNT_KEY, "ADMIN");
+        localStorage.setItem(API_KEY_KEY, key);
+      } else {
+        localStorage.removeItem(ACCOUNT_KEY);
+        localStorage.removeItem(API_KEY_KEY);
+      }
       activeAccount = "ADMIN";
       activeApiKey = key;
       activeAccountName = "";
@@ -1225,9 +1231,18 @@ async function loginAdmin() {
 }
 
 function logoutAdmin() {
-  activeAccount = loadAccount();
-  activeApiKey = localStorage.getItem(API_KEY_KEY) || activeAccount;
+  const storedAccount = loadAccount();
+  if (storedAccount === "ADMIN") {
+    localStorage.removeItem(ACCOUNT_KEY);
+    localStorage.removeItem(API_KEY_KEY);
+    activeAccount = null;
+    activeApiKey = null;
+  } else {
+    activeAccount = storedAccount;
+    activeApiKey = localStorage.getItem(API_KEY_KEY) || activeAccount;
+  }
   activeAccountName = "";
+  adminModeUnlocked = false;
   managedAccounts = [];
   practiceRecords = [];
   recordsStatus = "";
