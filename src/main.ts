@@ -156,6 +156,11 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
   { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
   { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" },
 ];
+const APP_UPDATES = [
+  { version: "1.4.1", updatedAt: "2026.07.16", title: "ニュースとメモ画面を見やすく改善", description: "大会情報・アプリ更新内容をニュースへ集約し、コート書き込み画面とメモカードの重なり・はみ出しを修正しました。" },
+  { version: "1.4.0", updatedAt: "2026.07.16", title: "コート書き込みの再編集に対応", description: "配置した図形や文字の選択、移動、大きさ・角度変更、文字の再編集に対応しました。" },
+  { version: "1.3.0", updatedAt: "2026.07.15", title: "メモにコート書き込みを追加", description: "Juniorコートへ印・図形・文字を書き込み、メモと一緒に保存できるようになりました。" },
+] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
   localStorage.removeItem(ACCOUNT_KEY);
@@ -1044,7 +1049,7 @@ function openCourtBoard(element: HTMLElement) {
       <button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button><button type="button" class="board-clear" data-board-command="clear">全消去</button>
     </div>
     <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
-    <div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div>
+    <div class="board-stage-shell"><div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div></div>
     <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">この書き込みをメモに入れる</button></footer>
   </section>`);
   document.body.classList.add("board-editor-mode");
@@ -1416,15 +1421,37 @@ function rulesView() {
 function newsView() {
   return shell(`
     <section class="page-intro news-intro">
-      <div><p class="eyebrow">WRO HYOGO UPDATES</p><h1>ニュース</h1><p>兵庫予選会公式サイトの直近3件を表示します。</p></div>
+      <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>兵庫予選会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
       <button class="primary" data-action="load-news" ${newsLoading ? "disabled" : ""}>${newsLoading ? "確認中…" : "↻ 最新情報を確認"}</button>
     </section>
-    ${newsStatus ? `<p class="news-status" role="status">${escapeHtml(newsStatus)}</p>` : ""}
-    <section class="news-list" aria-label="兵庫予選会の最新情報">
-      ${newsItems.map((item) => `<article class="news-card card"><span class="news-source">${escapeHtml(item.source)}</span><h2>【${escapeHtml(item.source)}】「${escapeHtml(item.title)}」が更新されました。</h2><time datetime="${item.updatedAt.replaceAll(".", "-")}">更新日時：${escapeHtml(item.updatedAt)}</time><a href="${item.url}" target="_blank" rel="noopener noreferrer">記事を見る <b aria-hidden="true">↗</b></a></article>`).join("")}
+    <nav class="news-jump" aria-label="ニュース内メニュー"><a href="#news-event">大会情報</a><a href="#news-app-updates">アプリ更新内容</a></nav>
+    <section class="news-section" id="news-event" aria-labelledby="news-event-title">
+      <div class="news-section-heading"><div><p class="eyebrow">WRO HYOGO 2026</p><h2 id="news-event-title">大会情報</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式情報を見る ↗</a></div>
+      ${hyogoEventCard()}
+      <div class="news-subheading"><h3>兵庫予選会の最新情報</h3><span>直近3件</span></div>
+      ${newsStatus ? `<p class="news-status" role="status">${escapeHtml(newsStatus)}</p>` : ""}
+      <div class="news-list" aria-label="兵庫予選会の最新情報">
+        ${newsItems.map((item) => `<article class="news-card card"><span class="news-source">${escapeHtml(item.source)}</span><h2>【${escapeHtml(item.source)}】「${escapeHtml(item.title)}」が更新されました。</h2><time datetime="${item.updatedAt.replaceAll(".", "-")}">更新日時：${escapeHtml(item.updatedAt)}</time><a href="${item.url}" target="_blank" rel="noopener noreferrer">記事を見る <b aria-hidden="true">↗</b></a></article>`).join("")}
+      </div>
+      <a class="news-source-link" href="https://wro-hyogo.jp/" target="_blank" rel="noopener noreferrer">WRO Japan 2026 公認 兵庫予選会 公式サイトを見る ↗</a>
     </section>
-    <a class="news-source-link" href="https://wro-hyogo.jp/" target="_blank" rel="noopener noreferrer">WRO Japan 2026 公認 兵庫予選会 公式サイトを見る ↗</a>
+    <section class="news-section" id="news-app-updates" aria-labelledby="news-app-updates-title">
+      <div class="news-section-heading"><div><p class="eyebrow">CHANGELOG</p><h2 id="news-app-updates-title">アプリ更新内容</h2></div><span>現在 v${APP_VERSION}</span></div>
+      <div class="app-update-list">${APP_UPDATES.map((update) => `<article class="app-update-card card"><div><span class="update-version">v${update.version}</span><time datetime="${update.updatedAt.replaceAll(".", "-")}">${update.updatedAt}</time></div><h3>${escapeHtml(update.title)}</h3><p>${escapeHtml(update.description)}</p></article>`).join("")}</div>
+    </section>
   `, { title: "ニュース" });
+}
+
+function hyogoEventCard() {
+  return `<article class="event-info link-section card">
+    <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式の開催概要 ↗</a></header>
+    <div class="event-info-grid">
+      <section><h3>■ スケジュール</h3><p class="event-date">2026年7月26日（日）</p><dl class="event-schedule">
+        ${[["12:00 ～ 12:15", "開場・受付"], ["12:15 ～ 12:45", "開会式"], ["12:45 ～ 13:45", "調整①"], ["13:45 ～ 14:15", "抽選・競技①"], ["14:15 ～ 14:25", "エクストラチャレンジルール発表"], ["14:25 ～ 15:45", "調整②"], ["15:45 ～ 16:15", "抽選・競技②"], ["16:15 ～ 16:40", "片付け・スコア集計・チャペル移動"], ["16:40 ～ 17:10", "閉会式"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
+      </dl></section>
+      <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
+    </div>
+  </article>`;
 }
 
 function linksView() {
@@ -1435,15 +1462,7 @@ function linksView() {
       <p>兵庫予選会の大会情報と、WROの公式情報・ルール・関連動画をまとめています。</p>
     </section>
     <section class="link-groups">
-      <article class="event-info link-section card">
-        <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式の開催概要 ↗</a></header>
-        <div class="event-info-grid">
-          <section><h3>■ スケジュール</h3><p class="event-date">2026年7月26日（日）</p><dl class="event-schedule">
-            ${[["12:00 ～ 12:15", "開場・受付"], ["12:15 ～ 12:45", "開会式"], ["12:45 ～ 13:45", "調整①"], ["13:45 ～ 14:15", "抽選・競技①"], ["14:15 ～ 14:25", "エクストラチャレンジルール発表"], ["14:25 ～ 15:45", "調整②"], ["15:45 ～ 16:15", "抽選・競技②"], ["16:15 ～ 16:40", "片付け・スコア集計・チャペル移動"], ["16:40 ～ 17:10", "閉会式"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
-          </dl></section>
-          <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
-        </div>
-      </article>
+      ${hyogoEventCard()}
       ${linkGroup("WRO ホームページ", [
         ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
         ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
