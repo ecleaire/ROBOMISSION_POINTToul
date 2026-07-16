@@ -20,7 +20,9 @@ const ACCOUNT_NAME_PROPERTIES = Object.freeze({
 });
 const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
 const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
+const MEMO_PHOTO_FOLDER_PROPERTY = "MEMO_PHOTO_FOLDER_ID";
 const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_MEMO_PHOTO_BYTES = 4 * 1024 * 1024;
 const HYOGO_NEWS_FEED_URL = "https://wro-hyogo.jp/feed/";
 const HYOGO_NEWS_CACHE_KEY = "hyogo-news-v1";
 const HYOGO_NEWS_FALLBACK = Object.freeze([
@@ -43,6 +45,7 @@ function doPost(event) {
     if (data.action === "records") return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
     if (data.action === "freeMemos") return json_({ ok: true, account: key, memos: getFreeMemosForAccount_(key) });
     if (data.action === "video") return json_(getRecordVideo_(key, data));
+    if (data.action === "memoPhoto") return json_(getMemoPhoto_(key, data));
     if (key === "ADMIN" && data.action === "accounts") {
       return json_({ ok: true, accounts: publicAccountList_() });
     }
@@ -63,7 +66,7 @@ function doPost(event) {
     lock.waitLock(10000);
     try {
       if (data.action === "saveFreeMemo") {
-        const savedMemo = saveFreeMemo_(getMemoSheet_(targetAccount), data);
+        const savedMemo = saveFreeMemo_(getMemoSheet_(targetAccount), data, targetAccount);
         return json_({ ok: true, memo: savedMemo });
       }
       if (data.action === "deleteFreeMemo") {
@@ -77,8 +80,8 @@ function doPost(event) {
         return json_({ ok: true });
       }
       if (data.action === "saveMemo") {
-        updateRecordMemo_(sheet, data.rowNumber, data.recordedAt, data.notes, data.board);
-        return json_({ ok: true });
+        const photos = updateRecordMemo_(sheet, data.rowNumber, data.recordedAt, data.notes, data.board, data.photos, targetAccount);
+        return json_({ ok: true, photos: photos });
       }
       if (data.action === "attachVideo") {
         return json_(attachVideoToRecord_(sheet, targetAccount, data));
@@ -96,7 +99,7 @@ function doPost(event) {
         videoFile = data.video ? saveVideo_(targetAccount, data.video) : null;
         const recordedAt = new Date();
         const rowNumber = sheet.getLastRow() + 1;
-        sheet.getRange(rowNumber, 1, 1, 15).setValues([
+        sheet.getRange(rowNumber, 1, 1, 16).setValues([
           scoreRowValues_(data, recordedAt, videoFile ? videoFile.getId() : "")
         ]);
         const savedRecord = { rowNumber: rowNumber, recordedAt: recordedAt.toISOString() };
@@ -133,7 +136,8 @@ function scoreRowValues_(data, recordedAt, videoFileId) {
     "",
     "",
     videoFileId || "",
-    safeBoard_(data.board)
+    safeBoard_(data.board),
+    ""
   ];
 }
 
@@ -197,11 +201,11 @@ function getMemoSheet_(key) {
 }
 
 function ensureMemoHeader_(sheet) {
-  const headers = [["メモID", "作成日時", "更新日時", "内容", "削除", "コート書き込み"]];
-  if (sheet.getMaxColumns() < 6) sheet.insertColumnAfter(sheet.getMaxColumns());
-  const current = sheet.getLastRow() ? sheet.getRange(1, 1, 1, 6).getValues()[0] : [];
+  const headers = [["メモID", "作成日時", "更新日時", "内容", "削除", "コート書き込み", "写真メモ（非公開）"]];
+  if (sheet.getMaxColumns() < 7) sheet.insertColumnsAfter(sheet.getMaxColumns(), 7 - sheet.getMaxColumns());
+  const current = sheet.getLastRow() ? sheet.getRange(1, 1, 1, 7).getValues()[0] : [];
   if (headers[0].some(function(value, index) { return current[index] !== value; })) {
-    sheet.getRange(1, 1, 1, 6).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
+    sheet.getRange(1, 1, 1, 7).setValues(headers).setFontWeight("bold").setBackground("#d9eaf7");
   }
   if (sheet.getFrozenRows() !== 1) sheet.setFrozenRows(1);
 }
@@ -220,7 +224,7 @@ function getFreeMemosForAccount_(key) {
 function readFreeMemos_(sheet, account, accountName) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  return sheet.getRange(2, 1, lastRow - 1, 6).getValues().map(function(row) {
+  return sheet.getRange(2, 1, lastRow - 1, 7).getValues().map(function(row) {
     return {
       account: account,
       accountName: accountName,
@@ -229,26 +233,31 @@ function readFreeMemos_(sheet, account, accountName) {
       updatedAt: row[2] instanceof Date ? row[2].toISOString() : String(row[2] || ""),
       content: String(row[3] || ""),
       deleted: row[4] === true,
-      board: safeBoard_(row[5])
+      board: safeBoard_(row[5]),
+      photos: publicMemoPhotos_(row[6])
     };
-  }).filter(function(memo) { return memo.memoId && (memo.content || memo.board) && !memo.deleted; }).reverse();
+  }).filter(function(memo) { return memo.memoId && (memo.content || memo.board || memo.photos.length) && !memo.deleted; }).reverse();
 }
 
-function saveFreeMemo_(sheet, data) {
+function saveFreeMemo_(sheet, data, account) {
   const content = safe_(String(data.content || "").trim().slice(0, 1000));
   const board = safeBoard_(data.board);
-  if (!content && !board) throw new Error("メモの内容またはコート書き込みを入力してください。");
   const memoId = String(data.memoId || "").trim();
   const now = new Date();
   if (!memoId) {
     const createdId = Utilities.getUuid();
-    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 6).setValues([[createdId, now, now, content, false, board]]);
-    return { memoId: createdId, createdAt: now.toISOString(), updatedAt: now.toISOString(), content: content, board: board };
+    const photos = saveMemoPhotos_(account, data.photos, "");
+    if (!content && !board && !photos.length) throw new Error("メモの内容、コート書き込み、写真のいずれかを入力してください。");
+    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7).setValues([[createdId, now, now, content, false, board, JSON.stringify(photos)]]);
+    return { memoId: createdId, createdAt: now.toISOString(), updatedAt: now.toISOString(), content: content, board: board, photos: publicMemoPhotos_(JSON.stringify(photos)) };
   }
   const rowNumber = findFreeMemoRow_(sheet, memoId);
+  const photos = saveMemoPhotos_(account, data.photos, sheet.getRange(rowNumber, 7).getValue());
+  if (!content && !board && !photos.length) throw new Error("メモの内容、コート書き込み、写真のいずれかを入力してください。");
   sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
   sheet.getRange(rowNumber, 6).setValue(board);
-  return { memoId: memoId, updatedAt: now.toISOString(), content: content, board: board };
+  sheet.getRange(rowNumber, 7).setValue(JSON.stringify(photos));
+  return { memoId: memoId, updatedAt: now.toISOString(), content: content, board: board, photos: publicMemoPhotos_(JSON.stringify(photos)) };
 }
 
 function getHyogoNews_() {
@@ -312,11 +321,11 @@ function findFreeMemoRow_(sheet, memoId) {
 
 function ensureHeader_(sheet) {
   const cache = CacheService.getScriptCache();
-  const cacheKey = "sheet-ready-v3-" + sheet.getSheetId();
+  const cacheKey = "sheet-ready-v4-" + sheet.getSheetId();
   if (cache.get(cacheKey)) return;
   const headers = [[
     "記録日時", "競技時間（秒）", "訪問者", "赤い塔", "黄色い塔", "遺物",
-    "汚れ", "ボーナス", "合計", "未判定数", "メモ", "削除", "削除日時", "動画ID（非公開）", "コート書き込み"
+    "汚れ", "ボーナス", "合計", "未判定数", "メモ", "削除", "削除日時", "動画ID（非公開）", "コート書き込み", "写真メモ（非公開）"
   ]];
   const lastRow = sheet.getLastRow();
   if (lastRow > 0 && sheet.getLastColumn() >= 14) {
@@ -324,7 +333,7 @@ function ensureHeader_(sheet) {
     if (currentHeaders[1] === "チーム名" || currentHeaders[12] === "採点詳細JSON") {
       const oldRows = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 14).getValues() : [];
       const migratedRows = oldRows.map(function(row) {
-        return [row[0], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[13], "", "", "", ""];
+        return [row[0], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[13], "", "", "", "", ""];
       });
       sheet.clearContents();
       if (migratedRows.length) sheet.getRange(2, 1, migratedRows.length, headers[0].length).setValues(migratedRows);
@@ -346,7 +355,7 @@ function ensureHeader_(sheet) {
 function readRecords_(sheet, account, accountName) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const rows = sheet.getRange(2, 1, lastRow - 1, 15).getValues();
+  const rows = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
   return rows.map(function(row, index) {
     return {
       account: account,
@@ -364,7 +373,8 @@ function readRecords_(sheet, account, accountName) {
       unjudged: number_(row[9]),
       notes: String(row[10] || ""),
       hasVideo: Boolean(row[13]),
-      board: safeBoard_(row[14])
+      board: safeBoard_(row[14]),
+      photos: publicMemoPhotos_(row[15])
     };
   }).filter(function(record, index) {
     return rows[index][0] !== "" && rows[index][0] != null &&
@@ -377,7 +387,7 @@ function archiveRecord_(sheet, rowNumberValue, recordedAt) {
   if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
     throw new Error("削除する記録が見つかりません。");
   }
-  const row = sheet.getRange(rowNumber, 1, 1, 15);
+  const row = sheet.getRange(rowNumber, 1, 1, 16);
   const values = row.getValues()[0];
   const currentDate = values[0] instanceof Date ? values[0] : new Date(values[0]);
   const requestedDate = new Date(recordedAt);
@@ -388,7 +398,7 @@ function archiveRecord_(sheet, rowNumberValue, recordedAt) {
   sheet.getRange(rowNumber, 12, 1, 2).setValues([[true, new Date()]]);
 }
 
-function updateRecordMemo_(sheet, rowNumberValue, recordedAt, notes, board) {
+function updateRecordMemo_(sheet, rowNumberValue, recordedAt, notes, board, photos, account) {
   const rowNumber = Number(rowNumberValue);
   if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > sheet.getLastRow()) {
     throw new Error("メモを保存する記録が見つかりません。");
@@ -401,6 +411,9 @@ function updateRecordMemo_(sheet, rowNumberValue, recordedAt, notes, board) {
   }
   sheet.getRange(rowNumber, 11).setValue(safe_(String(notes || "").slice(0, 500)));
   sheet.getRange(rowNumber, 15).setValue(safeBoard_(board));
+  const savedPhotos = saveMemoPhotos_(account, photos, sheet.getRange(rowNumber, 16).getValue());
+  sheet.getRange(rowNumber, 16).setValue(JSON.stringify(savedPhotos));
+  return publicMemoPhotos_(JSON.stringify(savedPhotos));
 }
 
 function ensureDeleteControls_(sheet) {
@@ -421,7 +434,7 @@ function ensureDeleteControls_(sheet) {
       .whenFormulaSatisfied(formula)
       .setBackground("#f4cccc")
       .setFontColor("#990000")
-      .setRanges([sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 15)])
+      .setRanges([sheet.getRange(2, 1, Math.max(sheet.getMaxRows() - 1, 1), 16)])
       .build());
     sheet.setConditionalFormatRules(rules);
   }
@@ -505,6 +518,105 @@ function videoFolder_() {
   const folder = DriveApp.createFolder("RoboMission_Assist_Private_Videos");
   folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
   properties.setProperty(VIDEO_FOLDER_PROPERTY, folder.getId());
+  return folder;
+}
+
+function getMemoPhoto_(key, data) {
+  const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
+  if (!accountById_(targetAccount) || !canAccessVideo_(key, targetAccount)) {
+    throw new Error("この写真を表示する権限がありません。");
+  }
+  const kind = String(data.kind || "") === "record" ? "record" : "free";
+  let storedValue = "";
+  if (kind === "free") {
+    const sheet = getMemoSheet_(targetAccount);
+    const rowNumber = findFreeMemoRow_(sheet, String(data.memoId || ""));
+    storedValue = sheet.getRange(rowNumber, 7).getValue();
+  } else {
+    const sheet = getSheet_(targetAccount);
+    ensureHeader_(sheet);
+    const rowNumber = Number(data.rowNumber);
+    if (!Number.isInteger(rowNumber) || rowNumber < 2 || rowNumber > sheet.getLastRow()) throw new Error("写真の記録が見つかりません。");
+    const savedDate = sheet.getRange(rowNumber, 1).getValue();
+    const currentDate = savedDate instanceof Date ? savedDate : new Date(savedDate);
+    const requestedDate = new Date(data.recordedAt);
+    if (!Number.isFinite(currentDate.getTime()) || !Number.isFinite(requestedDate.getTime()) || currentDate.getTime() !== requestedDate.getTime()) {
+      throw new Error("記録の位置が変わりました。");
+    }
+    storedValue = sheet.getRange(rowNumber, 16).getValue();
+  }
+  const photoId = String(data.photoId || "");
+  if (!readMemoPhotos_(storedValue).some(function(photo) { return photo.id === photoId; })) throw new Error("写真が見つかりません。");
+  const file = DriveApp.getFileById(photoId);
+  if (file.getSize() > MAX_MEMO_PHOTO_BYTES) throw new Error("写真の容量が大きすぎます。");
+  const blob = file.getBlob();
+  return { ok: true, photo: { name: file.getName(), type: file.getMimeType() || "image/jpeg", size: file.getSize(), base64: Utilities.base64Encode(blob.getBytes()) } };
+}
+
+function readMemoPhotos_(value) {
+  let parsed;
+  try { parsed = JSON.parse(String(value || "[]")); } catch (_error) { parsed = []; }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.slice(0, 5).flatMap(function(item) {
+    const id = String(item && item.id || "").trim();
+    if (!id) return [];
+    return [{ id: id, board: safeBoard_(item && item.board) }];
+  });
+}
+
+function publicMemoPhotos_(value) {
+  return readMemoPhotos_(value).map(function(photo) { return { id: photo.id, board: photo.board }; });
+}
+
+function saveMemoPhotos_(account, requestedValue, existingValue) {
+  const existing = readMemoPhotos_(existingValue);
+  if (!Array.isArray(requestedValue)) return existing;
+  const requested = requestedValue.slice(0, 5);
+  const existingIds = existing.map(function(photo) { return photo.id; });
+  const saved = requested.map(function(item) {
+    const requestedId = String(item && item.id || "");
+    const board = safeBoard_(item && item.board);
+    if (requestedId && existingIds.indexOf(requestedId) >= 0) return { id: requestedId, board: board };
+    if (!item || !item.image) throw new Error("新しい写真データがありません。");
+    const file = saveMemoPhoto_(account, item.image);
+    return { id: file.getId(), board: board };
+  });
+  const savedIds = saved.map(function(photo) { return photo.id; });
+  existing.forEach(function(photo) {
+    if (savedIds.indexOf(photo.id) < 0) {
+      try { DriveApp.getFileById(photo.id).setTrashed(true); } catch (_error) { /* 既に削除済み */ }
+    }
+  });
+  const text = JSON.stringify(saved);
+  if (text.length > 45000) throw new Error("写真への書き込みが多すぎます。図形や文字を減らしてください。");
+  return saved;
+}
+
+function saveMemoPhoto_(account, image) {
+  const type = String(image && image.type || "").toLowerCase();
+  const declaredSize = Number(image && image.size);
+  const encoded = String(image && image.base64 || "");
+  if (["image/jpeg", "image/png", "image/webp"].indexOf(type) < 0) throw new Error("写真形式を確認できません。");
+  if (!Number.isFinite(declaredSize) || declaredSize <= 0 || declaredSize > MAX_MEMO_PHOTO_BYTES) throw new Error("写真は1枚4MB以下にしてください。");
+  if (!encoded || encoded.length > Math.ceil(MAX_MEMO_PHOTO_BYTES * 4 / 3) + 8) throw new Error("写真データが無効です。");
+  const bytes = Utilities.base64Decode(encoded);
+  if (!bytes.length || bytes.length !== declaredSize || bytes.length > MAX_MEMO_PHOTO_BYTES) throw new Error("写真データの容量を確認できませんでした。");
+  const originalName = String(image.name || "memo.jpg").replace(/[\\/:*?"<>|\r\n]+/g, "_").slice(-80) || "memo.jpg";
+  const fileName = account + "_" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd_HHmmss") + "_" + originalName;
+  const file = memoPhotoFolder_().createFile(Utilities.newBlob(bytes, type, fileName));
+  file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+  return file;
+}
+
+function memoPhotoFolder_() {
+  const properties = PropertiesService.getScriptProperties();
+  const existingId = String(properties.getProperty(MEMO_PHOTO_FOLDER_PROPERTY) || "");
+  if (existingId) {
+    try { return DriveApp.getFolderById(existingId); } catch (_error) { /* フォルダ再作成 */ }
+  }
+  const folder = DriveApp.createFolder("RoboMission_Assist_Private_Memo_Photos");
+  folder.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.VIEW);
+  properties.setProperty(MEMO_PHOTO_FOLDER_PROPERTY, folder.getId());
   return folder;
 }
 

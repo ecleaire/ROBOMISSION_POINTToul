@@ -7,9 +7,10 @@ type GasContext = {
   publicAccountList_: () => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean }>;
   saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string }) => { id: string; name: string };
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
-  updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string) => void;
+  updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string, photos?: unknown[], account?: string) => void;
   safeBoard_: (value: string) => string;
   scoreRowValues_: (data: Record<string, unknown>, recordedAt: Date, videoFileId: string) => unknown[];
+  readMemoPhotos_: (value: string) => Array<{ id: string; board: string }>;
   findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
   parseHyogoNewsFeed_: (xml: string) => Array<{ source: string; title: string; url: string; updatedAt: string }>;
 };
@@ -90,13 +91,15 @@ describe("GAS account management", () => {
       getLastRow: () => 5,
       getRange: (_row: number, column: number) => column === 1
         ? { getValue: () => recordedAt }
-        : { setValue: (value: string) => { saved[column] = value; } },
+        : column === 16
+          ? { getValue: () => "[]", setValue: (value: string) => { saved[column] = value; } }
+          : { setValue: (value: string) => { saved[column] = value; } },
     };
     const board = JSON.stringify({ version: 1, elements: [{ type: "circle" }] });
-    gas.updateRecordMemo_(sheet, 3, recordedAt, "次はゆっくり走る", board);
+    gas.updateRecordMemo_(sheet, 3, recordedAt, "次はゆっくり走る", board, [], "A");
     expect(saved[11]).toBe("次はゆっくり走る");
     expect(saved[15]).toBe(board);
-    expect(() => gas.updateRecordMemo_(sheet, 3, "2026-07-15T01:02:04.000Z", "誤った行"))
+    expect(() => gas.updateRecordMemo_(sheet, 3, "2026-07-15T01:02:04.000Z", "誤った行", board, [], "A"))
       .toThrow("記録の位置が変わりました");
   });
 
@@ -117,6 +120,12 @@ describe("GAS account management", () => {
     expect(gas.safeBoard_("not-json")).toBe("");
   });
 
+  it("keeps at most five private memo photo references", () => {
+    const { gas } = loadGas();
+    const photos = Array.from({ length: 7 }, (_, index) => ({ id: `photo-${index}`, board: "" }));
+    expect(gas.readMemoPhotos_(JSON.stringify(photos))).toHaveLength(5);
+  });
+
   it("stores a scoring-screen court board in the record board column", () => {
     const { gas } = loadGas();
     const board = JSON.stringify({ version: 1, elements: [{ type: "circle", color: "#ff0000", x: .1, y: .2, x2: .3, y2: .4 }] });
@@ -133,7 +142,7 @@ describe("GAS account management", () => {
       notes: "採点メモ",
       board,
     }, new Date("2026-07-17T00:00:00Z"), "");
-    expect(values).toHaveLength(15);
+    expect(values).toHaveLength(16);
     expect(values[10]).toBe("採点メモ");
     expect(values[14]).toBe(board);
   });

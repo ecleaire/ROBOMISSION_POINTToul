@@ -53,6 +53,7 @@ interface PracticeRecord {
   unjudged: number;
   hasVideo: boolean;
   board: CourtBoard;
+  photos: MemoPhoto[];
 }
 
 interface FreeMemo {
@@ -63,11 +64,19 @@ interface FreeMemo {
   updatedAt: string;
   content: string;
   board: CourtBoard;
+  photos: MemoPhoto[];
+}
+
+interface MemoPhoto {
+  id: string;
+  board: CourtBoard;
+  image?: StoredImage;
 }
 
 interface BoardEditorState {
-  target: { kind: "free" | "record" | "score"; memoId?: string; account: string; rowNumber?: number; recordedAt?: string };
+  target: { kind: "free" | "record" | "score"; memoId?: string; account: string; rowNumber?: number; recordedAt?: string; photoId?: string };
   board: CourtBoard;
+  backgroundSrc: string;
   tool: BoardTool;
   color: string;
   undo: CourtBoard[];
@@ -109,6 +118,13 @@ interface ManagedAccount {
   name: string;
   legacy: boolean;
   hasApiKey: boolean;
+}
+
+interface StoredImage {
+  name: string;
+  type: string;
+  size: number;
+  base64: string;
 }
 
 interface NewsItem {
@@ -164,9 +180,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.5.0", updatedAt: "2026.07.17", title: "メモ写真撮影・書き込みを追加", description: "メモ1件につき最大5枚をアプリ内カメラで撮影し、写真ごとに図形・ペン・文字を書き込めるようにしました。" },
   { version: "1.4.4", updatedAt: "2026.07.17", title: "General Rules・採点コートメモを追加", description: "3種類のルールPDF切替と、採点中の文章メモへコート画像を書き込んで結果と一緒に保存する機能を追加しました。" },
   { version: "1.4.3", updatedAt: "2026.07.17", title: "ニュース内ボタンの画面遷移を修正", description: "「大会情報」「アプリ更新内容」を押した時に採点へ戻らず、ニュース内の該当位置へ移動するよう修正しました。" },
-  { version: "1.4.2", updatedAt: "2026.07.17", title: "メモ・ルール・大会情報を改善", description: "コート操作ボタンのはみ出しを修正し、兵庫予選会PDFのアプリ内切替表示と会場ミニマップを追加しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -191,7 +207,9 @@ let practiceRecords: PracticeRecord[] = [];
 let freeMemos: FreeMemo[] = [];
 let freeMemoStatus = "";
 let newFreeMemoBoard = emptyCourtBoard();
+let newFreeMemoPhotos: MemoPhoto[] = [];
 let boardEditor: BoardEditorState | null = null;
+let photoCaptureStream: MediaStream | null = null;
 const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
@@ -253,6 +271,7 @@ const artifactColors: { value: ArtifactColor; label: string }[] = [
 ];
 
 window.addEventListener("hashchange", () => {
+  closeMemoPhotoCapture();
   window.scrollTo(0, 0);
   render();
   configureRecordsAutoRefresh();
@@ -269,6 +288,7 @@ document.addEventListener("pointerdown", (event) => {
   enterCameraFullscreen(true);
 }, { capture: true });
 window.addEventListener("keydown", (event) => {
+  if (photoCaptureStream && event.key === "Escape") { closeMemoPhotoCapture(); return; }
   if (boardEditor && event.key === "Escape") { closeCourtBoard(); return; }
   if (!modal && !accountSwitchOpen) return;
   if (event.key !== "Escape") return;
@@ -346,6 +366,7 @@ function render() {
   bindEvents();
   attachRulesFrame();
   renderCourtBoardPreviews();
+  renderMemoPhotoPreviews();
 }
 
 function systemNoticeView() {
@@ -964,6 +985,7 @@ function memoView() {
           <textarea data-free-memo-content maxlength="1000" placeholder="アイデア、準備物、次回試したいことなど"></textarea>
         </label>
         ${courtBoardView("free", "", activeAccount === "ADMIN" ? "" : activeAccount || "", 0, "", newFreeMemoBoard)}
+        ${memoPhotosView("free", "", activeAccount === "ADMIN" ? "" : activeAccount || "", 0, "", newFreeMemoPhotos)}
         <div class="memo-save-row"><small>1000文字まで</small><button class="primary" data-action="save-free-memo">新しいメモを保存</button></div>
       </article>
       ${freeMemoStatus ? `<p class="sheet-status" role="status">${escapeHtml(freeMemoStatus)}</p>` : ""}
@@ -973,6 +995,7 @@ function memoView() {
             <header><div><p>${formatRecordDate(memo.updatedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(memo.accountName || memo.account)}</span>` : ""}</p><strong>メモ</strong></div></header>
             <label>内容<textarea data-free-memo-content maxlength="1000">${escapeHtml(memo.content)}</textarea></label>
             ${courtBoardView("free", memo.memoId, memo.account, 0, "", memo.board)}
+            ${memoPhotosView("free", memo.memoId, memo.account, 0, "", memo.photos)}
             <div class="memo-save-row"><button class="memo-delete" data-action="delete-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">削除</button><button class="primary" data-action="save-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">変更を保存</button></div>
           </article>`).join("") : `<div class="empty-state card"><strong>メモはまだありません</strong><p>上の欄から最初のメモを作成できます。</p></div>`}
       </div>
@@ -989,6 +1012,7 @@ function memoView() {
             <textarea data-record-memo maxlength="500" placeholder="ミスしたところ、良かったところ、次に試すことなど">${escapeHtml(record.notes)}</textarea>
           </label>
           ${courtBoardView("record", "", record.account, record.rowNumber, record.recordedAt, record.board)}
+          ${memoPhotosView("record", "", record.account, record.rowNumber, record.recordedAt, record.photos)}
           <div class="memo-save-row"><small>500文字まで</small><button class="primary" data-action="save-record-memo" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">メモを保存</button></div>
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果を保存すると、その回のメモをここで作れます。</p></div>`}
     </section>
@@ -1006,6 +1030,201 @@ function courtBoardView(kind: "free" | "record" | "score", memoId: string, accou
   </section>`;
 }
 
+function memoPhotosView(kind: "free" | "record", memoId: string, account: string, rowNumber: number, recordedAt: string, photos: MemoPhoto[]) {
+  const attrs = `data-board-kind="${kind}" data-board-id="${escapeHtml(memoId)}" data-board-account="${escapeHtml(account)}" data-board-row="${rowNumber}" data-recorded-at="${escapeHtml(recordedAt)}"`;
+  return `<section class="memo-photos" ${attrs}>
+    <header><div><strong>写真メモ</strong><small>アプリ内カメラで撮影・最大5枚</small></div><button type="button" class="photo-capture-button" data-action="capture-memo-photo" ${photos.length >= 5 ? "disabled" : ""}>📷 写真を撮る</button></header>
+    ${photos.length ? `<div class="memo-photo-grid">${photos.map((photo, index) => {
+      const source = photo.image ? storedImageUrl(photo.image) : "";
+      return `<article class="memo-photo-item" data-photo-id="${escapeHtml(photo.id)}">
+        <div class="memo-photo-preview">${source ? `<img src="${source}" alt="メモ写真 ${index + 1}" /><canvas aria-hidden="true"></canvas>` : `<span>写真 ${index + 1}<small>タップして読み込み</small></span>`}</div>
+        <div><button type="button" class="secondary" data-action="edit-memo-photo" data-photo-id="${escapeHtml(photo.id)}">${source ? "写真に書き込む" : "写真を読み込む"}</button><button type="button" class="memo-photo-delete" data-action="delete-memo-photo" data-photo-id="${escapeHtml(photo.id)}">削除</button></div>
+      </article>`;
+    }).join("")}</div>` : `<p class="memo-photo-empty">写真はまだありません。</p>`}
+  </section>`;
+}
+
+function storedImageUrl(image: StoredImage) {
+  return `data:${image.type};base64,${image.base64}`;
+}
+
+function sanitizeMemoPhotos(value: unknown): MemoPhoto[] {
+  return (Array.isArray(value) ? value : []).slice(0, 5).flatMap((item): MemoPhoto[] => {
+    if (!item || typeof item !== "object") return [];
+    const source = item as Partial<MemoPhoto>;
+    const id = typeof source.id === "string" ? source.id.slice(0, 120) : "";
+    if (!id) return [];
+    return [{ id, board: sanitizeCourtBoard(source.board) }];
+  });
+}
+
+function cloneMemoPhotos(photos: MemoPhoto[]) {
+  return photos.map((photo) => ({ ...photo, board: cloneCourtBoard(photo.board), image: photo.image ? { ...photo.image } : undefined }));
+}
+
+function serializeMemoPhotos(photos: MemoPhoto[]) {
+  return photos.slice(0, 5).map((photo) => ({
+    id: photo.id.startsWith("new-") ? "" : photo.id,
+    board: serializeCourtBoard(photo.board),
+    image: photo.id.startsWith("new-") ? photo.image : undefined,
+  }));
+}
+
+function memoPhotoTarget(element: HTMLElement) {
+  const container = element.closest<HTMLElement>(".memo-photos");
+  const kind: "free" | "record" = container?.dataset.boardKind === "record" ? "record" : "free";
+  const memoId = container?.dataset.boardId || "";
+  const account = container?.dataset.boardAccount || container?.closest<HTMLElement>("[data-free-memo]")?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value || activeAccount || "";
+  const rowNumber = Number(container?.dataset.boardRow || 0);
+  const recordedAt = container?.dataset.recordedAt || "";
+  return { container, kind, memoId, account, rowNumber, recordedAt, photos: photosForTarget(kind, memoId, account, rowNumber, recordedAt) };
+}
+
+function refreshMemoPhotoTarget(target: ReturnType<typeof memoPhotoTarget>) {
+  if (!target.container?.isConnected) return null;
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = memoPhotosView(target.kind, target.memoId, target.account, target.rowNumber, target.recordedAt, target.photos);
+  const replacement = wrapper.firstElementChild as HTMLElement | null;
+  if (!replacement) return null;
+  target.container.replaceWith(replacement);
+  replacement.querySelectorAll<HTMLElement>("[data-action]").forEach((item) =>
+    item.addEventListener("click", () => handleAction(item.dataset.action!, item)),
+  );
+  renderMemoPhotoPreviews(replacement);
+  return replacement;
+}
+
+function renderMemoPhotoPreviews(root: ParentNode = document) {
+  root.querySelectorAll<HTMLElement>(".memo-photo-item").forEach((item) => {
+    const canvas = item.querySelector<HTMLCanvasElement>("canvas");
+    const container = item.closest<HTMLElement>(".memo-photos");
+    if (!canvas || !container) return;
+    const target = memoPhotoTarget(item);
+    const photo = target.photos.find((candidate) => candidate.id === item.dataset.photoId);
+    if (photo) window.requestAnimationFrame(() => drawCourtBoard(canvas, photo.board));
+  });
+}
+
+async function startMemoPhotoCapture(element: HTMLElement) {
+  const target = memoPhotoTarget(element);
+  if (target.photos.length >= 5) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    freeMemoStatus = "この端末ではアプリ内カメラを利用できません。";
+    render();
+    return;
+  }
+  if (cameraStream || videoRecordingStatus !== "idle") {
+    freeMemoStatus = "動画録画を終了してから写真を撮影してください。";
+    render();
+    return;
+  }
+  closeMemoPhotoCapture();
+  document.body.insertAdjacentHTML("beforeend", `<section class="memo-photo-camera" data-memo-photo-camera role="dialog" aria-modal="true" aria-label="メモ写真を撮影">
+    <video autoplay muted playsinline data-memo-photo-video></video>
+    <div class="memo-photo-camera-top"><strong>メモ写真 ${target.photos.length + 1} / 5</strong><button type="button" data-memo-photo-close>× 閉じる</button></div>
+    <button type="button" class="memo-photo-shutter" data-memo-photo-shutter aria-label="写真を撮影">●<span>撮影</span></button>
+  </section>`);
+  document.body.classList.add("memo-photo-camera-mode");
+  const root = document.querySelector<HTMLElement>("[data-memo-photo-camera]")!;
+  const video = root.querySelector<HTMLVideoElement>("[data-memo-photo-video]")!;
+  root.querySelector("[data-memo-photo-close]")?.addEventListener("click", closeMemoPhotoCapture);
+  try {
+    photoCaptureStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false,
+    });
+    if (!root.isConnected) { closeMemoPhotoCapture(); return; }
+    video.srcObject = photoCaptureStream;
+    await video.play();
+    root.querySelector("[data-memo-photo-shutter]")?.addEventListener("click", () => void captureMemoPhoto(video, target));
+  } catch {
+    closeMemoPhotoCapture();
+    freeMemoStatus = "カメラを起動できませんでした。端末のカメラ権限を確認してください。";
+    render();
+  }
+}
+
+async function captureMemoPhoto(video: HTMLVideoElement, target: ReturnType<typeof memoPhotoTarget>) {
+  if (!video.videoWidth || !video.videoHeight || target.photos.length >= 5) return;
+  const shutter = document.querySelector<HTMLButtonElement>("[data-memo-photo-shutter]");
+  if (shutter?.disabled) return;
+  if (shutter) shutter.disabled = true;
+  const scale = Math.min(1, 1600 / Math.max(video.videoWidth, video.videoHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+  canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
+  if (!blob) { if (shutter) shutter.disabled = false; return; }
+  const image = await blobToStoredImage(blob, `memo-${Date.now()}.jpg`);
+  const id = `new-${crypto.randomUUID?.() || Date.now()}`;
+  target.photos.push({ id, board: emptyCourtBoard(), image });
+  closeMemoPhotoCapture();
+  const replacement = refreshMemoPhotoTarget(target);
+  const button = replacement?.querySelector<HTMLElement>(`.memo-photo-item[data-photo-id="${CSS.escape(id)}"] [data-action="edit-memo-photo"]`);
+  if (button) openCourtBoard(button);
+}
+
+function closeMemoPhotoCapture() {
+  photoCaptureStream?.getTracks().forEach((track) => track.stop());
+  photoCaptureStream = null;
+  document.querySelector("[data-memo-photo-camera]")?.remove();
+  document.body.classList.remove("memo-photo-camera-mode");
+}
+
+function blobToStoredImage(blob: Blob, name: string): Promise<StoredImage> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("写真を読み込めませんでした。"));
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      const comma = value.indexOf(",");
+      if (comma < 0) return reject(new Error("写真を変換できませんでした。"));
+      resolve({ name, type: blob.type || "image/jpeg", size: blob.size, base64: value.slice(comma + 1) });
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function editMemoPhoto(element: HTMLElement) {
+  const target = memoPhotoTarget(element);
+  const photoId = element.dataset.photoId || "";
+  const photo = target.photos.find((item) => item.id === photoId);
+  if (!photo) return;
+  if (!photo.image && !photo.id.startsWith("new-")) {
+    const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+    if (!endpoint || !activeApiKey) return;
+    const originalLabel = element.textContent;
+    element.textContent = "読み込み中…";
+    element.setAttribute("aria-busy", "true");
+    try {
+      const result = await postJson<{ ok?: boolean; photo?: StoredImage; message?: string }>(endpoint, {
+        action: "memoPhoto", apiKey: activeApiKey, account: target.account, kind: target.kind,
+        memoId: target.memoId, rowNumber: target.rowNumber, recordedAt: target.recordedAt, photoId,
+      }, new AbortController(), 45000);
+      if (!result.ok || !result.photo) throw new Error(result.message || "写真を読み込めませんでした");
+      photo.image = result.photo;
+    } catch (error) {
+      element.textContent = originalLabel;
+      element.removeAttribute("aria-busy");
+      alert(`写真を読み込めませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`);
+      return;
+    }
+  }
+  const replacement = refreshMemoPhotoTarget(target);
+  const button = replacement?.querySelector<HTMLElement>(`.memo-photo-item[data-photo-id="${CSS.escape(photoId)}"] [data-action="edit-memo-photo"]`);
+  if (button) openCourtBoard(button);
+}
+
+function deleteMemoPhoto(element: HTMLElement) {
+  const target = memoPhotoTarget(element);
+  const photoId = element.dataset.photoId || "";
+  const index = target.photos.findIndex((item) => item.id === photoId);
+  if (index < 0 || !confirm("この写真と写真上の書き込みを削除しますか？")) return;
+  target.photos.splice(index, 1);
+  refreshMemoPhotoTarget(target);
+}
+
 function boardForTarget(kind: string, memoId: string, account: string, rowNumber: number, recordedAt: string) {
   if (kind === "score") return state.board;
   if (kind === "free") {
@@ -1013,6 +1232,14 @@ function boardForTarget(kind: string, memoId: string, account: string, rowNumber
     return freeMemos.find((memo) => memo.memoId === memoId && memo.account === account)?.board ?? emptyCourtBoard();
   }
   return practiceRecords.find((record) => record.account === account && record.rowNumber === rowNumber && record.recordedAt === recordedAt)?.board ?? emptyCourtBoard();
+}
+
+function photosForTarget(kind: string, memoId: string, account: string, rowNumber: number, recordedAt: string) {
+  if (kind === "free") {
+    if (!memoId) return newFreeMemoPhotos;
+    return freeMemos.find((memo) => memo.memoId === memoId && memo.account === account)?.photos ?? [];
+  }
+  return practiceRecords.find((record) => record.account === account && record.rowNumber === rowNumber && record.recordedAt === recordedAt)?.photos ?? [];
 }
 
 function renderCourtBoardPreviews() {
@@ -1041,9 +1268,12 @@ function openCourtBoard(element: HTMLElement) {
   const account = element.dataset.boardAccount || element.closest<HTMLElement>("[data-free-memo]")?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value || activeAccount || "";
   const rowNumber = Number(element.dataset.boardRow || 0);
   const recordedAt = element.dataset.recordedAt || "";
+  const photoId = element.dataset.photoId || "";
+  const photo = photoId ? photosForTarget(kind, memoId, account, rowNumber, recordedAt).find((item) => item.id === photoId) : undefined;
   boardEditor = {
-    target: { kind, memoId, account, rowNumber, recordedAt },
-    board: cloneCourtBoard(boardForTarget(kind, memoId, account, rowNumber, recordedAt)),
+    target: { kind, memoId, account, rowNumber, recordedAt, photoId },
+    board: cloneCourtBoard(photo?.board ?? boardForTarget(kind, memoId, account, rowNumber, recordedAt)),
+    backgroundSrc: photo?.image ? storedImageUrl(photo.image) : COURT_IMAGE_URL,
     tool: "select",
     color: "#e53935",
     undo: [],
@@ -1061,7 +1291,7 @@ function openCourtBoard(element: HTMLElement) {
       <button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button><button type="button" class="board-clear" data-board-command="clear">全消去</button>
     </div>
     <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
-    <div class="board-stage-shell"><div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div></div>
+    <div class="board-stage-shell"><div class="board-stage"><img src="${boardEditor.backgroundSrc}" alt="${photo ? "メモ写真" : "WRO 2026 RoboMission Junior コート"}" /><canvas data-board-canvas aria-label="書き込み領域"></canvas></div></div>
     <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">${kind === "score" ? "この書き込みを採点メモに入れる" : "この書き込みをメモに入れる"}</button></footer>
   </section>`);
   document.body.classList.add("board-editor-mode");
@@ -1346,7 +1576,10 @@ function runBoardCommand(command: string) {
   if (command === "done") {
     const { target } = boardEditor;
     const saved = cloneCourtBoard(boardEditor.board);
-    if (target.kind === "score") {
+    if (target.photoId) {
+      const photo = photosForTarget(target.kind, target.memoId || "", target.account, target.rowNumber || 0, target.recordedAt || "").find((item) => item.id === target.photoId);
+      if (photo) photo.board = saved;
+    } else if (target.kind === "score") {
       state.board = saved;
       saveState();
     } else if (target.kind === "free") {
@@ -1360,6 +1593,7 @@ function runBoardCommand(command: string) {
     }
     closeCourtBoard();
     renderCourtBoardPreviews();
+    renderMemoPhotoPreviews();
   }
 }
 
@@ -1765,6 +1999,9 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "update-account") void saveManagedAccount(element.dataset.accountId);
   if (action === "load-records") void loadRecords();
   if (action === "edit-board") openCourtBoard(element);
+  if (action === "capture-memo-photo") void startMemoPhotoCapture(element);
+  if (action === "edit-memo-photo") void editMemoPhoto(element);
+  if (action === "delete-memo-photo") deleteMemoPhoto(element);
   if (action === "load-news") void loadHyogoNews();
   if (action === "scroll-news-section") {
     const target = element.dataset.newsTarget;
@@ -2098,6 +2335,8 @@ async function loginAccount(fromSwitch = false) {
       managedAccounts = [];
       practiceRecords = [];
       freeMemos = [];
+      newFreeMemoPhotos = [];
+      newFreeMemoBoard = emptyCourtBoard();
       freeMemoStatus = "";
       recordsStatus = "";
       resetRecordFilters();
@@ -2125,6 +2364,8 @@ async function loginAccount(fromSwitch = false) {
     accountSwitchOpen = false;
     practiceRecords = [];
     freeMemos = [];
+    newFreeMemoPhotos = [];
+    newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "";
     recordsStatus = "";
     resetStopwatch();
@@ -2157,6 +2398,8 @@ async function loginAdmin() {
     adminError = "";
     practiceRecords = [];
     freeMemos = [];
+    newFreeMemoPhotos = [];
+    newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "";
     resetRecordFilters();
     recordsStatus = "";
@@ -2188,6 +2431,8 @@ function logoutAdmin() {
   managedAccounts = [];
   practiceRecords = [];
   freeMemos = [];
+  newFreeMemoPhotos = [];
+  newFreeMemoBoard = emptyCourtBoard();
   freeMemoStatus = "";
   recordsStatus = "";
   adminError = "";
@@ -2325,7 +2570,7 @@ async function loadFreeMemos(shouldRender = true) {
       memo && typeof memo.memoId === "string" && typeof memo.content === "string",
     ).map((memo) => ({
       account: String(memo.account || ""), accountName: String(memo.accountName || ""), memoId: String(memo.memoId || "").slice(0, 80),
-      createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: String(memo.content || "").slice(0, 1000), board: sanitizeCourtBoard(memo.board),
+      createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: String(memo.content || "").slice(0, 1000), board: sanitizeCourtBoard(memo.board), photos: sanitizeMemoPhotos((memo as FreeMemo & { photos?: unknown }).photos),
     }));
     freeMemoStatus = freeMemos.length ? `${freeMemos.length}件のメモを表示中` : "メモはまだありません。";
   } catch (error) {
@@ -2344,30 +2589,42 @@ async function saveFreeMemo(element: HTMLElement) {
   const currentBoard = memoId
     ? freeMemos.find((memo) => memo.memoId === memoId && memo.account === memoAccount)?.board ?? emptyCourtBoard()
     : newFreeMemoBoard;
-  if (!content && !currentBoard.elements.length) { freeMemoStatus = "メモの内容またはコート書き込みを入力してください。"; render(); return; }
+  const currentPhotos = memoId
+    ? freeMemos.find((memo) => memo.memoId === memoId && memo.account === memoAccount)?.photos ?? []
+    : newFreeMemoPhotos;
+  if (!content && !currentBoard.elements.length && !currentPhotos.length) { freeMemoStatus = "メモの内容、コート書き込み、写真のいずれかを入力してください。"; render(); return; }
   if (activeAccount === "ADMIN" && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
   if (!endpoint || !activeApiKey || !activeAccount) return;
-  const previousMemos = freeMemos.map((memo) => ({ ...memo }));
+  const previousMemos = freeMemos.map((memo) => ({ ...memo, photos: cloneMemoPhotos(memo.photos) }));
   const now = new Date().toISOString();
   const optimisticId = memoId || `saving-${Date.now()}`;
   const accountName = managedAccounts.find((account) => account.id === memoAccount)?.name || activeAccountName || memoAccount;
   const existingIndex = freeMemos.findIndex((memo) => memo.memoId === memoId && memo.account === memoAccount);
-  const optimisticMemo: FreeMemo = { account: memoAccount, accountName, memoId: optimisticId, createdAt: now, updatedAt: now, content, board: cloneCourtBoard(currentBoard) };
-  if (existingIndex >= 0) freeMemos[existingIndex] = { ...freeMemos[existingIndex], content, board: cloneCourtBoard(currentBoard), updatedAt: now };
+  const optimisticMemo: FreeMemo = { account: memoAccount, accountName, memoId: optimisticId, createdAt: now, updatedAt: now, content, board: cloneCourtBoard(currentBoard), photos: cloneMemoPhotos(currentPhotos) };
+  if (existingIndex >= 0) freeMemos[existingIndex] = { ...freeMemos[existingIndex], content, board: cloneCourtBoard(currentBoard), photos: cloneMemoPhotos(currentPhotos), updatedAt: now };
   else freeMemos = [optimisticMemo, ...freeMemos];
   freeMemoStatus = "メモを保存中…";
   render();
   try {
-    const result = await postJson<{ ok?: boolean; memo?: Partial<FreeMemo>; message?: string }>(endpoint, {
-      action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content, board: serializeCourtBoard(currentBoard),
-    });
+    const result = await postJson<{ ok?: boolean; memo?: Partial<FreeMemo> & { photos?: unknown }; message?: string }>(endpoint, {
+      action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content, board: serializeCourtBoard(currentBoard), photos: serializeMemoPhotos(currentPhotos),
+    }, new AbortController(), 90000);
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
     if (!memoId && result.memo?.memoId) {
+      const savedPhotos = sanitizeMemoPhotos(result.memo.photos);
+      savedPhotos.forEach((photo, index) => { photo.image = currentPhotos[index]?.image; });
       freeMemos = freeMemos.map((memo) => memo.memoId === optimisticId ? {
-        ...memo, memoId: String(result.memo!.memoId), createdAt: String(result.memo!.createdAt || now), updatedAt: String(result.memo!.updatedAt || now),
+        ...memo, memoId: String(result.memo!.memoId), createdAt: String(result.memo!.createdAt || now), updatedAt: String(result.memo!.updatedAt || now), photos: savedPhotos,
       } : memo);
+    } else if (memoId && result.memo?.photos) {
+      const saved = freeMemos.find((memo) => memo.memoId === memoId && memo.account === memoAccount);
+      if (saved) {
+        const savedPhotos = sanitizeMemoPhotos(result.memo.photos);
+        savedPhotos.forEach((photo, index) => { photo.image = currentPhotos[index]?.image; });
+        saved.photos = savedPhotos;
+      }
     }
-    if (!memoId) newFreeMemoBoard = emptyCourtBoard();
+    if (!memoId) { newFreeMemoBoard = emptyCourtBoard(); newFreeMemoPhotos = []; }
     freeMemoStatus = "メモを保存しました。";
   } catch (error) {
     freeMemos = previousMemos;
@@ -2410,17 +2667,23 @@ async function saveRecordMemo(element: HTMLElement) {
   const record = practiceRecords.find((item) => item.account === recordAccount && item.rowNumber === rowNumber && item.recordedAt === recordedAt);
   const previousNotes = record?.notes ?? "";
   const previousBoard = cloneCourtBoard(record?.board ?? emptyCourtBoard());
+  const previousPhotos = cloneMemoPhotos(record?.photos ?? []);
   if (record) record.notes = notes;
   recordsStatus = "メモを保存中…";
   render();
   try {
-    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
-      action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes, board: serializeCourtBoard(record?.board ?? emptyCourtBoard()),
-    });
+    const result = await postJson<{ ok?: boolean; photos?: unknown; message?: string }>(endpoint, {
+      action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes, board: serializeCourtBoard(record?.board ?? emptyCourtBoard()), photos: serializeMemoPhotos(record?.photos ?? []),
+    }, new AbortController(), 90000);
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
+    if (record && result.photos) {
+      const savedPhotos = sanitizeMemoPhotos(result.photos);
+      savedPhotos.forEach((photo, index) => { photo.image = record.photos[index]?.image; });
+      record.photos = savedPhotos;
+    }
     recordsStatus = "メモを保存しました。";
   } catch (error) {
-    if (record) { record.notes = previousNotes; record.board = previousBoard; }
+    if (record) { record.notes = previousNotes; record.board = previousBoard; record.photos = previousPhotos; }
     recordsStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
@@ -2630,7 +2893,7 @@ function sanitizePracticeRecords(value: unknown): PracticeRecord[] {
       typeof candidate.recordedAt === "string" && Number.isFinite(new Date(candidate.recordedAt).getTime()) &&
       typeof candidate.total === "number" && Number.isFinite(candidate.total) && candidate.total >= 0 && candidate.total <= MAX_SCORE &&
       typeof candidate.hasVideo === "boolean";
-  }).map((record) => ({ ...record, board: sanitizeCourtBoard((record as PracticeRecord & { board?: unknown }).board) }));
+  }).map((record) => ({ ...record, board: sanitizeCourtBoard((record as PracticeRecord & { board?: unknown }).board), photos: sanitizeMemoPhotos((record as PracticeRecord & { photos?: unknown }).photos) }));
 }
 
 function sanitizeManagedAccounts(value: unknown): ManagedAccount[] {

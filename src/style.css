@@ -441,6 +441,31 @@ body.pdf-mode { overflow: hidden; }
   .court-board-card { grid-template-columns: minmax(0, 1fr); }
   .court-board-card > button { width: 100%; }
 }
+.memo-photos { min-width: 0; display: grid; gap: 10px; padding: 12px; border: 1px solid #b7d3e5; border-radius: 12px; background: #f7fbfe; }
+.memo-photos > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.memo-photos > header strong, .memo-photos > header small { display: block; }
+.memo-photos > header strong { color: #173b57; }
+.memo-photos > header small { margin-top: 3px; color: #60798e; }
+.photo-capture-button { min-height: 46px; padding: 8px 13px; border: 2px solid #147a69; border-radius: 9px; color: white; background: #147a69; font-weight: 900; }
+.photo-capture-button:disabled { opacity: .45; }
+.memo-photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 10px; }
+.memo-photo-item { min-width: 0; padding: 8px; overflow: hidden; border: 1px solid #b7cfdd; border-radius: 10px; background: white; }
+.memo-photo-preview { position: relative; aspect-ratio: 2600 / 1258; display: grid; place-items: center; overflow: hidden; border-radius: 7px; color: #526d80; background: #17232c; text-align: center; font-weight: 900; }
+.memo-photo-preview img, .memo-photo-preview canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.memo-photo-preview img { object-fit: contain; }
+.memo-photo-preview canvas { pointer-events: none; }
+.memo-photo-preview small { display: block; margin-top: 4px; font-size: .72rem; }
+.memo-photo-item > div:last-child { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin-top: 7px; }
+.memo-photo-item button { min-width: 0; min-height: 42px; padding: 6px 8px; overflow-wrap: anywhere; }
+.memo-photo-delete { border: 1px solid #d59c94; border-radius: 8px; color: #8f352d; background: #fff3f1; font-weight: 900; }
+.memo-photo-empty { margin: 0; color: #71879a; }
+body.memo-photo-camera-mode { overflow: hidden; }
+.memo-photo-camera { position: fixed; z-index: 2147483647; inset: 0; display: grid; place-items: center; overflow: hidden; color: white; background: black; }
+.memo-photo-camera video { width: 100%; height: 100%; display: block; object-fit: contain; }
+.memo-photo-camera-top { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 12px max(14px, env(safe-area-inset-left)); background: linear-gradient(rgba(0,0,0,.72), transparent); }
+.memo-photo-camera-top button { min-height: 46px; padding: 8px 14px; border: 2px solid rgba(255,255,255,.7); border-radius: 999px; color: white; background: rgba(160,42,34,.88); font-weight: 900; }
+.memo-photo-shutter { position: absolute; z-index: 2; bottom: max(28px, calc(env(safe-area-inset-bottom) + 18px)); left: 50%; width: 88px; height: 88px; display: grid; place-items: center; transform: translateX(-50%); border: 5px solid white; border-radius: 50%; color: #e23d32; background: rgba(255,255,255,.18); box-shadow: 0 8px 28px rgba(0,0,0,.5); font-size: 3rem; line-height: .7; }
+.memo-photo-shutter span { color: white; font-size: .75rem; }
 body.board-editor-mode { overflow: hidden; }
 .board-editor { position: fixed; z-index: 500; inset: 0; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; color: #102a43; background: #eaf3f8; overscroll-behavior: none; }
 .board-editor > header { grid-row: 1; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left)); border-bottom: 1px solid #aec8d8; background: white; }
