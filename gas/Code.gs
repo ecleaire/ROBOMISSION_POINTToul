@@ -121,16 +121,22 @@ function doPost(event) {
 }
 
 function scoreRowValues_(data, recordedAt, videoFileId) {
+  const visitors = boundedNumber_(data.visitors, 40);
+  const redTowers = boundedNumber_(data.redTowers, 30);
+  const yellowTowers = boundedNumber_(data.yellowTowers, 50);
+  const artifacts = boundedNumber_(data.artifacts, 60);
+  const dirt = boundedNumber_(data.dirt, 20);
+  const bonus = boundedNumber_(data.bonus, 30);
   return [
     recordedAt,
     numberOrBlank_(data.timeSeconds),
-    number_(data.visitors),
-    number_(data.redTowers),
-    number_(data.yellowTowers),
-    number_(data.artifacts),
-    number_(data.dirt),
-    number_(data.bonus),
-    number_(data.total),
+    visitors,
+    redTowers,
+    yellowTowers,
+    artifacts,
+    dirt,
+    bonus,
+    visitors + redTowers + yellowTowers + artifacts + dirt + bonus,
     number_(data.unjudged),
     safe_(data.notes),
     "",
@@ -248,15 +254,28 @@ function saveFreeMemo_(sheet, data, account) {
     const createdId = Utilities.getUuid();
     const photos = saveMemoPhotos_(account, data.photos, "");
     if (!content && !board && !photos.length) throw new Error("メモの内容、コート書き込み、写真のいずれかを入力してください。");
-    sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7).setValues([[createdId, now, now, content, false, board, JSON.stringify(photos)]]);
+    try {
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, 7).setValues([[createdId, now, now, content, false, board, JSON.stringify(photos)]]);
+    } catch (error) {
+      trashMemoPhotosNotIn_(photos, []);
+      throw error;
+    }
     return { memoId: createdId, createdAt: now.toISOString(), updatedAt: now.toISOString(), content: content, board: board, photos: publicMemoPhotos_(JSON.stringify(photos)) };
   }
   const rowNumber = findFreeMemoRow_(sheet, memoId);
-  const photos = saveMemoPhotos_(account, data.photos, sheet.getRange(rowNumber, 7).getValue());
+  const existingPhotosValue = sheet.getRange(rowNumber, 7).getValue();
+  const existingPhotos = readMemoPhotos_(existingPhotosValue);
+  const photos = saveMemoPhotos_(account, data.photos, existingPhotosValue);
   if (!content && !board && !photos.length) throw new Error("メモの内容、コート書き込み、写真のいずれかを入力してください。");
-  sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
-  sheet.getRange(rowNumber, 6).setValue(board);
-  sheet.getRange(rowNumber, 7).setValue(JSON.stringify(photos));
+  try {
+    sheet.getRange(rowNumber, 3, 1, 2).setValues([[now, content]]);
+    sheet.getRange(rowNumber, 6).setValue(board);
+    sheet.getRange(rowNumber, 7).setValue(JSON.stringify(photos));
+  } catch (error) {
+    trashMemoPhotosNotIn_(photos, existingPhotos);
+    throw error;
+  }
+  trashMemoPhotosNotIn_(existingPhotos, photos);
   return { memoId: memoId, updatedAt: now.toISOString(), content: content, board: board, photos: publicMemoPhotos_(JSON.stringify(photos)) };
 }
 
@@ -409,10 +428,18 @@ function updateRecordMemo_(sheet, rowNumberValue, recordedAt, notes, board, phot
   if (!Number.isFinite(currentDate.getTime()) || !Number.isFinite(requestedDate.getTime()) || currentDate.getTime() !== requestedDate.getTime()) {
     throw new Error("記録の位置が変わりました。一覧を更新してから、もう一度保存してください。");
   }
-  sheet.getRange(rowNumber, 11).setValue(safe_(String(notes || "").slice(0, 500)));
-  sheet.getRange(rowNumber, 15).setValue(safeBoard_(board));
-  const savedPhotos = saveMemoPhotos_(account, photos, sheet.getRange(rowNumber, 16).getValue());
-  sheet.getRange(rowNumber, 16).setValue(JSON.stringify(savedPhotos));
+  const existingPhotosValue = sheet.getRange(rowNumber, 16).getValue();
+  const existingPhotos = readMemoPhotos_(existingPhotosValue);
+  const savedPhotos = saveMemoPhotos_(account, photos, existingPhotosValue);
+  try {
+    sheet.getRange(rowNumber, 11).setValue(safe_(String(notes || "").slice(0, 500)));
+    sheet.getRange(rowNumber, 15).setValue(safeBoard_(board));
+    sheet.getRange(rowNumber, 16).setValue(JSON.stringify(savedPhotos));
+  } catch (error) {
+    trashMemoPhotosNotIn_(savedPhotos, existingPhotos);
+    throw error;
+  }
+  trashMemoPhotosNotIn_(existingPhotos, savedPhotos);
   return publicMemoPhotos_(JSON.stringify(savedPhotos));
 }
 
@@ -573,23 +600,46 @@ function saveMemoPhotos_(account, requestedValue, existingValue) {
   if (!Array.isArray(requestedValue)) return existing;
   const requested = requestedValue.slice(0, 5);
   const existingIds = existing.map(function(photo) { return photo.id; });
-  const saved = requested.map(function(item) {
+  const plan = requested.map(function(item, index) {
     const requestedId = String(item && item.id || "");
     const board = safeBoard_(item && item.board);
-    if (requestedId && existingIds.indexOf(requestedId) >= 0) return { id: requestedId, board: board };
+    if (requestedId && existingIds.indexOf(requestedId) >= 0) return { id: requestedId, board: board, image: null };
     if (!item || !item.image) throw new Error("新しい写真データがありません。");
-    const file = saveMemoPhoto_(account, item.image);
-    return { id: file.getId(), board: board };
+    return { id: "NEW_PHOTO_" + index + "_000000000000000000000000000000000000000000000000", board: board, image: item.image };
   });
-  const savedIds = saved.map(function(photo) { return photo.id; });
-  existing.forEach(function(photo) {
-    if (savedIds.indexOf(photo.id) < 0) {
+  validateMemoPhotoMetadata_(plan);
+  const createdFiles = [];
+  try {
+    const saved = plan.map(function(item) {
+      if (!item.image) return { id: item.id, board: item.board };
+      const file = saveMemoPhoto_(account, item.image);
+      createdFiles.push(file);
+      return { id: file.getId(), board: item.board };
+    });
+    validateMemoPhotoMetadata_(saved);
+    return saved;
+  } catch (error) {
+    createdFiles.forEach(function(file) {
+      try { file.setTrashed(true); } catch (_cleanupError) { /* 保存失敗時の後片付け */ }
+    });
+    throw error;
+  }
+}
+
+function validateMemoPhotoMetadata_(photos) {
+  const metadata = photos.map(function(photo) { return { id: photo.id, board: photo.board }; });
+  if (JSON.stringify(metadata).length > 45000) {
+    throw new Error("写真への書き込みが多すぎます。図形や文字を減らしてください。");
+  }
+}
+
+function trashMemoPhotosNotIn_(photos, retainedPhotos) {
+  const retainedIds = retainedPhotos.map(function(photo) { return photo.id; });
+  photos.forEach(function(photo) {
+    if (retainedIds.indexOf(photo.id) < 0) {
       try { DriveApp.getFileById(photo.id).setTrashed(true); } catch (_error) { /* 既に削除済み */ }
     }
   });
-  const text = JSON.stringify(saved);
-  if (text.length > 45000) throw new Error("写真への書き込みが多すぎます。図形や文字を減らしてください。");
-  return saved;
 }
 
 function saveMemoPhoto_(account, image) {
@@ -746,6 +796,10 @@ function safeBoard_(value) {
 function number_(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function boundedNumber_(value, maximum) {
+  return Math.min(maximum, Math.max(0, number_(value)));
 }
 
 function numberOrBlank_(value) {

@@ -11,11 +11,13 @@ type GasContext = {
   safeBoard_: (value: string) => string;
   scoreRowValues_: (data: Record<string, unknown>, recordedAt: Date, videoFileId: string) => unknown[];
   readMemoPhotos_: (value: string) => Array<{ id: string; board: string }>;
+  saveMemoPhotos_: (account: string, requested: unknown[], existing: string) => Array<{ id: string; board: string }>;
   findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
   parseHyogoNewsFeed_: (xml: string) => Array<{ source: string; title: string; url: string; updatedAt: string }>;
 };
 
 function loadGas() {
+  const trashedFiles: string[] = [];
   const values: Record<string, string> = {
     API_KEY_A: "alpha-key",
     API_KEY_B: "bravo-key",
@@ -34,9 +36,12 @@ function loadGas() {
       getUuid: () => "12345678-1234-1234-1234-123456789abc",
       formatDate: (date: Date) => date.toISOString().slice(0, 10).replaceAll("-", "."),
     },
+    DriveApp: {
+      getFileById: (id: string) => ({ setTrashed: () => { trashedFiles.push(id); } }),
+    },
   });
   vm.runInContext(readFileSync(new URL("./Code.gs", import.meta.url), "utf8"), context);
-  return { gas: context as unknown as GasContext, values };
+  return { gas: context as unknown as GasContext, values, trashedFiles };
 }
 
 describe("GAS account management", () => {
@@ -126,6 +131,15 @@ describe("GAS account management", () => {
     expect(gas.readMemoPhotos_(JSON.stringify(photos))).toHaveLength(5);
   });
 
+  it("does not delete existing photos when annotation metadata is too large", () => {
+    const { gas, trashedFiles } = loadGas();
+    const existing = JSON.stringify([{ id: "keep-photo", board: "" }, { id: "old-photo", board: "" }]);
+    const oversizedBoard = JSON.stringify({ version: 1, elements: [{ type: "text", text: "x".repeat(44920) }] });
+    expect(() => gas.saveMemoPhotos_("A", [{ id: "keep-photo", board: oversizedBoard }], existing))
+      .toThrow("写真への書き込みが多すぎます");
+    expect(trashedFiles).toEqual([]);
+  });
+
   it("stores a scoring-screen court board in the record board column", () => {
     const { gas } = loadGas();
     const board = JSON.stringify({ version: 1, elements: [{ type: "circle", color: "#ff0000", x: .1, y: .2, x2: .3, y2: .4 }] });
@@ -145,6 +159,20 @@ describe("GAS account management", () => {
     expect(values).toHaveLength(16);
     expect(values[10]).toBe("採点メモ");
     expect(values[14]).toBe(board);
+  });
+
+  it("recalculates and bounds saved scores on the server", () => {
+    const { gas } = loadGas();
+    const values = gas.scoreRowValues_({
+      visitors: 999,
+      redTowers: -10,
+      yellowTowers: 50,
+      artifacts: 60,
+      dirt: 20,
+      bonus: 30,
+      total: 999,
+    }, new Date("2026-07-17T00:00:00Z"), "");
+    expect(values.slice(2, 9)).toEqual([40, 0, 50, 60, 20, 30, 200]);
   });
 
   it("parses the latest Hyogo qualifier news from RSS", () => {

@@ -1,7 +1,7 @@
 {
   "name": "RoboMission Junior 得点計算",
   "short_name": "RM Junior採点",
-  "description": "WRO 2026 RoboMission Juniorの練習用・非公式得点計算ツール",
+  "description": "WRO 2026 RoboMission Juniorの得点計算・練習記録ツール",
   "lang": "ja",
   "start_url": "./",
   "scope": "./",
