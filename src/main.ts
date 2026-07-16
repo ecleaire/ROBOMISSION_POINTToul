@@ -118,6 +118,8 @@ interface NewsItem {
   updatedAt: string;
 }
 
+type RulesDocument = "translated" | "hyogo";
+
 interface PendingVideoUpload {
   file: File;
   apiKey: string;
@@ -136,6 +138,7 @@ const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
 const HYOGO_LOCAL_RULES_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk";
+const HYOGO_LOCAL_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/preview";
 const COURT_IMAGE_URL = `${import.meta.env.BASE_URL}assets/memo/junior-course.webp`;
 
 const STORAGE_KEY = "robomission-junior-score-v2";
@@ -151,15 +154,16 @@ const MAX_CACHED_RECORD_VIDEOS = 3;
 const NEWS_CACHE_KEY = "robomission-hyogo-news-v1";
 const HYOGO_EVENT_URL = "https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/";
 const HYOGO_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}`;
+const HYOGO_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}&output=embed`;
 const FALLBACK_HYOGO_NEWS: NewsItem[] = [
   { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
   { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
   { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" },
 ];
 const APP_UPDATES = [
+  { version: "1.4.2", updatedAt: "2026.07.17", title: "メモ・ルール・大会情報を改善", description: "コート操作ボタンのはみ出しを修正し、兵庫予選会PDFのアプリ内切替表示と会場ミニマップを追加しました。" },
   { version: "1.4.1", updatedAt: "2026.07.16", title: "ニュースとメモ画面を見やすく改善", description: "大会情報・アプリ更新内容をニュースへ集約し、コート書き込み画面とメモカードの重なり・はみ出しを修正しました。" },
   { version: "1.4.0", updatedAt: "2026.07.16", title: "コート書き込みの再編集に対応", description: "配置した図形や文字の選択、移動、大きさ・角度変更、文字の再編集に対応しました。" },
-  { version: "1.3.0", updatedAt: "2026.07.15", title: "メモにコート書き込みを追加", description: "Juniorコートへ印・図形・文字を書き込み、メモと一緒に保存できるようになりました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -212,7 +216,8 @@ let selectedVideo: File | null = null;
 let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
 let rulesConnectionsPrepared = false;
-let persistentRulesFrame: HTMLIFrameElement | null = null;
+let activeRulesDocument: RulesDocument = "translated";
+const persistentRulesFrames: Partial<Record<RulesDocument, HTMLIFrameElement>> = {};
 let rulesFrameParking: HTMLDivElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
@@ -1405,15 +1410,22 @@ function photoGalleryView() {
 
 function rulesView() {
   const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+  const isHyogo = activeRulesDocument === "hyogo";
+  const documentTitle = isHyogo ? "兵庫予選会 ルール補足及びローカルルール" : "Google翻訳版 RoboMission Juniorルール";
+  const externalUrl = isHyogo ? HYOGO_LOCAL_RULES_URL : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
   return shell(`
     <section class="page-intro rules-intro">
-      <div><p class="eyebrow">Google翻訳版</p><h1>ルールPDF</h1><p>${useDriveViewer ? "iPad向けの複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
-      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a><a class="hyogo-rule-button pdf-open" href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会 ルール補足 ↗</a></div>
+      <div><p class="eyebrow">${isHyogo ? "WRO HYOGO" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${isHyogo || useDriveViewer ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
+      <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${externalUrl}" target="_blank" rel="noopener">別画面で開く</a></div>
     </section>
+    <nav class="rule-document-tabs" aria-label="表示するルールPDF">
+      <button type="button" data-action="select-rule-document" data-rule-document="translated" class="${isHyogo ? "" : "active"}">Google翻訳版</button>
+      <button type="button" data-action="select-rule-document" data-rule-document="hyogo" class="${isHyogo ? "active" : ""}">兵庫予選会 補足・ローカルルール</button>
+    </nav>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
       <div class="rules-frame-host" data-rules-frame-host></div>
-      <p>${useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
+      <p>${isHyogo ? `表示できない場合は、<a href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
@@ -1444,12 +1456,12 @@ function newsView() {
 
 function hyogoEventCard() {
   return `<article class="event-info link-section card">
-    <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式の開催概要 ↗</a></header>
+    <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">開催概要 詳細</a></header>
     <div class="event-info-grid">
       <section><h3>■ スケジュール</h3><p class="event-date">2026年7月26日（日）</p><dl class="event-schedule">
         ${[["12:00 ～ 12:15", "開場・受付"], ["12:15 ～ 12:45", "開会式"], ["12:45 ～ 13:45", "調整①"], ["13:45 ～ 14:15", "抽選・競技①"], ["14:15 ～ 14:25", "エクストラチャレンジルール発表"], ["14:25 ～ 15:45", "調整②"], ["15:45 ～ 16:15", "抽選・競技②"], ["16:15 ～ 16:40", "片付け・スコア集計・チャペル移動"], ["16:40 ～ 17:10", "閉会式"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
       </dl></section>
-      <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
+      <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><div class="event-mini-map"><iframe src="${HYOGO_MAP_EMBED_URL}" title="関西学院初等部 周辺地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
     </div>
   </article>`;
 }
@@ -1645,13 +1657,17 @@ function bindEvents() {
 }
 
 function prepareRulesConnections() {
-  if (rulesConnectionsPrepared || !isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) return;
+  if (rulesConnectionsPrepared) return;
   rulesConnectionsPrepared = true;
   const preconnect = document.createElement("link");
   preconnect.rel = "preconnect";
   preconnect.href = "https://docs.google.com";
   preconnect.crossOrigin = "anonymous";
   document.head.appendChild(preconnect);
+  const drivePreconnect = document.createElement("link");
+  drivePreconnect.rel = "preconnect";
+  drivePreconnect.href = "https://drive.google.com";
+  document.head.appendChild(drivePreconnect);
   const dnsPrefetch = document.createElement("link");
   dnsPrefetch.rel = "dns-prefetch";
   dnsPrefetch.href = "https://lh3.googleusercontent.com";
@@ -1659,29 +1675,36 @@ function prepareRulesConnections() {
 }
 
 function parkRulesFrame() {
-  if (!persistentRulesFrame?.isConnected) return;
+  const connectedFrames = Object.values(persistentRulesFrames).filter((frame) => frame?.isConnected);
+  if (!connectedFrames.length) return;
   if (!rulesFrameParking) {
     rulesFrameParking = document.createElement("div");
     rulesFrameParking.className = "rules-frame-parking";
     rulesFrameParking.setAttribute("aria-hidden", "true");
     document.body.appendChild(rulesFrameParking);
   }
-  rulesFrameParking.appendChild(persistentRulesFrame);
+  connectedFrames.forEach((frame) => rulesFrameParking?.appendChild(frame!));
 }
 
 function attachRulesFrame() {
   const host = document.querySelector<HTMLElement>("[data-rules-frame-host]");
   if (!host) return;
-  if (!persistentRulesFrame) {
+  let frame = persistentRulesFrames[activeRulesDocument];
+  if (!frame) {
     const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-    persistentRulesFrame = document.createElement("iframe");
-    persistentRulesFrame.src = useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
-    persistentRulesFrame.loading = "eager";
-    persistentRulesFrame.allow = "fullscreen";
-    persistentRulesFrame.referrerPolicy = "no-referrer";
-    persistentRulesFrame.title = "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
+    frame = document.createElement("iframe");
+    frame.src = activeRulesDocument === "hyogo"
+      ? HYOGO_LOCAL_RULES_PREVIEW_URL
+      : useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+    frame.loading = "eager";
+    frame.allow = "fullscreen";
+    frame.referrerPolicy = "no-referrer";
+    frame.title = activeRulesDocument === "hyogo"
+      ? "兵庫予選会 ルール補足及びローカルルールPDF"
+      : "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
+    persistentRulesFrames[activeRulesDocument] = frame;
   }
-  host.appendChild(persistentRulesFrame);
+  host.appendChild(frame);
 }
 
 function toggleScore(button: HTMLButtonElement) {
@@ -1746,6 +1769,13 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "timer-collapse") exitStopwatchFullscreen();
   if (action === "pdf-expand") enterPdfFullscreen();
   if (action === "pdf-collapse") exitPdfFullscreen();
+  if (action === "select-rule-document") {
+    const document = element.dataset.ruleDocument;
+    if (document === "translated" || document === "hyogo") {
+      activeRulesDocument = document;
+      render();
+    }
+  }
   if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); discardVideoRecordingNow(); selectedVideo = null; videoSelectionError = ""; state = makeInitialState(); saveState(); render(); }
   if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); discardVideoRecordingNow(); selectedVideo = null; videoSelectionError = ""; state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
