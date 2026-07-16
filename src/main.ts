@@ -160,10 +160,11 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
   { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
   { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" },
 ];
+// 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.4.3", updatedAt: "2026.07.17", title: "ニュース内ボタンの画面遷移を修正", description: "「大会情報」「アプリ更新内容」を押した時に採点へ戻らず、ニュース内の該当位置へ移動するよう修正しました。" },
   { version: "1.4.2", updatedAt: "2026.07.17", title: "メモ・ルール・大会情報を改善", description: "コート操作ボタンのはみ出しを修正し、兵庫予選会PDFのアプリ内切替表示と会場ミニマップを追加しました。" },
   { version: "1.4.1", updatedAt: "2026.07.16", title: "ニュースとメモ画面を見やすく改善", description: "大会情報・アプリ更新内容をニュースへ集約し、コート書き込み画面とメモカードの重なり・はみ出しを修正しました。" },
-  { version: "1.4.0", updatedAt: "2026.07.16", title: "コート書き込みの再編集に対応", description: "配置した図形や文字の選択、移動、大きさ・角度変更、文字の再編集に対応しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -1436,7 +1437,7 @@ function newsView() {
       <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>兵庫予選会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
       <button class="primary" data-action="load-news" ${newsLoading ? "disabled" : ""}>${newsLoading ? "確認中…" : "↻ 最新情報を確認"}</button>
     </section>
-    <nav class="news-jump" aria-label="ニュース内メニュー"><a href="#news-event">大会情報</a><a href="#news-app-updates">アプリ更新内容</a></nav>
+    <nav class="news-jump" aria-label="ニュース内メニュー"><button type="button" data-action="scroll-news-section" data-news-target="news-event">大会情報</button><button type="button" data-action="scroll-news-section" data-news-target="news-app-updates">アプリ更新内容</button></nav>
     <section class="news-section" id="news-event" aria-labelledby="news-event-title">
       <div class="news-section-heading"><div><p class="eyebrow">WRO HYOGO 2026</p><h2 id="news-event-title">大会情報</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式情報を見る ↗</a></div>
       ${hyogoEventCard()}
@@ -1744,6 +1745,12 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "load-records") void loadRecords();
   if (action === "edit-board") openCourtBoard(element);
   if (action === "load-news") void loadHyogoNews();
+  if (action === "scroll-news-section") {
+    const target = element.dataset.newsTarget;
+    if (target === "news-event" || target === "news-app-updates") {
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
   if (action === "load-memo-data") void loadMemoData();
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
