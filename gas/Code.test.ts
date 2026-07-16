@@ -7,7 +7,8 @@ type GasContext = {
   publicAccountList_: () => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean }>;
   saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string }) => { id: string; name: string };
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
-  updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string) => void;
+  updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string) => void;
+  safeBoard_: (value: string) => string;
   findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
   parseHyogoNewsFeed_: (xml: string) => Array<{ source: string; title: string; url: string; updatedAt: string }>;
 };
@@ -82,16 +83,18 @@ describe("GAS account management", () => {
 
   it("updates the memo only when the saved row still matches the record date", () => {
     const { gas } = loadGas();
-    let saved = "";
+    const saved: Record<number, string> = {};
     const recordedAt = "2026-07-15T01:02:03.000Z";
     const sheet = {
       getLastRow: () => 5,
       getRange: (_row: number, column: number) => column === 1
         ? { getValue: () => recordedAt }
-        : { setValue: (value: string) => { saved = value; } },
+        : { setValue: (value: string) => { saved[column] = value; } },
     };
-    gas.updateRecordMemo_(sheet, 3, recordedAt, "次はゆっくり走る");
-    expect(saved).toBe("次はゆっくり走る");
+    const board = JSON.stringify({ version: 1, elements: [{ type: "circle" }] });
+    gas.updateRecordMemo_(sheet, 3, recordedAt, "次はゆっくり走る", board);
+    expect(saved[11]).toBe("次はゆっくり走る");
+    expect(saved[15]).toBe(board);
     expect(() => gas.updateRecordMemo_(sheet, 3, "2026-07-15T01:02:04.000Z", "誤った行"))
       .toThrow("記録の位置が変わりました");
   });
@@ -104,6 +107,13 @@ describe("GAS account management", () => {
     };
     expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
     expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("メモが見つかりません");
+  });
+
+  it("accepts compact court board JSON and rejects invalid data", () => {
+    const { gas } = loadGas();
+    const board = JSON.stringify({ version: 1, elements: [{ type: "triangle", color: "#ff0000", x: .1, y: .2 }] });
+    expect(gas.safeBoard_(board)).toBe(board);
+    expect(gas.safeBoard_("not-json")).toBe("");
   });
 
   it("parses the latest Hyogo qualifier news from RSS", () => {

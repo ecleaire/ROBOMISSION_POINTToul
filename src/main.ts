@@ -5,6 +5,18 @@ import { judgingGroups } from "./judging";
 import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
 import {
+  boardPoint,
+  cloneCourtBoard,
+  drawCourtBoard,
+  emptyCourtBoard,
+  findBoardElement,
+  sanitizeCourtBoard,
+  serializeCourtBoard,
+  type BoardElement,
+  type BoardTool,
+  type CourtBoard,
+} from "./courtBoard";
+import {
   MAX_SCORE,
   duplicateArtifactColors,
   isComplete,
@@ -36,6 +48,7 @@ interface PracticeRecord {
   total: number;
   unjudged: number;
   hasVideo: boolean;
+  board: CourtBoard;
 }
 
 interface FreeMemo {
@@ -45,6 +58,18 @@ interface FreeMemo {
   createdAt: string;
   updatedAt: string;
   content: string;
+  board: CourtBoard;
+}
+
+interface BoardEditorState {
+  target: { kind: "free" | "record"; memoId?: string; account: string; rowNumber?: number; recordedAt?: string };
+  board: CourtBoard;
+  tool: BoardTool;
+  color: string;
+  undo: CourtBoard[];
+  redo: CourtBoard[];
+  drawing: BoardElement | null;
+  pointerId: number | null;
 }
 
 interface StoredVideo {
@@ -96,6 +121,7 @@ const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
 const HYOGO_LOCAL_RULES_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk";
+const COURT_IMAGE_URL = `${import.meta.env.BASE_URL}assets/memo/junior-course.webp`;
 
 const STORAGE_KEY = "robomission-junior-score-v2";
 const ACCOUNT_KEY = "robomission-junior-account";
@@ -137,6 +163,8 @@ let recordsStatus = "";
 let practiceRecords: PracticeRecord[] = [];
 let freeMemos: FreeMemo[] = [];
 let freeMemoStatus = "";
+let newFreeMemoBoard = emptyCourtBoard();
+let boardEditor: BoardEditorState | null = null;
 const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
@@ -213,6 +241,7 @@ document.addEventListener("pointerdown", (event) => {
   enterCameraFullscreen(true);
 }, { capture: true });
 window.addEventListener("keydown", (event) => {
+  if (boardEditor && event.key === "Escape") { closeCourtBoard(); return; }
   if (!modal && !accountSwitchOpen) return;
   if (event.key !== "Escape") return;
   modal = null;
@@ -288,6 +317,7 @@ function render() {
   app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
   bindEvents();
   attachRulesFrame();
+  renderCourtBoardPreviews();
 }
 
 function systemNoticeView() {
@@ -902,6 +932,7 @@ function memoView() {
         <label>新しいメモ
           <textarea data-free-memo-content maxlength="1000" placeholder="アイデア、準備物、次回試したいことなど"></textarea>
         </label>
+        ${courtBoardView("free", "", activeAccount === "ADMIN" ? "" : activeAccount || "", 0, "", newFreeMemoBoard)}
         <div class="memo-save-row"><small>1000文字まで</small><button class="primary" data-action="save-free-memo">新しいメモを保存</button></div>
       </article>
       ${freeMemoStatus ? `<p class="sheet-status" role="status">${escapeHtml(freeMemoStatus)}</p>` : ""}
@@ -910,6 +941,7 @@ function memoView() {
           <article class="memo-record card" data-free-memo>
             <header><div><p>${formatRecordDate(memo.updatedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(memo.accountName || memo.account)}</span>` : ""}</p><strong>メモ</strong></div></header>
             <label>内容<textarea data-free-memo-content maxlength="1000">${escapeHtml(memo.content)}</textarea></label>
+            ${courtBoardView("free", memo.memoId, memo.account, 0, "", memo.board)}
             <div class="memo-save-row"><button class="memo-delete" data-action="delete-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">削除</button><button class="primary" data-action="save-free-memo" data-memo-id="${escapeHtml(memo.memoId)}" data-memo-account="${memo.account}">変更を保存</button></div>
           </article>`).join("") : `<div class="empty-state card"><strong>メモはまだありません</strong><p>上の欄から最初のメモを作成できます。</p></div>`}
       </div>
@@ -925,10 +957,207 @@ function memoView() {
           <label>${record.notes ? "この回のメモ" : "新しいメモ"}
             <textarea data-record-memo maxlength="500" placeholder="ミスしたところ、良かったところ、次に試すことなど">${escapeHtml(record.notes)}</textarea>
           </label>
+          ${courtBoardView("record", "", record.account, record.rowNumber, record.recordedAt, record.board)}
           <div class="memo-save-row"><small>500文字まで</small><button class="primary" data-action="save-record-memo" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">メモを保存</button></div>
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果を保存すると、その回のメモをここで作れます。</p></div>`}
     </section>
   `, { back: "score", title: "メモ" });
+}
+
+function courtBoardView(kind: "free" | "record", memoId: string, account: string, rowNumber: number, recordedAt: string, board: CourtBoard) {
+  const hasMarks = board.elements.length > 0;
+  return `<section class="court-board-card ${hasMarks ? "has-marks" : ""}">
+    <div class="court-board-preview" data-board-preview data-board-kind="${kind}" data-board-id="${escapeHtml(memoId)}" data-board-account="${escapeHtml(account)}" data-board-row="${rowNumber}" data-recorded-at="${escapeHtml(recordedAt)}">
+      <img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" loading="lazy" decoding="async" /><canvas aria-hidden="true"></canvas>
+    </div>
+    <div><strong>${hasMarks ? "コート書き込みあり" : "コートに印や文字を追加"}</strong><small>○・×・□・△・ペン・文字・色変更</small></div>
+    <button type="button" class="secondary" data-action="edit-board" data-board-kind="${kind}" data-board-id="${escapeHtml(memoId)}" data-board-account="${escapeHtml(account)}" data-board-row="${rowNumber}" data-recorded-at="${escapeHtml(recordedAt)}">${hasMarks ? "編集する" : "コートを開く"}</button>
+  </section>`;
+}
+
+function boardForTarget(kind: string, memoId: string, account: string, rowNumber: number, recordedAt: string) {
+  if (kind === "free") {
+    if (!memoId) return newFreeMemoBoard;
+    return freeMemos.find((memo) => memo.memoId === memoId && memo.account === account)?.board ?? emptyCourtBoard();
+  }
+  return practiceRecords.find((record) => record.account === account && record.rowNumber === rowNumber && record.recordedAt === recordedAt)?.board ?? emptyCourtBoard();
+}
+
+function renderCourtBoardPreviews() {
+  document.querySelectorAll<HTMLElement>("[data-board-preview]").forEach((preview) => {
+    const canvas = preview.querySelector<HTMLCanvasElement>("canvas");
+    const image = preview.querySelector<HTMLImageElement>("img");
+    if (!canvas || !image) return;
+    const board = boardForTarget(preview.dataset.boardKind || "", preview.dataset.boardId || "", preview.dataset.boardAccount || "", Number(preview.dataset.boardRow || 0), preview.dataset.recordedAt || "");
+    const hasMarks = board.elements.length > 0;
+    const card = preview.closest<HTMLElement>(".court-board-card");
+    card?.classList.toggle("has-marks", hasMarks);
+    const label = card?.querySelector<HTMLElement>("div:not(.court-board-preview) > strong");
+    const button = card?.querySelector<HTMLButtonElement>("[data-action='edit-board']");
+    if (label) label.textContent = hasMarks ? "コート書き込みあり" : "コートに印や文字を追加";
+    if (button) button.textContent = hasMarks ? "編集する" : "コートを開く";
+    const draw = () => drawCourtBoard(canvas, board);
+    if (image.complete) window.requestAnimationFrame(draw);
+    else image.addEventListener("load", () => window.requestAnimationFrame(draw), { once: true });
+  });
+}
+
+function openCourtBoard(element: HTMLElement) {
+  closeCourtBoard();
+  const kind = element.dataset.boardKind === "record" ? "record" : "free";
+  const memoId = element.dataset.boardId || "";
+  const account = element.dataset.boardAccount || element.closest<HTMLElement>("[data-free-memo]")?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value || activeAccount || "";
+  const rowNumber = Number(element.dataset.boardRow || 0);
+  const recordedAt = element.dataset.recordedAt || "";
+  boardEditor = {
+    target: { kind, memoId, account, rowNumber, recordedAt },
+    board: cloneCourtBoard(boardForTarget(kind, memoId, account, rowNumber, recordedAt)),
+    tool: "pen",
+    color: "#e53935",
+    undo: [],
+    redo: [],
+    drawing: null,
+    pointerId: null,
+  };
+  document.body.insertAdjacentHTML("beforeend", `<section class="board-editor" data-board-editor role="dialog" aria-modal="true" aria-label="コート書き込み">
+    <header><div><strong>コート書き込み</strong><small>コートをなぞって印・文字を追加できます</small></div><button type="button" class="board-editor-close" data-board-command="cancel">× 閉じる</button></header>
+    <div class="board-toolbar" aria-label="書き込みツール">
+      ${[["pen", "✎ ペン"], ["circle", "○"], ["cross", "×"], ["square", "□"], ["triangle", "△"], ["text", "文字"], ["eraser", "消しゴム"]].map(([tool, label]) => `<button type="button" data-board-tool="${tool}" class="${tool === "pen" ? "active" : ""}">${label}</button>`).join("")}
+      <span class="board-colors" aria-label="色を選択">${["#e53935", "#1565c0", "#00897b", "#f9a825", "#000000", "#ffffff"].map((color) => `<button type="button" data-board-color="${color}" style="--board-color:${color}" class="${color === "#e53935" ? "active" : ""}" aria-label="${color}を選択"></button>`).join("")}<input type="color" data-board-color-picker value="#e53935" aria-label="その他の色" /></span>
+      <button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button><button type="button" class="board-clear" data-board-command="clear">全消去</button>
+    </div>
+    <div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div>
+    <footer><span>図形はドラッグで大きさを変更・文字は置く場所をタップ</span><button type="button" class="primary" data-board-command="done">この書き込みをメモに入れる</button></footer>
+  </section>`);
+  document.body.classList.add("board-editor-mode");
+  bindCourtBoardEditor();
+}
+
+function bindCourtBoardEditor() {
+  const root = document.querySelector<HTMLElement>("[data-board-editor]");
+  const canvas = root?.querySelector<HTMLCanvasElement>("[data-board-canvas]");
+  const image = root?.querySelector<HTMLImageElement>(".board-stage img");
+  if (!root || !canvas || !image || !boardEditor) return;
+  root.querySelectorAll<HTMLButtonElement>("[data-board-tool]").forEach((button) => button.addEventListener("click", () => {
+    if (!boardEditor) return;
+    boardEditor.tool = button.dataset.boardTool as BoardTool;
+    root.querySelectorAll("[data-board-tool]").forEach((item) => item.classList.toggle("active", item === button));
+  }));
+  root.querySelectorAll<HTMLButtonElement>("[data-board-color]").forEach((button) => button.addEventListener("click", () => {
+    if (!boardEditor) return;
+    boardEditor.color = button.dataset.boardColor || "#e53935";
+    root.querySelector<HTMLInputElement>("[data-board-color-picker]")!.value = boardEditor.color;
+    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.toggle("active", item === button));
+  }));
+  root.querySelector<HTMLInputElement>("[data-board-color-picker]")?.addEventListener("input", (event) => {
+    if (!boardEditor) return;
+    boardEditor.color = (event.currentTarget as HTMLInputElement).value;
+    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.remove("active"));
+  });
+  root.querySelectorAll<HTMLButtonElement>("[data-board-command]").forEach((button) => button.addEventListener("click", () => runBoardCommand(button.dataset.boardCommand || "")));
+  const draw = () => {
+    if (!boardEditor) return;
+    const board = boardEditor.drawing ? { version: 1 as const, elements: [...boardEditor.board.elements, boardEditor.drawing] } : boardEditor.board;
+    drawCourtBoard(canvas, board);
+  };
+  if (image.complete) window.requestAnimationFrame(draw); else image.addEventListener("load", draw, { once: true });
+  window.addEventListener("resize", draw, { once: true });
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!boardEditor || boardEditor.pointerId !== null) return;
+    event.preventDefault();
+    const point = boardPoint(canvas, event.clientX, event.clientY);
+    if (boardEditor.tool === "text") {
+      const text = prompt("コートに書く文字を入力してください（40文字まで）", "")?.trim().slice(0, 40) || "";
+      if (text) { saveBoardUndo(); boardEditor.board.elements.push({ type: "text", color: boardEditor.color, x: point.x, y: point.y, text }); draw(); }
+      return;
+    }
+    if (boardEditor.tool === "eraser") {
+      const index = findBoardElement(boardEditor.board, point.x, point.y);
+      if (index >= 0) { saveBoardUndo(); boardEditor.board.elements.splice(index, 1); draw(); }
+      return;
+    }
+    saveBoardUndo();
+    boardEditor.pointerId = event.pointerId;
+    canvas.setPointerCapture(event.pointerId);
+    boardEditor.drawing = boardEditor.tool === "pen"
+      ? { type: "pen", color: boardEditor.color, x: point.x, y: point.y, points: [point.x, point.y] }
+      : { type: boardEditor.tool, color: boardEditor.color, x: point.x, y: point.y, x2: point.x, y2: point.y };
+    draw();
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!boardEditor?.drawing || boardEditor.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const point = boardPoint(canvas, event.clientX, event.clientY);
+    if (boardEditor.drawing.type === "pen") {
+      const points = boardEditor.drawing.points!;
+      if (Math.hypot(points[points.length - 2] - point.x, points[points.length - 1] - point.y) > .0025 && points.length < 800) points.push(point.x, point.y);
+    } else {
+      boardEditor.drawing.x2 = point.x;
+      boardEditor.drawing.y2 = point.y;
+    }
+    draw();
+  });
+  const finish = (event: PointerEvent) => {
+    if (!boardEditor?.drawing || boardEditor.pointerId !== event.pointerId) return;
+    const item = boardEditor.drawing;
+    if (item.type !== "pen" && Math.abs((item.x2 || item.x) - item.x) < .015 && Math.abs((item.y2 || item.y) - item.y) < .015) {
+      item.x2 = Math.min(1, item.x + .08); item.y2 = Math.min(1, item.y + .13);
+    }
+    boardEditor.board.elements.push(item);
+    boardEditor.drawing = null;
+    boardEditor.pointerId = null;
+    draw();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", finish);
+}
+
+function saveBoardUndo() {
+  if (!boardEditor) return;
+  boardEditor.undo.push(cloneCourtBoard(boardEditor.board));
+  if (boardEditor.undo.length > 30) boardEditor.undo.shift();
+  boardEditor.redo = [];
+}
+
+function runBoardCommand(command: string) {
+  if (!boardEditor) return;
+  if (command === "cancel") { closeCourtBoard(); return; }
+  if (command === "clear") {
+    if (boardEditor.board.elements.length && confirm("コート上の書き込みをすべて消しますか？")) { saveBoardUndo(); boardEditor.board = emptyCourtBoard(); redrawBoardEditor(); }
+    return;
+  }
+  if (command === "undo" && boardEditor.undo.length) {
+    boardEditor.redo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.undo.pop()!; redrawBoardEditor(); return;
+  }
+  if (command === "redo" && boardEditor.redo.length) {
+    boardEditor.undo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.redo.pop()!; redrawBoardEditor(); return;
+  }
+  if (command === "done") {
+    const { target } = boardEditor;
+    const saved = cloneCourtBoard(boardEditor.board);
+    if (target.kind === "free") {
+      if (target.memoId) {
+        const memo = freeMemos.find((item) => item.memoId === target.memoId && item.account === target.account);
+        if (memo) memo.board = saved;
+      } else newFreeMemoBoard = saved;
+    } else {
+      const record = practiceRecords.find((item) => item.account === target.account && item.rowNumber === target.rowNumber && item.recordedAt === target.recordedAt);
+      if (record) record.board = saved;
+    }
+    closeCourtBoard();
+    renderCourtBoardPreviews();
+  }
+}
+
+function redrawBoardEditor() {
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-board-canvas]");
+  if (canvas && boardEditor) drawCourtBoard(canvas, boardEditor.board);
+}
+
+function closeCourtBoard() {
+  document.querySelector("[data-board-editor]")?.remove();
+  document.body.classList.remove("board-editor-mode");
+  boardEditor = null;
 }
 
 function filteredPracticeRecords() {
@@ -1277,6 +1506,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "create-account") void saveManagedAccount();
   if (action === "update-account") void saveManagedAccount(element.dataset.accountId);
   if (action === "load-records") void loadRecords();
+  if (action === "edit-board") openCourtBoard(element);
   if (action === "load-news") void loadHyogoNews();
   if (action === "load-memo-data") void loadMemoData();
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
@@ -1817,13 +2047,13 @@ async function loadFreeMemos(shouldRender = true) {
   freeMemoStatus = "メモを読み込み中…";
   if (shouldRender) render();
   try {
-    const result = await postJson<{ ok?: boolean; memos?: FreeMemo[]; message?: string }>(endpoint, { action: "freeMemos", apiKey: activeApiKey });
+    const result = await postJson<{ ok?: boolean; memos?: Array<Partial<FreeMemo> & { board?: unknown }>; message?: string }>(endpoint, { action: "freeMemos", apiKey: activeApiKey });
     if (!result.ok) throw new Error(result.message || "メモを取得できませんでした");
     freeMemos = (Array.isArray(result.memos) ? result.memos : []).filter((memo) =>
       memo && typeof memo.memoId === "string" && typeof memo.content === "string",
     ).map((memo) => ({
-      account: String(memo.account || ""), accountName: String(memo.accountName || ""), memoId: memo.memoId.slice(0, 80),
-      createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: memo.content.slice(0, 1000),
+      account: String(memo.account || ""), accountName: String(memo.accountName || ""), memoId: String(memo.memoId || "").slice(0, 80),
+      createdAt: String(memo.createdAt || ""), updatedAt: String(memo.updatedAt || ""), content: String(memo.content || "").slice(0, 1000), board: sanitizeCourtBoard(memo.board),
     }));
     freeMemoStatus = freeMemos.length ? `${freeMemos.length}件のメモを表示中` : "メモはまだありません。";
   } catch (error) {
@@ -1839,7 +2069,10 @@ async function saveFreeMemo(element: HTMLElement) {
   const memoId = element.dataset.memoId ?? "";
   const selectedAccount = card?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value ?? "";
   const memoAccount = element.dataset.memoAccount || selectedAccount || activeAccount || "";
-  if (!content) { freeMemoStatus = "メモの内容を入力してください。"; render(); return; }
+  const currentBoard = memoId
+    ? freeMemos.find((memo) => memo.memoId === memoId && memo.account === memoAccount)?.board ?? emptyCourtBoard()
+    : newFreeMemoBoard;
+  if (!content && !currentBoard.elements.length) { freeMemoStatus = "メモの内容またはコート書き込みを入力してください。"; render(); return; }
   if (activeAccount === "ADMIN" && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
   if (!endpoint || !activeApiKey || !activeAccount) return;
   const previousMemos = freeMemos.map((memo) => ({ ...memo }));
@@ -1847,14 +2080,14 @@ async function saveFreeMemo(element: HTMLElement) {
   const optimisticId = memoId || `saving-${Date.now()}`;
   const accountName = managedAccounts.find((account) => account.id === memoAccount)?.name || activeAccountName || memoAccount;
   const existingIndex = freeMemos.findIndex((memo) => memo.memoId === memoId && memo.account === memoAccount);
-  const optimisticMemo: FreeMemo = { account: memoAccount, accountName, memoId: optimisticId, createdAt: now, updatedAt: now, content };
-  if (existingIndex >= 0) freeMemos[existingIndex] = { ...freeMemos[existingIndex], content, updatedAt: now };
+  const optimisticMemo: FreeMemo = { account: memoAccount, accountName, memoId: optimisticId, createdAt: now, updatedAt: now, content, board: cloneCourtBoard(currentBoard) };
+  if (existingIndex >= 0) freeMemos[existingIndex] = { ...freeMemos[existingIndex], content, board: cloneCourtBoard(currentBoard), updatedAt: now };
   else freeMemos = [optimisticMemo, ...freeMemos];
   freeMemoStatus = "メモを保存中…";
   render();
   try {
     const result = await postJson<{ ok?: boolean; memo?: Partial<FreeMemo>; message?: string }>(endpoint, {
-      action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content,
+      action: "saveFreeMemo", apiKey: activeApiKey, account: memoAccount, memoId, content, board: serializeCourtBoard(currentBoard),
     });
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
     if (!memoId && result.memo?.memoId) {
@@ -1862,6 +2095,7 @@ async function saveFreeMemo(element: HTMLElement) {
         ...memo, memoId: String(result.memo!.memoId), createdAt: String(result.memo!.createdAt || now), updatedAt: String(result.memo!.updatedAt || now),
       } : memo);
     }
+    if (!memoId) newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "メモを保存しました。";
   } catch (error) {
     freeMemos = previousMemos;
@@ -1903,17 +2137,18 @@ async function saveRecordMemo(element: HTMLElement) {
   if (!endpoint || !activeAccount || !activeApiKey || !Number.isInteger(rowNumber) || rowNumber < 2) return;
   const record = practiceRecords.find((item) => item.account === recordAccount && item.rowNumber === rowNumber && item.recordedAt === recordedAt);
   const previousNotes = record?.notes ?? "";
+  const previousBoard = cloneCourtBoard(record?.board ?? emptyCourtBoard());
   if (record) record.notes = notes;
   recordsStatus = "メモを保存中…";
   render();
   try {
     const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, {
-      action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes,
+      action: "saveMemo", apiKey: activeApiKey, account: recordAccount, rowNumber, recordedAt, notes, board: serializeCourtBoard(record?.board ?? emptyCourtBoard()),
     });
     if (!result.ok) throw new Error(result.message || "メモを保存できませんでした");
     recordsStatus = "メモを保存しました。";
   } catch (error) {
-    if (record) record.notes = previousNotes;
+    if (record) { record.notes = previousNotes; record.board = previousBoard; }
     recordsStatus = `メモを保存できませんでした（${error instanceof Error ? error.message : "通信エラー"}）。`;
   }
   render();
@@ -2123,7 +2358,7 @@ function sanitizePracticeRecords(value: unknown): PracticeRecord[] {
       typeof candidate.recordedAt === "string" && Number.isFinite(new Date(candidate.recordedAt).getTime()) &&
       typeof candidate.total === "number" && Number.isFinite(candidate.total) && candidate.total >= 0 && candidate.total <= MAX_SCORE &&
       typeof candidate.hasVideo === "boolean";
-  });
+  }).map((record) => ({ ...record, board: sanitizeCourtBoard((record as PracticeRecord & { board?: unknown }).board) }));
 }
 
 function sanitizeManagedAccounts(value: unknown): ManagedAccount[] {
