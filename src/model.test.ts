@@ -20,6 +20,7 @@ describe("score calculation", () => {
     expect(unjudgedCount(state)).toBe(0);
     expect(state.visitors).toEqual([0, 0, 0, 0]);
     expect(state.dirt).toEqual(Array(10).fill(0));
+    expect(state.board.elements).toEqual([]);
   });
 
   it("calculates a mixture of partial scores", () => {
@@ -46,6 +47,7 @@ describe("score calculation", () => {
     const state = sanitizeScoreState({
       timeSeconds: -20,
       notes: 123,
+      board: { version: 1, elements: [{ type: "circle", color: "#ff0000", x: .2, y: .3, x2: .4, y2: .5 }] },
       visitors: [999, 10],
       redTowers: [15, "10"],
       yellowTowers: null,
@@ -60,6 +62,7 @@ describe("score calculation", () => {
     expect(state.artifacts[1]).toEqual({ color: "blue", score: 15 });
     expect(state.dirt).toEqual([2, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     expect(state.bonus).toEqual([10, 0, 0]);
+    expect(state.board.elements).toHaveLength(1);
     expect(totalScore(state)).toBeLessThanOrEqual(230);
   });
 });

@@ -66,7 +66,7 @@ interface FreeMemo {
 }
 
 interface BoardEditorState {
-  target: { kind: "free" | "record"; memoId?: string; account: string; rowNumber?: number; recordedAt?: string };
+  target: { kind: "free" | "record" | "score"; memoId?: string; account: string; rowNumber?: number; recordedAt?: string };
   board: CourtBoard;
   tool: BoardTool;
   color: string;
@@ -118,7 +118,7 @@ interface NewsItem {
   updatedAt: string;
 }
 
-type RulesDocument = "translated" | "hyogo";
+type RulesDocument = "translated" | "general" | "hyogo";
 
 interface PendingVideoUpload {
   file: File;
@@ -136,6 +136,8 @@ const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const PUBLIC_RULES_PDF_URL = `${PUBLIC_APP_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(PUBLIC_RULES_PDF_URL)}`;
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
+const GENERAL_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/view?usp=sharing";
+const GENERAL_TRANSLATED_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/preview";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
 const HYOGO_LOCAL_RULES_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk";
 const HYOGO_LOCAL_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/preview";
@@ -162,9 +164,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.4.4", updatedAt: "2026.07.17", title: "General Rules・採点コートメモを追加", description: "3種類のルールPDF切替と、採点中の文章メモへコート画像を書き込んで結果と一緒に保存する機能を追加しました。" },
   { version: "1.4.3", updatedAt: "2026.07.17", title: "ニュース内ボタンの画面遷移を修正", description: "「大会情報」「アプリ更新内容」を押した時に採点へ戻らず、ニュース内の該当位置へ移動するよう修正しました。" },
   { version: "1.4.2", updatedAt: "2026.07.17", title: "メモ・ルール・大会情報を改善", description: "コート操作ボタンのはみ出しを修正し、兵庫予選会PDFのアプリ内切替表示と会場ミニマップを追加しました。" },
-  { version: "1.4.1", updatedAt: "2026.07.16", title: "ニュースとメモ画面を見やすく改善", description: "大会情報・アプリ更新内容をニュースへ集約し、コート書き込み画面とメモカードの重なり・はみ出しを修正しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -483,7 +485,10 @@ function scoringView() {
       <div class="sheet-row sheet-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
       <div class="sheet-footer-tools">
         ${timePicker(state.timeSeconds)}
-        <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
+        <section class="score-memo-card" aria-label="採点メモ">
+          <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
+          ${courtBoardView("score", "", "", 0, "", state.board)}
+        </section>
         ${videoPickerView()}
       </div>
     </section>
@@ -990,7 +995,7 @@ function memoView() {
   `, { back: "score", title: "メモ" });
 }
 
-function courtBoardView(kind: "free" | "record", memoId: string, account: string, rowNumber: number, recordedAt: string, board: CourtBoard) {
+function courtBoardView(kind: "free" | "record" | "score", memoId: string, account: string, rowNumber: number, recordedAt: string, board: CourtBoard) {
   const hasMarks = board.elements.length > 0;
   return `<section class="court-board-card ${hasMarks ? "has-marks" : ""}">
     <div class="court-board-preview" data-board-preview data-board-kind="${kind}" data-board-id="${escapeHtml(memoId)}" data-board-account="${escapeHtml(account)}" data-board-row="${rowNumber}" data-recorded-at="${escapeHtml(recordedAt)}">
@@ -1002,6 +1007,7 @@ function courtBoardView(kind: "free" | "record", memoId: string, account: string
 }
 
 function boardForTarget(kind: string, memoId: string, account: string, rowNumber: number, recordedAt: string) {
+  if (kind === "score") return state.board;
   if (kind === "free") {
     if (!memoId) return newFreeMemoBoard;
     return freeMemos.find((memo) => memo.memoId === memoId && memo.account === account)?.board ?? emptyCourtBoard();
@@ -1030,7 +1036,7 @@ function renderCourtBoardPreviews() {
 
 function openCourtBoard(element: HTMLElement) {
   closeCourtBoard();
-  const kind = element.dataset.boardKind === "record" ? "record" : "free";
+  const kind = element.dataset.boardKind === "record" ? "record" : element.dataset.boardKind === "score" ? "score" : "free";
   const memoId = element.dataset.boardId || "";
   const account = element.dataset.boardAccount || element.closest<HTMLElement>("[data-free-memo]")?.querySelector<HTMLSelectElement>("[data-free-memo-account-select]")?.value || activeAccount || "";
   const rowNumber = Number(element.dataset.boardRow || 0);
@@ -1056,7 +1062,7 @@ function openCourtBoard(element: HTMLElement) {
     </div>
     <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
     <div class="board-stage-shell"><div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div></div>
-    <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">この書き込みをメモに入れる</button></footer>
+    <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">${kind === "score" ? "この書き込みを採点メモに入れる" : "この書き込みをメモに入れる"}</button></footer>
   </section>`);
   document.body.classList.add("board-editor-mode");
   bindCourtBoardEditor();
@@ -1340,7 +1346,10 @@ function runBoardCommand(command: string) {
   if (command === "done") {
     const { target } = boardEditor;
     const saved = cloneCourtBoard(boardEditor.board);
-    if (target.kind === "free") {
+    if (target.kind === "score") {
+      state.board = saved;
+      saveState();
+    } else if (target.kind === "free") {
       if (target.memoId) {
         const memo = freeMemos.find((item) => item.memoId === target.memoId && item.account === target.account);
         if (memo) memo.board = saved;
@@ -1412,21 +1421,29 @@ function photoGalleryView() {
 function rulesView() {
   const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
   const isHyogo = activeRulesDocument === "hyogo";
-  const documentTitle = isHyogo ? "兵庫予選会 ルール補足及びローカルルール" : "Google翻訳版 RoboMission Juniorルール";
-  const externalUrl = isHyogo ? HYOGO_LOCAL_RULES_URL : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
+  const isGeneral = activeRulesDocument === "general";
+  const documentTitle = isHyogo
+    ? "兵庫予選会 ルール補足及びローカルルール"
+    : isGeneral ? "Google翻訳版-General-Rules" : "Google翻訳版 RoboMission Juniorルール";
+  const externalUrl = isHyogo
+    ? HYOGO_LOCAL_RULES_URL
+    : isGeneral ? GENERAL_TRANSLATED_RULES_URL
+    : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
+  const driveBased = isHyogo || isGeneral || useDriveViewer;
   return shell(`
     <section class="page-intro rules-intro">
-      <div><p class="eyebrow">${isHyogo ? "WRO HYOGO" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${isHyogo || useDriveViewer ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
+      <div><p class="eyebrow">${isHyogo ? "WRO HYOGO" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${driveBased ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
       <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${externalUrl}" target="_blank" rel="noopener">別画面で開く</a></div>
     </section>
     <nav class="rule-document-tabs" aria-label="表示するルールPDF">
-      <button type="button" data-action="select-rule-document" data-rule-document="translated" class="${isHyogo ? "" : "active"}">Google翻訳版</button>
+      <button type="button" data-action="select-rule-document" data-rule-document="translated" class="${activeRulesDocument === "translated" ? "active" : ""}">Google翻訳版</button>
+      <button type="button" data-action="select-rule-document" data-rule-document="general" class="${isGeneral ? "active" : ""}">Google翻訳版-General-Rules</button>
       <button type="button" data-action="select-rule-document" data-rule-document="hyogo" class="${isHyogo ? "active" : ""}">兵庫予選会 補足・ローカルルール</button>
     </nav>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
       <div class="rules-frame-host" data-rules-frame-host></div>
-      <p>${isHyogo ? `表示できない場合は、<a href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
+      <p>${isHyogo ? `表示できない場合は、<a href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会PDFを別画面で開く</a>を押してください。` : isGeneral ? `表示できない場合は、<a href="${GENERAL_TRANSLATED_RULES_URL}" target="_blank" rel="noopener">General Rules PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
@@ -1696,13 +1713,17 @@ function attachRulesFrame() {
     frame = document.createElement("iframe");
     frame.src = activeRulesDocument === "hyogo"
       ? HYOGO_LOCAL_RULES_PREVIEW_URL
-      : useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+      : activeRulesDocument === "general"
+        ? GENERAL_TRANSLATED_RULES_PREVIEW_URL
+        : useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
     frame.loading = "eager";
     frame.allow = "fullscreen";
     frame.referrerPolicy = "no-referrer";
     frame.title = activeRulesDocument === "hyogo"
       ? "兵庫予選会 ルール補足及びローカルルールPDF"
-      : "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
+      : activeRulesDocument === "general"
+        ? "Google翻訳版 General Rules PDF"
+        : "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
     persistentRulesFrames[activeRulesDocument] = frame;
   }
   host.appendChild(frame);
@@ -1778,7 +1799,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "pdf-collapse") exitPdfFullscreen();
   if (action === "select-rule-document") {
     const document = element.dataset.ruleDocument;
-    if (document === "translated" || document === "hyogo") {
+    if (document === "translated" || document === "general" || document === "hyogo") {
       activeRulesDocument = document;
       render();
     }
@@ -2017,6 +2038,7 @@ function resultPayload(targetAccount?: string, video?: StoredVideo) {
     recordedAt: new Date().toISOString(),
     timeSeconds: state.timeSeconds,
     notes: state.notes,
+    board: serializeCourtBoard(state.board),
     video,
     ...scores,
     total: totalScore(state),

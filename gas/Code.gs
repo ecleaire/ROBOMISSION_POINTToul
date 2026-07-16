@@ -96,23 +96,9 @@ function doPost(event) {
         videoFile = data.video ? saveVideo_(targetAccount, data.video) : null;
         const recordedAt = new Date();
         const rowNumber = sheet.getLastRow() + 1;
-        sheet.getRange(rowNumber, 1, 1, 15).setValues([[
-          recordedAt,
-          numberOrBlank_(data.timeSeconds),
-          number_(data.visitors),
-          number_(data.redTowers),
-          number_(data.yellowTowers),
-          number_(data.artifacts),
-          number_(data.dirt),
-          number_(data.bonus),
-          number_(data.total),
-          number_(data.unjudged),
-          safe_(data.notes),
-          "",
-          "",
-          videoFile ? videoFile.getId() : "",
-          ""
-        ]]);
+        sheet.getRange(rowNumber, 1, 1, 15).setValues([
+          scoreRowValues_(data, recordedAt, videoFile ? videoFile.getId() : "")
+        ]);
         const savedRecord = { rowNumber: rowNumber, recordedAt: recordedAt.toISOString() };
         ensureDeleteControlForRow_(sheet, rowNumber);
         if (requestCacheKey) cache.put(requestCacheKey, JSON.stringify(savedRecord), 21600);
@@ -129,6 +115,26 @@ function doPost(event) {
   } catch (error) {
     return json_({ ok: false, message: String(error && error.message ? error.message : error) });
   }
+}
+
+function scoreRowValues_(data, recordedAt, videoFileId) {
+  return [
+    recordedAt,
+    numberOrBlank_(data.timeSeconds),
+    number_(data.visitors),
+    number_(data.redTowers),
+    number_(data.yellowTowers),
+    number_(data.artifacts),
+    number_(data.dirt),
+    number_(data.bonus),
+    number_(data.total),
+    number_(data.unjudged),
+    safe_(data.notes),
+    "",
+    "",
+    videoFileId || "",
+    safeBoard_(data.board)
+  ];
 }
 
 function attachVideoToRecord_(sheet, targetAccount, data) {

@@ -1,3 +1,5 @@
+import { emptyCourtBoard, sanitizeCourtBoard, type CourtBoard } from "./courtBoard";
+
 export type Score = number;
 export type ArtifactColor = "blue" | "red" | "green" | "black" | "yellow" | "unused";
 
@@ -9,6 +11,7 @@ export interface ArtifactState {
 export interface ScoreState {
   timeSeconds: number | null;
   notes: string;
+  board: CourtBoard;
   visitors: Score[];
   redTowers: Score[];
   yellowTowers: Score[];
@@ -23,6 +26,7 @@ export const MAX_SCORE = 230;
 export const makeInitialState = (): ScoreState => ({
   timeSeconds: null,
   notes: "",
+  board: emptyCourtBoard(),
   visitors: [0, 0, 0, 0],
   redTowers: [0, 0],
   yellowTowers: [0, 0],
@@ -51,6 +55,7 @@ export const sanitizeScoreState = (value: unknown): ScoreState => {
       ? Math.round(saved.timeSeconds * 100) / 100
       : null,
     notes: typeof saved.notes === "string" ? saved.notes.slice(0, 500) : "",
+    board: sanitizeCourtBoard(saved.board),
     visitors: scoreArray(saved.visitors, 4, [0, 5, 10]),
     redTowers: scoreArray(saved.redTowers, 2, [0, 10, 15]),
     yellowTowers: scoreArray(saved.yellowTowers, 2, [0, 15, 25]),

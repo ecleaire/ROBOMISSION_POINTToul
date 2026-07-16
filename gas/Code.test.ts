@@ -9,6 +9,7 @@ type GasContext = {
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
   updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string) => void;
   safeBoard_: (value: string) => string;
+  scoreRowValues_: (data: Record<string, unknown>, recordedAt: Date, videoFileId: string) => unknown[];
   findFreeMemoRow_: (sheet: unknown, memoId: string) => number;
   parseHyogoNewsFeed_: (xml: string) => Array<{ source: string; title: string; url: string; updatedAt: string }>;
 };
@@ -114,6 +115,27 @@ describe("GAS account management", () => {
     const board = JSON.stringify({ version: 1, elements: [{ type: "triangle", color: "#ff0000", x: .1, y: .2 }] });
     expect(gas.safeBoard_(board)).toBe(board);
     expect(gas.safeBoard_("not-json")).toBe("");
+  });
+
+  it("stores a scoring-screen court board in the record board column", () => {
+    const { gas } = loadGas();
+    const board = JSON.stringify({ version: 1, elements: [{ type: "circle", color: "#ff0000", x: .1, y: .2, x2: .3, y2: .4 }] });
+    const values = gas.scoreRowValues_({
+      timeSeconds: 120,
+      visitors: 40,
+      redTowers: 30,
+      yellowTowers: 50,
+      artifacts: 60,
+      dirt: 20,
+      bonus: 30,
+      total: 230,
+      unjudged: 0,
+      notes: "採点メモ",
+      board,
+    }, new Date("2026-07-17T00:00:00Z"), "");
+    expect(values).toHaveLength(15);
+    expect(values[10]).toBe("採点メモ");
+    expect(values[14]).toBe(board);
   });
 
   it("parses the latest Hyogo qualifier news from RSS", () => {
