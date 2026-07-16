@@ -6,10 +6,14 @@ import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
 import {
   boardPoint,
+  boardElementBounds,
   cloneCourtBoard,
   drawCourtBoard,
   emptyCourtBoard,
   findBoardElement,
+  moveBoardElement,
+  rotateBoardElement,
+  scaleBoardElement,
   sanitizeCourtBoard,
   serializeCourtBoard,
   type BoardElement,
@@ -70,6 +74,17 @@ interface BoardEditorState {
   redo: CourtBoard[];
   drawing: BoardElement | null;
   pointerId: number | null;
+  selectedIndex: number;
+  transform: {
+    mode: "move" | "resize" | "rotate";
+    index: number;
+    startX: number;
+    startY: number;
+    startDistance: number;
+    startAngle: number;
+    original: BoardElement;
+    changed: boolean;
+  } | null;
 }
 
 interface StoredVideo {
@@ -149,7 +164,7 @@ if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERS
 }
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
-let activeAccount = loadAccount();
+let activeAccount: string | null = loadAccount();
 let activeApiKey = loadApiKey();
 let activeAccountName = "";
 let state = loadState();
@@ -1012,22 +1027,25 @@ function openCourtBoard(element: HTMLElement) {
   boardEditor = {
     target: { kind, memoId, account, rowNumber, recordedAt },
     board: cloneCourtBoard(boardForTarget(kind, memoId, account, rowNumber, recordedAt)),
-    tool: "pen",
+    tool: "select",
     color: "#e53935",
     undo: [],
     redo: [],
     drawing: null,
     pointerId: null,
+    selectedIndex: -1,
+    transform: null,
   };
   document.body.insertAdjacentHTML("beforeend", `<section class="board-editor" data-board-editor role="dialog" aria-modal="true" aria-label="コート書き込み">
-    <header><div><strong>コート書き込み</strong><small>コートをなぞって印・文字を追加できます</small></div><button type="button" class="board-editor-close" data-board-command="cancel">× 閉じる</button></header>
+    <header><div><strong>コート書き込み</strong><small>選択ツールで配置済みの印・文字を編集できます</small></div><button type="button" class="board-editor-close" data-board-command="cancel">× 閉じる</button></header>
     <div class="board-toolbar" aria-label="書き込みツール">
-      ${[["pen", "✎ ペン"], ["circle", "○"], ["cross", "×"], ["square", "□"], ["triangle", "△"], ["text", "文字"], ["eraser", "消しゴム"]].map(([tool, label]) => `<button type="button" data-board-tool="${tool}" class="${tool === "pen" ? "active" : ""}">${label}</button>`).join("")}
+      ${[["select", "↖ 選択"], ["pen", "✎ ペン"], ["circle", "○"], ["cross", "×"], ["square", "□"], ["triangle", "△"], ["text", "文字"], ["eraser", "消しゴム"]].map(([tool, label]) => `<button type="button" data-board-tool="${tool}" class="${tool === "select" ? "active" : ""}">${label}</button>`).join("")}
       <span class="board-colors" aria-label="色を選択">${["#e53935", "#1565c0", "#00897b", "#f9a825", "#000000", "#ffffff"].map((color) => `<button type="button" data-board-color="${color}" style="--board-color:${color}" class="${color === "#e53935" ? "active" : ""}" aria-label="${color}を選択"></button>`).join("")}<input type="color" data-board-color-picker value="#e53935" aria-label="その他の色" /></span>
       <button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button><button type="button" class="board-clear" data-board-command="clear">全消去</button>
     </div>
+    <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
     <div class="board-stage"><img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コート" /><canvas data-board-canvas aria-label="コート書き込み領域"></canvas></div>
-    <footer><span>図形はドラッグで大きさを変更・文字は置く場所をタップ</span><button type="button" class="primary" data-board-command="done">この書き込みをメモに入れる</button></footer>
+    <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">この書き込みをメモに入れる</button></footer>
   </section>`);
   document.body.classList.add("board-editor-mode");
   bindCourtBoardEditor();
@@ -1038,37 +1056,96 @@ function bindCourtBoardEditor() {
   const canvas = root?.querySelector<HTMLCanvasElement>("[data-board-canvas]");
   const image = root?.querySelector<HTMLImageElement>(".board-stage img");
   if (!root || !canvas || !image || !boardEditor) return;
-  root.querySelectorAll<HTMLButtonElement>("[data-board-tool]").forEach((button) => button.addEventListener("click", () => {
-    if (!boardEditor) return;
-    boardEditor.tool = button.dataset.boardTool as BoardTool;
-    root.querySelectorAll("[data-board-tool]").forEach((item) => item.classList.toggle("active", item === button));
-  }));
-  root.querySelectorAll<HTMLButtonElement>("[data-board-color]").forEach((button) => button.addEventListener("click", () => {
-    if (!boardEditor) return;
-    boardEditor.color = button.dataset.boardColor || "#e53935";
-    root.querySelector<HTMLInputElement>("[data-board-color-picker]")!.value = boardEditor.color;
-    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.toggle("active", item === button));
-  }));
-  root.querySelector<HTMLInputElement>("[data-board-color-picker]")?.addEventListener("input", (event) => {
-    if (!boardEditor) return;
-    boardEditor.color = (event.currentTarget as HTMLInputElement).value;
-    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.remove("active"));
-  });
-  root.querySelectorAll<HTMLButtonElement>("[data-board-command]").forEach((button) => button.addEventListener("click", () => runBoardCommand(button.dataset.boardCommand || "")));
   const draw = () => {
     if (!boardEditor) return;
     const board = boardEditor.drawing ? { version: 1 as const, elements: [...boardEditor.board.elements, boardEditor.drawing] } : boardEditor.board;
-    drawCourtBoard(canvas, board);
+    drawCourtBoard(canvas, board, boardEditor.selectedIndex);
   };
+  const selectTool = (button: HTMLButtonElement) => {
+    if (!boardEditor) return;
+    boardEditor.transform = null;
+    boardEditor.drawing = null;
+    boardEditor.pointerId = null;
+    boardEditor.tool = button.dataset.boardTool as BoardTool;
+    if (boardEditor.tool !== "select") boardEditor.selectedIndex = -1;
+    canvas.dataset.tool = boardEditor.tool;
+    root.querySelectorAll("[data-board-tool]").forEach((item) => item.classList.toggle("active", item === button));
+    updateBoardSelectionUI();
+    draw();
+  };
+  root.querySelectorAll<HTMLButtonElement>("[data-board-tool]").forEach((button) => button.addEventListener("click", () => {
+    selectTool(button);
+  }));
+  const chooseColor = (color: string) => {
+    if (!boardEditor) return;
+    boardEditor.color = color;
+    const selected = boardEditor.board.elements[boardEditor.selectedIndex];
+    if (boardEditor.tool === "select" && selected && selected.color !== color) {
+      saveBoardUndo();
+      selected.color = color;
+      draw();
+    }
+  };
+  root.querySelectorAll<HTMLButtonElement>("[data-board-color]").forEach((button) => button.addEventListener("click", () => {
+    if (!boardEditor) return;
+    chooseColor(button.dataset.boardColor || "#e53935");
+    root.querySelector<HTMLInputElement>("[data-board-color-picker]")!.value = boardEditor.color;
+    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.toggle("active", item === button));
+  }));
+  root.querySelector<HTMLInputElement>("[data-board-color-picker]")?.addEventListener("change", (event) => {
+    if (!boardEditor) return;
+    chooseColor((event.currentTarget as HTMLInputElement).value);
+    root.querySelectorAll("[data-board-color]").forEach((item) => item.classList.remove("active"));
+  });
+  root.querySelectorAll<HTMLButtonElement>("[data-board-command]").forEach((button) => button.addEventListener("click", () => runBoardCommand(button.dataset.boardCommand || "")));
+  canvas.dataset.tool = "select";
+  updateBoardSelectionUI();
   if (image.complete) window.requestAnimationFrame(draw); else image.addEventListener("load", draw, { once: true });
   window.addEventListener("resize", draw, { once: true });
   canvas.addEventListener("pointerdown", (event) => {
     if (!boardEditor || boardEditor.pointerId !== null) return;
     event.preventDefault();
     const point = boardPoint(canvas, event.clientX, event.clientY);
+    const rect = canvas.getBoundingClientRect();
+    const aspect = rect.width / rect.height;
+    if (boardEditor.tool === "select") {
+      const selected = boardEditor.board.elements[boardEditor.selectedIndex];
+      const handle = selected ? selectionHandleAt(canvas, selected, event.clientX, event.clientY) : null;
+      const index = handle ? boardEditor.selectedIndex : findBoardElement(boardEditor.board, point.x, point.y, aspect);
+      if (index < 0) {
+        boardEditor.selectedIndex = -1;
+        updateBoardSelectionUI();
+        draw();
+        return;
+      }
+      boardEditor.selectedIndex = index;
+      const item = boardEditor.board.elements[index];
+      const bounds = boardElementBounds(item, aspect);
+      boardEditor.pointerId = event.pointerId;
+      canvas.setPointerCapture(event.pointerId);
+      boardEditor.transform = {
+        mode: handle || "move",
+        index,
+        startX: point.x,
+        startY: point.y,
+        startDistance: Math.max(.001, Math.hypot((point.x - bounds.cx) * aspect, point.y - bounds.cy)),
+        startAngle: Math.atan2(point.y - bounds.cy, (point.x - bounds.cx) * aspect),
+        original: { ...item, points: item.points ? [...item.points] : undefined },
+        changed: false,
+      };
+      boardEditor.color = item.color;
+      root.querySelector<HTMLInputElement>("[data-board-color-picker]")!.value = item.color;
+      updateBoardSelectionUI();
+      draw();
+      return;
+    }
     if (boardEditor.tool === "text") {
-      const text = prompt("コートに書く文字を入力してください（40文字まで）", "")?.trim().slice(0, 40) || "";
-      if (text) { saveBoardUndo(); boardEditor.board.elements.push({ type: "text", color: boardEditor.color, x: point.x, y: point.y, text }); draw(); }
+      openBoardTextInput("", "コートに文字を追加", (text) => {
+        if (!boardEditor) return;
+        saveBoardUndo();
+        boardEditor.board.elements.push({ type: "text", color: boardEditor.color, x: point.x, y: point.y, text, size: .055 });
+        draw();
+      });
       return;
     }
     if (boardEditor.tool === "eraser") {
@@ -1085,6 +1162,35 @@ function bindCourtBoardEditor() {
     draw();
   });
   canvas.addEventListener("pointermove", (event) => {
+    if (boardEditor?.transform && boardEditor.pointerId === event.pointerId) {
+      event.preventDefault();
+      const point = boardPoint(canvas, event.clientX, event.clientY);
+      const rect = canvas.getBoundingClientRect();
+      const aspect = rect.width / rect.height;
+      const transform = boardEditor.transform;
+      const bounds = boardElementBounds(transform.original, aspect);
+      let changed = false;
+      let next = transform.original;
+      if (transform.mode === "move") {
+        const dx = point.x - transform.startX; const dy = point.y - transform.startY;
+        changed = Math.hypot(dx * aspect, dy) > .002;
+        next = moveBoardElement(transform.original, dx, dy, aspect);
+      } else if (transform.mode === "resize") {
+        const distance = Math.hypot((point.x - bounds.cx) * aspect, point.y - bounds.cy);
+        const factor = distance / transform.startDistance;
+        changed = Math.abs(factor - 1) > .01;
+        next = scaleBoardElement(transform.original, factor, aspect);
+      } else {
+        const angle = Math.atan2(point.y - bounds.cy, (point.x - bounds.cx) * aspect);
+        const delta = (angle - transform.startAngle) * 180 / Math.PI;
+        changed = Math.abs(delta) > .5;
+        next = rotateBoardElement(transform.original, delta);
+      }
+      if (changed && !transform.changed) { saveBoardUndo(); transform.changed = true; }
+      if (changed) boardEditor.board.elements[transform.index] = next;
+      draw();
+      return;
+    }
     if (!boardEditor?.drawing || boardEditor.pointerId !== event.pointerId) return;
     event.preventDefault();
     const point = boardPoint(canvas, event.clientX, event.clientY);
@@ -1098,6 +1204,13 @@ function bindCourtBoardEditor() {
     draw();
   });
   const finish = (event: PointerEvent) => {
+    if (boardEditor?.transform && boardEditor.pointerId === event.pointerId) {
+      boardEditor.transform = null;
+      boardEditor.pointerId = null;
+      updateBoardSelectionUI();
+      draw();
+      return;
+    }
     if (!boardEditor?.drawing || boardEditor.pointerId !== event.pointerId) return;
     const item = boardEditor.drawing;
     if (item.type !== "pen" && Math.abs((item.x2 || item.x) - item.x) < .015 && Math.abs((item.y2 || item.y) - item.y) < .015) {
@@ -1112,6 +1225,62 @@ function bindCourtBoardEditor() {
   canvas.addEventListener("pointercancel", finish);
 }
 
+function selectionHandleAt(canvas: HTMLCanvasElement, item: BoardElement, clientX: number, clientY: number): "resize" | "rotate" | null {
+  const rect = canvas.getBoundingClientRect();
+  const bounds = boardElementBounds(item, rect.width / rect.height);
+  const center = { x: bounds.cx * rect.width, y: bounds.cy * rect.height };
+  const radians = (item.rotation ?? 0) * Math.PI / 180;
+  const rotate = (x: number, y: number) => ({
+    x: center.x + (x - center.x) * Math.cos(radians) - (y - center.y) * Math.sin(radians),
+    y: center.y + (x - center.x) * Math.sin(radians) + (y - center.y) * Math.cos(radians),
+  });
+  const resize = rotate(bounds.right * rect.width, bounds.bottom * rect.height);
+  const rotation = rotate(center.x, bounds.top * rect.height - 28);
+  const x = clientX - rect.left; const y = clientY - rect.top;
+  if (Math.hypot(x - rotation.x, y - rotation.y) <= 28) return "rotate";
+  if (Math.hypot(x - resize.x, y - resize.y) <= 28) return "resize";
+  return null;
+}
+
+function updateBoardSelectionUI() {
+  const root = document.querySelector<HTMLElement>("[data-board-editor]");
+  const bar = root?.querySelector<HTMLElement>("[data-board-selection-bar]");
+  if (!root || !bar || !boardEditor) return;
+  const item = boardEditor.board.elements[boardEditor.selectedIndex];
+  bar.hidden = !item || boardEditor.tool !== "select";
+  if (!item) return;
+  const names: Record<BoardElement["type"], string> = { pen: "ペン", circle: "○", cross: "×", square: "□", triangle: "△", text: "文字" };
+  const label = bar.querySelector("strong");
+  if (label) label.textContent = `${names[item.type]}を選択中`;
+  const editText = bar.querySelector<HTMLButtonElement>("[data-board-command='edit-text']");
+  if (editText) editText.hidden = item.type !== "text";
+}
+
+function openBoardTextInput(initialValue: string, title: string, onSave: (text: string) => void) {
+  document.querySelector("[data-board-text-dialog]")?.remove();
+  const root = document.querySelector<HTMLElement>("[data-board-editor]");
+  if (!root) return;
+  root.insertAdjacentHTML("beforeend", `<section class="board-text-dialog" data-board-text-dialog role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+    <div><strong>${escapeHtml(title)}</strong><label>文字（40文字まで）<input type="text" maxlength="40" value="${escapeHtml(initialValue)}" data-board-text-input autocomplete="off" /></label><div><button type="button" data-board-text-cancel>キャンセル</button><button type="button" class="primary" data-board-text-save>決定</button></div></div>
+  </section>`);
+  const dialog = root.querySelector<HTMLElement>("[data-board-text-dialog]")!;
+  const input = dialog.querySelector<HTMLInputElement>("[data-board-text-input]")!;
+  const close = () => dialog.remove();
+  const save = () => {
+    const text = input.value.trim().slice(0, 40);
+    if (!text) { input.focus(); return; }
+    close();
+    onSave(text);
+  };
+  dialog.querySelector("[data-board-text-cancel]")?.addEventListener("click", close);
+  dialog.querySelector("[data-board-text-save]")?.addEventListener("click", save);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); save(); }
+    if (event.key === "Escape") { event.stopPropagation(); close(); }
+  });
+  window.setTimeout(() => { input.focus(); input.select(); }, 0);
+}
+
 function saveBoardUndo() {
   if (!boardEditor) return;
   boardEditor.undo.push(cloneCourtBoard(boardEditor.board));
@@ -1123,14 +1292,39 @@ function runBoardCommand(command: string) {
   if (!boardEditor) return;
   if (command === "cancel") { closeCourtBoard(); return; }
   if (command === "clear") {
-    if (boardEditor.board.elements.length && confirm("コート上の書き込みをすべて消しますか？")) { saveBoardUndo(); boardEditor.board = emptyCourtBoard(); redrawBoardEditor(); }
+    if (boardEditor.board.elements.length && confirm("コート上の書き込みをすべて消しますか？")) { saveBoardUndo(); boardEditor.board = emptyCourtBoard(); boardEditor.selectedIndex = -1; updateBoardSelectionUI(); redrawBoardEditor(); }
     return;
   }
   if (command === "undo" && boardEditor.undo.length) {
-    boardEditor.redo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.undo.pop()!; redrawBoardEditor(); return;
+    boardEditor.redo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.undo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); updateBoardSelectionUI(); redrawBoardEditor(); return;
   }
   if (command === "redo" && boardEditor.redo.length) {
-    boardEditor.undo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.redo.pop()!; redrawBoardEditor(); return;
+    boardEditor.undo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.redo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); updateBoardSelectionUI(); redrawBoardEditor(); return;
+  }
+  if (command === "delete-selected") {
+    if (boardEditor.selectedIndex >= 0) {
+      saveBoardUndo();
+      boardEditor.board.elements.splice(boardEditor.selectedIndex, 1);
+      boardEditor.selectedIndex = -1;
+      updateBoardSelectionUI();
+      redrawBoardEditor();
+    }
+    return;
+  }
+  if (command === "edit-text") {
+    boardEditor.transform = null;
+    boardEditor.pointerId = null;
+    const index = boardEditor.selectedIndex;
+    const item = boardEditor.board.elements[index];
+    if (item?.type === "text") {
+      openBoardTextInput(item.text || "", "文字を編集", (text) => {
+        if (!boardEditor) return;
+        const current = boardEditor.board.elements[index];
+        if (current?.type !== "text" || text === current.text) return;
+        saveBoardUndo(); current.text = text; updateBoardSelectionUI(); redrawBoardEditor();
+      });
+    }
+    return;
   }
   if (command === "done") {
     const { target } = boardEditor;
@@ -1151,7 +1345,7 @@ function runBoardCommand(command: string) {
 
 function redrawBoardEditor() {
   const canvas = document.querySelector<HTMLCanvasElement>("[data-board-canvas]");
-  if (canvas && boardEditor) drawCourtBoard(canvas, boardEditor.board);
+  if (canvas && boardEditor) drawCourtBoard(canvas, boardEditor.board, boardEditor.selectedIndex);
 }
 
 function closeCourtBoard() {
