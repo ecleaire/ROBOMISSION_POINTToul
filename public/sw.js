@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v35";
+const CACHE = "robomission-junior-v36";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
@@ -52,7 +52,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
+    await Promise.all(keys.filter((key) => key.startsWith("robomission-junior-v") && key !== CACHE).map((key) => caches.delete(key)));
     await self.clients.claim();
   })());
 });

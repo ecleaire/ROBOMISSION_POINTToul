@@ -136,7 +136,7 @@ function rotatePoint(x: number, y: number, cx: number, cy: number, radians: numb
   return { x: cx + (x - cx) * cosine - (y - cy) * sine, y: cy + (x - cx) * sine + (y - cy) * cosine };
 }
 
-export function drawCourtBoard(canvas: HTMLCanvasElement, board: CourtBoard, selectedIndex = -1) {
+export function drawCourtBoard(canvas: HTMLCanvasElement, board: CourtBoard, selectedIndex: number | number[] = -1) {
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -195,8 +195,10 @@ export function drawCourtBoard(canvas: HTMLCanvasElement, board: CourtBoard, sel
     }
     context.restore();
   }
-  const selected = clean.elements[selectedIndex];
-  if (selected) {
+  const selectedIndices = Array.isArray(selectedIndex) ? selectedIndex : [selectedIndex];
+  selectedIndices.forEach((index) => {
+    const selected = clean.elements[index];
+    if (!selected) return;
     const bounds = boardElementBounds(selected, width / height);
     const centerX = bounds.cx * width; const centerY = bounds.cy * height;
     context.save();
@@ -217,7 +219,7 @@ export function drawCourtBoard(canvas: HTMLCanvasElement, board: CourtBoard, sel
     context.beginPath(); context.moveTo(centerX, bounds.top * height); context.lineTo(centerX, rotateY); context.stroke();
     context.beginPath(); context.arc(centerX, rotateY, handleSize, 0, Math.PI * 2); context.fill(); context.stroke();
     context.restore();
-  }
+  });
 }
 
 export function boardPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number) {

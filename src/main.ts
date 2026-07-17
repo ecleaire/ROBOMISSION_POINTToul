@@ -84,6 +84,10 @@ interface BoardEditorState {
   drawing: BoardElement | null;
   pointerId: number | null;
   selectedIndex: number;
+  selectedIndices: number[];
+  multiSelect: boolean;
+  originalBackgroundSrc: string;
+  showingCourseBackground: boolean;
   transform: {
     mode: "move" | "resize" | "rotate";
     index: number;
@@ -92,6 +96,8 @@ interface BoardEditorState {
     startDistance: number;
     startAngle: number;
     original: BoardElement;
+    indices: number[];
+    originals: BoardElement[];
     changed: boolean;
   } | null;
 }
@@ -110,6 +116,7 @@ interface RecordFilters {
   minScore: string;
   maxScore: string;
   account: string;
+  media: "all" | "video" | "photo" | "memo";
   sort: "newest" | "oldest" | "score-desc" | "score-asc";
 }
 
@@ -146,6 +153,19 @@ interface PendingVideoUpload {
   message: string;
 }
 
+interface PendingScoreSubmission {
+  id: string;
+  payload: ReturnType<typeof resultPayload>;
+  createdAt: string;
+  lastError: string;
+}
+
+interface RulesPreferences {
+  pages: Record<RulesDocument, number>;
+  favorites: Record<RulesDocument, number[]>;
+  seenRevisions: Partial<Record<RulesDocument, string>>;
+}
+
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
@@ -166,11 +186,20 @@ const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
 const VIDEO_RECORDING_BITRATE = 1_000_000;
 const RECORD_VIDEO_CACHE_NAME = "robomission-record-videos-v1";
+const PENDING_VIDEO_CACHE_NAME = "robomission-pending-video-v1";
+const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
+const BOARD_TEMPLATES_KEY = "robomission-board-templates-v1";
+const RULES_PREFERENCES_KEY = "robomission-rules-preferences-v1";
 const MAX_CACHED_RECORD_VIDEOS = 3;
 const NEWS_CACHE_KEY = "robomission-hyogo-news-v1";
 const HYOGO_EVENT_URL = "https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/";
 const HYOGO_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}`;
 const HYOGO_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}&output=embed`;
+const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string; pages: number; shortcuts: Array<[number, string]>; summary: string[] }> = {
+  translated: { revision: "2026-07-18", pages: 16, shortcuts: [[1, "表紙"], [8, "判定例"], [15, "採点表"]], summary: ["最大230点。チェックなしは0点として扱います。", "訪問者40点、赤い塔30点、黄色い塔50点、遺物60点、汚れ20点、ボーナス30点。", "完全に入る判定や接触の有無は、判定写真と大会審判の判断を優先します。"] },
+  general: { revision: "2026-07-16", pages: 31, shortcuts: [[1, "表紙"], [2, "目次"], [6, "ロボット規定"]], summary: ["世界大会共通の大会運営・競技進行に関する資料です。", "国内大会や予選会では、主催者が示す補足・ローカルルールも併せて確認します。"] },
+  hyogo: { revision: "2026-07-16", pages: 11, shortcuts: [[1, "表紙"], [2, "共通補足"], [5, "競技別ルール"]], summary: ["兵庫予選会で適用される補足・ローカルルールです。", "世界大会ルールと異なる記載がある場合は、予選会主催者の最新案内を確認します。"] },
+};
 const FALLBACK_HYOGO_NEWS: NewsItem[] = [
   { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
   { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
@@ -178,9 +207,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.0", updatedAt: "2026.07.18", title: "練習分析・保存復旧・メモ編集を強化", description: "未送信の自動再送、得点推移、記録比較、複数選択できるコート編集、PDFお気に入り・要点・更新通知、端末動作情報を追加しました。" },
   { version: "1.5.3", updatedAt: "2026.07.18", title: "ルールPDF表示を高速・軽量化", description: "iPadのPDF取得経路を短縮し、同時に保持するPDFビューアを1つに制限。PDFの分割読み込みも安定化しました。" },
   { version: "1.5.2", updatedAt: "2026.07.17", title: "全画面UIを再点検・表示を改善", description: "PC・iPad縦横・スマホ縦で全モードを確認し、採点下部のはみ出し、タップ領域、スマホの文字サイズを改善しました。" },
-  { version: "1.5.1", updatedAt: "2026.07.17", title: "全体点検・写真保存を安定化", description: "得点計算、GAS、PWA、PDF、各画面を再点検し、写真メモの保存失敗時にも既存写真を保持するよう改善しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -224,6 +253,7 @@ let recordFilters: RecordFilters = {
   minScore: "",
   maxScore: "",
   account: "ALL",
+  media: "all",
   sort: "newest",
 };
 const adminRevealPressCounts = { rules: 0, links: 0 };
@@ -250,7 +280,14 @@ let videoRecordingStatus: "idle" | "starting" | "recording" | "processing" = "id
 let videoRecordingTimer: number | null = null;
 let videoRecordingLimitTimer: number | null = null;
 let discardRecordedVideo = false;
+let screenWakeLock: { release: () => Promise<void> } | null = null;
 let pendingVideoUpload: PendingVideoUpload | null = null;
+let pendingScoreSubmissions = loadPendingScoreSubmissions();
+const pendingScoreVideoFiles = new Map<string, File>();
+let online = navigator.onLine;
+let lastModeRenderMs = 0;
+let storageSummary = "確認中";
+let rulesPreferences = loadRulesPreferences();
 let systemNotice = "";
 if (!activeAccount) void clearRecordVideoCache();
 type StopwatchStatus = "idle" | "running" | "paused";
@@ -280,7 +317,19 @@ window.addEventListener("hashchange", () => {
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
+  if (!document.hidden) { void retryPendingSaves(); void checkStorageCapacity(); }
 });
+window.addEventListener("online", () => { online = true; systemNotice = "通信が戻りました。未送信データを再送します。"; render(); void retryPendingSaves(); });
+window.addEventListener("offline", () => { online = false; systemNotice = "オフラインです。採点は続けられ、未送信データは通信復帰後に再送します。"; render(); });
+window.addEventListener("beforeunload", (event) => {
+  if (!hasUnsavedTransfers()) return;
+  event.preventDefault();
+  event.returnValue = "保存・送信が完了していないデータがあります。";
+});
+window.addEventListener("orientationchange", () => window.setTimeout(() => {
+  if (document.body.classList.contains("camera-mode")) refreshStopwatch();
+  if (boardEditor) redrawBoardEditor();
+}, 180));
 document.addEventListener("pointerdown", (event) => {
   const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action="camera-expand"]') : null;
   if (!target) return;
@@ -332,11 +381,15 @@ if (activeAccount === "ADMIN") location.hash = "#/admin";
 else if (!location.hash) location.hash = "#/score";
 render();
 configureRecordsAutoRefresh();
+void restorePendingVideoUpload();
+void retryPendingSaves();
+void checkStorageCapacity();
 if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
 if (location.hash === "#/news" && activeAccount) void loadHyogoNews();
 if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
 
 function render() {
+  const renderStartedAt = performance.now();
   parkRulesFrame();
   const route = location.hash.replace(/^#\/?/, "") || "score";
   const content =
@@ -367,16 +420,19 @@ function render() {
   attachRulesFrame();
   renderCourtBoardPreviews();
   renderMemoPhotoPreviews();
+  lastModeRenderMs = Math.round((performance.now() - renderStartedAt) * 10) / 10;
+  if (route === "records" || route === "admin") void renderRecordAnalytics();
 }
 
 function systemNoticeView() {
-  if (pendingVideoUpload) {
-    return `<aside class="system-notice ${pendingVideoUpload.status === "failed" ? "error" : ""}" role="status">
-      <span>${escapeHtml(pendingVideoUpload.message)}</span>
-      ${pendingVideoUpload.status === "failed" ? `<button data-action="retry-video-upload">動画を再送</button>` : ""}
-    </aside>`;
-  }
-  return systemNotice ? `<aside class="system-notice" role="status"><span>${escapeHtml(systemNotice)}</span></aside>` : "";
+  const queued = pendingScoreSubmissions.length;
+  if (!pendingVideoUpload && !queued && !systemNotice && online) return "";
+  const message = pendingVideoUpload?.message || (queued ? `未送信の採点結果が${queued}件あります。` : systemNotice || "オフラインです。通信復帰後に自動再送します。");
+  const failed = !online || pendingVideoUpload?.status === "failed" || queued > 0;
+  return `<aside class="system-notice ${failed ? "error" : ""}" role="status">
+    <span>${escapeHtml(message)}</span>
+    ${failed && (queued || pendingVideoUpload?.status === "failed") ? `<button data-action="retry-pending-saves">まとめて再送</button>` : ""}
+  </aside>`;
 }
 
 function shell(content: string, options: { back?: string; title?: string } = {}) {
@@ -476,6 +532,7 @@ function scoringView() {
   const scores = sectionScores(state);
   return shell(`
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
+    <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
       ${stopwatchView()}
@@ -638,6 +695,9 @@ async function startCameraRecording() {
       },
       audio: false,
     });
+    cameraStream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      if (videoRecordingStatus === "recording") stopCameraRecording();
+    }, { once: true });
     const mimeType = supportedRecordingMimeType();
     const options: MediaRecorderOptions = { videoBitsPerSecond: VIDEO_RECORDING_BITRATE };
     if (mimeType) options.mimeType = mimeType;
@@ -669,6 +729,7 @@ async function startCameraRecording() {
     videoRecordingLimitTimer = window.setTimeout(stopCameraRecording, MAX_RECORDING_MS);
     render();
     enterCameraFullscreen(false);
+    void requestScreenWakeLock();
   } catch (error) {
     stopCameraStream();
     videoRecordingStatus = "idle";
@@ -697,6 +758,7 @@ function finalizeCameraRecording(mimeType: string) {
   clearVideoRecordingTimers();
   stopCameraStream();
   videoRecordingStatus = "idle";
+  void releaseScreenWakeLock();
   if (!shouldDiscard) {
     const type = mimeType || chunks[0]?.type || "video/webm";
     const blob = new Blob(chunks, { type });
@@ -730,6 +792,20 @@ function stopCameraStream() {
   collapseCameraFullscreen();
   cameraStream?.getTracks().forEach((track) => track.stop());
   cameraStream = null;
+  void releaseScreenWakeLock();
+}
+
+async function requestScreenWakeLock() {
+  try {
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+    if (wakeLock && !screenWakeLock) screenWakeLock = await wakeLock.request("screen");
+  } catch { /* iOSなど非対応端末では通常動作を継続 */ }
+}
+
+async function releaseScreenWakeLock() {
+  const lock = screenWakeLock;
+  screenWakeLock = null;
+  try { await lock?.release(); } catch { /* noop */ }
 }
 
 type FullscreenCapableElement = HTMLElement & {
@@ -902,7 +978,7 @@ function recordsView() {
   const filteredRecords = filteredPracticeRecords();
   const visibleRecords = filteredRecords.slice(0, recordVisibleCount);
   const isAdmin = activeAccount === "ADMIN";
-  const activeFilterCount = [recordFilters.query, recordFilters.dateFrom, recordFilters.dateTo, recordFilters.minScore, recordFilters.maxScore, isAdmin && recordFilters.account !== "ALL" ? recordFilters.account : ""].filter(Boolean).length;
+  const activeFilterCount = [recordFilters.query, recordFilters.dateFrom, recordFilters.dateTo, recordFilters.minScore, recordFilters.maxScore, recordFilters.media !== "all" ? recordFilters.media : "", isAdmin && recordFilters.account !== "ALL" ? recordFilters.account : ""].filter(Boolean).length;
   return shell(`
     <section class="page-intro records-intro">
       <p class="eyebrow">${isAdmin ? "管理アカウント" : escapeHtml(activeAccountName || "現在のアカウント")}</p>
@@ -912,6 +988,7 @@ function recordsView() {
     </section>
     ${isAdmin ? accountManagementView() : ""}
     ${recordsStatus ? `<p class="sheet-status records-status" role="status">${escapeHtml(recordsStatus)}</p>` : ""}
+    <section class="record-analytics card" data-record-analytics aria-label="練習記録の分析"><p>記録を分析中…</p></section>
     <section class="record-filters card" aria-label="記録の検索と並び替え">
       <header class="record-filter-header">
         <div><p class="eyebrow">SEARCH / SORT</p><h2>履歴を探す</h2><span>${activeFilterCount ? `${activeFilterCount}個の条件で絞り込み中` : "すべての記録を表示"}</span></div>
@@ -938,6 +1015,12 @@ function recordsView() {
           <option value="ALL" ${recordFilters.account === "ALL" ? "selected" : ""}>すべてのチーム</option>
           ${managedAccounts.map((account) => `<option value="${account.id}" ${recordFilters.account === account.id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}
         </select></label></fieldset>` : ""}
+        <fieldset><legend>内容</legend><label>記録の種類<select data-record-filter="media">
+          <option value="all" ${recordFilters.media === "all" ? "selected" : ""}>すべて</option>
+          <option value="video" ${recordFilters.media === "video" ? "selected" : ""}>動画あり</option>
+          <option value="photo" ${recordFilters.media === "photo" ? "selected" : ""}>写真あり</option>
+          <option value="memo" ${recordFilters.media === "memo" ? "selected" : ""}>メモあり</option>
+        </select></label></fieldset>
       </div>
       <div class="record-filter-actions">
         <button class="primary" data-action="apply-record-filters">検索・絞り込み</button>
@@ -951,6 +1034,8 @@ function recordsView() {
           <div><p>${formatRecordDate(record.recordedAt)}${isAdmin ? `　<span class="record-account">${escapeHtml(record.accountName || record.account)}</span>` : ""}</p><h2>競技時間 ${formatTime(record.timeSeconds)}</h2><span>${record.notes ? escapeHtml(record.notes) : "ミッション別の採点記録"}</span></div>
           <strong>${record.total}<small> / ${MAX_SCORE}点</small></strong>
           ${record.unjudged ? `<em>未判定 ${record.unjudged}項目</em>` : `<em class="complete">判定済み</em>`}
+          <div class="record-media-badges">${record.hasVideo ? "<span>動画</span>" : ""}${record.photos.length ? `<span>写真 ${record.photos.length}</span>` : ""}${record.notes ? "<span>メモ</span>" : ""}</div>
+          <details class="record-missions"><summary>ミッション別得点</summary><dl>${resultRow("訪問者", record.visitors, 40)}${resultRow("赤い塔", record.redTowers, 30)}${resultRow("黄色い塔", record.yellowTowers, 50)}${resultRow("遺物", record.artifacts, 60)}${resultRow("汚れ", record.dirt, 20)}${resultRow("ボーナス", record.bonus, 30)}</dl></details>
           ${record.hasVideo ? `<button class="record-video" data-action="play-record-video" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">▶ 動画を見る</button>` : ""}
           <button class="record-delete" data-action="delete-record" data-record-account="${record.account}" data-record-row="${record.rowNumber}" data-recorded-at="${escapeHtml(record.recordedAt)}">この記録を削除</button>
         </article>`).join("") : `<div class="empty-state card"><strong>${practiceRecords.length ? "条件に一致する記録がありません" : "まだ記録がありません"}</strong><p>${practiceRecords.length ? "検索条件を変更してください。" : "採点結果から最初の記録を保存してください。"}</p></div>`}
@@ -1095,14 +1180,22 @@ function refreshMemoPhotoTarget(target: ReturnType<typeof memoPhotoTarget>) {
 }
 
 function renderMemoPhotoPreviews(root: ParentNode = document) {
-  root.querySelectorAll<HTMLElement>(".memo-photo-item").forEach((item) => {
+  const renderItem = (item: HTMLElement) => {
     const canvas = item.querySelector<HTMLCanvasElement>("canvas");
     const container = item.closest<HTMLElement>(".memo-photos");
     if (!canvas || !container) return;
     const target = memoPhotoTarget(item);
     const photo = target.photos.find((candidate) => candidate.id === item.dataset.photoId);
     if (photo) window.requestAnimationFrame(() => drawCourtBoard(canvas, photo.board));
-  });
+  };
+  const items = [...root.querySelectorAll<HTMLElement>(".memo-photo-item")];
+  if (!("IntersectionObserver" in window)) { items.forEach(renderItem); return; }
+  const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    observer.unobserve(entry.target);
+    renderItem(entry.target as HTMLElement);
+  }), { rootMargin: "240px" });
+  items.forEach((item) => observer.observe(item));
 }
 
 async function startMemoPhotoCapture(element: HTMLElement) {
@@ -1243,7 +1336,7 @@ function photosForTarget(kind: string, memoId: string, account: string, rowNumbe
 }
 
 function renderCourtBoardPreviews() {
-  document.querySelectorAll<HTMLElement>("[data-board-preview]").forEach((preview) => {
+  const renderPreview = (preview: HTMLElement) => {
     const canvas = preview.querySelector<HTMLCanvasElement>("canvas");
     const image = preview.querySelector<HTMLImageElement>("img");
     if (!canvas || !image) return;
@@ -1258,7 +1351,15 @@ function renderCourtBoardPreviews() {
     const draw = () => drawCourtBoard(canvas, board);
     if (image.complete) window.requestAnimationFrame(draw);
     else image.addEventListener("load", () => window.requestAnimationFrame(draw), { once: true });
-  });
+  };
+  const previews = [...document.querySelectorAll<HTMLElement>("[data-board-preview]")];
+  if (!("IntersectionObserver" in window)) { previews.forEach(renderPreview); return; }
+  const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+    if (!entry.isIntersecting) return;
+    observer.unobserve(entry.target);
+    renderPreview(entry.target as HTMLElement);
+  }), { rootMargin: "240px" });
+  previews.forEach((preview) => observer.observe(preview));
 }
 
 function openCourtBoard(element: HTMLElement) {
@@ -1270,10 +1371,13 @@ function openCourtBoard(element: HTMLElement) {
   const recordedAt = element.dataset.recordedAt || "";
   const photoId = element.dataset.photoId || "";
   const photo = photoId ? photosForTarget(kind, memoId, account, rowNumber, recordedAt).find((item) => item.id === photoId) : undefined;
+  const backgroundSrc = photo?.image ? storedImageUrl(photo.image) : COURT_IMAGE_URL;
   boardEditor = {
     target: { kind, memoId, account, rowNumber, recordedAt, photoId },
     board: cloneCourtBoard(photo?.board ?? boardForTarget(kind, memoId, account, rowNumber, recordedAt)),
-    backgroundSrc: photo?.image ? storedImageUrl(photo.image) : COURT_IMAGE_URL,
+    backgroundSrc,
+    originalBackgroundSrc: backgroundSrc,
+    showingCourseBackground: false,
     tool: "select",
     color: "#e53935",
     undo: [],
@@ -1281,6 +1385,8 @@ function openCourtBoard(element: HTMLElement) {
     drawing: null,
     pointerId: null,
     selectedIndex: -1,
+    selectedIndices: [],
+    multiSelect: false,
     transform: null,
   };
   document.body.insertAdjacentHTML("beforeend", `<section class="board-editor" data-board-editor role="dialog" aria-modal="true" aria-label="コート書き込み">
@@ -1288,9 +1394,11 @@ function openCourtBoard(element: HTMLElement) {
     <div class="board-toolbar" aria-label="書き込みツール">
       ${[["select", "↖ 選択"], ["pen", "✎ ペン"], ["circle", "○"], ["cross", "×"], ["square", "□"], ["triangle", "△"], ["text", "文字"], ["eraser", "消しゴム"]].map(([tool, label]) => `<button type="button" data-board-tool="${tool}" class="${tool === "select" ? "active" : ""}">${label}</button>`).join("")}
       <span class="board-colors" aria-label="色を選択">${["#e53935", "#1565c0", "#00897b", "#f9a825", "#000000", "#ffffff"].map((color) => `<button type="button" data-board-color="${color}" style="--board-color:${color}" class="${color === "#e53935" ? "active" : ""}" aria-label="${color}を選択"></button>`).join("")}<input type="color" data-board-color-picker value="#e53935" aria-label="その他の色" /></span>
-      <button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button><button type="button" class="board-clear" data-board-command="clear">全消去</button>
+      <button type="button" data-board-command="multi-select">複数選択</button><button type="button" data-board-command="undo">↶ 戻す</button><button type="button" data-board-command="redo">↷ やり直す</button>
+      <span class="board-template-tools"><select data-board-template aria-label="コートテンプレート"><option value="">テンプレート</option>${loadBoardTemplates().map((template, index) => `<option value="${index}">${escapeHtml(template.name)}</option>`).join("")}</select><button type="button" data-board-command="load-template">読込</button><button type="button" data-board-command="save-template">保存</button></span>
+      ${photo ? `<button type="button" data-board-command="toggle-background">背景：写真</button>` : ""}<button type="button" class="board-clear" data-board-command="clear">全消去</button>
     </div>
-    <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
+    <div class="board-selection-bar" data-board-selection-bar hidden><strong>選択中</strong><span>ドラッグ：移動　□：大きさ　○：回転</span><button type="button" data-board-command="copy-selected">コピー</button><button type="button" data-board-command="send-back">最背面</button><button type="button" data-board-command="bring-front">最前面</button><button type="button" data-board-command="edit-text" hidden>文字を編集</button><button type="button" class="board-delete" data-board-command="delete-selected">削除</button></div>
     <div class="board-stage-shell"><div class="board-stage"><img src="${boardEditor.backgroundSrc}" alt="${photo ? "メモ写真" : "WRO 2026 RoboMission Junior コート"}" /><canvas data-board-canvas aria-label="書き込み領域"></canvas></div></div>
     <footer><span>選択で移動・大きさ・角度・文字を編集できます</span><button type="button" class="primary" data-board-command="done">${kind === "score" ? "この書き込みを採点メモに入れる" : "この書き込みをメモに入れる"}</button></footer>
   </section>`);
@@ -1306,7 +1414,7 @@ function bindCourtBoardEditor() {
   const draw = () => {
     if (!boardEditor) return;
     const board = boardEditor.drawing ? { version: 1 as const, elements: [...boardEditor.board.elements, boardEditor.drawing] } : boardEditor.board;
-    drawCourtBoard(canvas, board, boardEditor.selectedIndex);
+    drawCourtBoard(canvas, board, boardEditor.selectedIndices.length ? boardEditor.selectedIndices : boardEditor.selectedIndex);
   };
   const selectTool = (button: HTMLButtonElement) => {
     if (!boardEditor) return;
@@ -1314,7 +1422,7 @@ function bindCourtBoardEditor() {
     boardEditor.drawing = null;
     boardEditor.pointerId = null;
     boardEditor.tool = button.dataset.boardTool as BoardTool;
-    if (boardEditor.tool !== "select") boardEditor.selectedIndex = -1;
+    if (boardEditor.tool !== "select") { boardEditor.selectedIndex = -1; boardEditor.selectedIndices = []; }
     canvas.dataset.tool = boardEditor.tool;
     root.querySelectorAll("[data-board-tool]").forEach((item) => item.classList.toggle("active", item === button));
     updateBoardSelectionUI();
@@ -1326,10 +1434,11 @@ function bindCourtBoardEditor() {
   const chooseColor = (color: string) => {
     if (!boardEditor) return;
     boardEditor.color = color;
-    const selected = boardEditor.board.elements[boardEditor.selectedIndex];
-    if (boardEditor.tool === "select" && selected && selected.color !== color) {
+    const indices = boardEditor.selectedIndices.length ? boardEditor.selectedIndices : [boardEditor.selectedIndex].filter((index) => index >= 0);
+    const selected = indices.map((index) => boardEditor!.board.elements[index]).filter(Boolean);
+    if (boardEditor.tool === "select" && selected.some((item) => item.color !== color)) {
       saveBoardUndo();
-      selected.color = color;
+      selected.forEach((item) => { item.color = color; });
       draw();
     }
   };
@@ -1361,11 +1470,21 @@ function bindCourtBoardEditor() {
       const index = handle ? boardEditor.selectedIndex : findBoardElement(boardEditor.board, point.x, point.y, aspect);
       if (index < 0) {
         boardEditor.selectedIndex = -1;
+        boardEditor.selectedIndices = [];
+        updateBoardSelectionUI();
+        draw();
+        return;
+      }
+      if (boardEditor.multiSelect && !handle) {
+        const alreadySelected = boardEditor.selectedIndices.includes(index);
+        boardEditor.selectedIndices = alreadySelected ? boardEditor.selectedIndices.filter((item) => item !== index) : [...boardEditor.selectedIndices, index];
+        boardEditor.selectedIndex = boardEditor.selectedIndices.at(-1) ?? -1;
         updateBoardSelectionUI();
         draw();
         return;
       }
       boardEditor.selectedIndex = index;
+      if (!boardEditor.selectedIndices.includes(index)) boardEditor.selectedIndices = [index];
       const item = boardEditor.board.elements[index];
       const bounds = boardElementBounds(item, aspect);
       boardEditor.pointerId = event.pointerId;
@@ -1378,6 +1497,11 @@ function bindCourtBoardEditor() {
         startDistance: Math.max(.001, Math.hypot((point.x - bounds.cx) * aspect, point.y - bounds.cy)),
         startAngle: Math.atan2(point.y - bounds.cy, (point.x - bounds.cx) * aspect),
         original: { ...item, points: item.points ? [...item.points] : undefined },
+        indices: handle ? [index] : [...boardEditor.selectedIndices],
+        originals: (handle ? [index] : boardEditor.selectedIndices).map((selectedIndex) => {
+          const original = boardEditor!.board.elements[selectedIndex];
+          return { ...original, points: original.points ? [...original.points] : undefined };
+        }),
         changed: false,
       };
       boardEditor.color = item.color;
@@ -1419,9 +1543,17 @@ function bindCourtBoardEditor() {
       let changed = false;
       let next = transform.original;
       if (transform.mode === "move") {
-        const dx = point.x - transform.startX; const dy = point.y - transform.startY;
+        let dx = point.x - transform.startX; let dy = point.y - transform.startY;
+        if (transform.indices.length > 1) {
+          const boundsList = transform.originals.map((item) => boardElementBounds(item, aspect));
+          dx = Math.max(-Math.min(...boundsList.map((item) => item.left)), Math.min(1 - Math.max(...boundsList.map((item) => item.right)), dx));
+          dy = Math.max(-Math.min(...boundsList.map((item) => item.top)), Math.min(1 - Math.max(...boundsList.map((item) => item.bottom)), dy));
+        }
         changed = Math.hypot(dx * aspect, dy) > .002;
         next = moveBoardElement(transform.original, dx, dy, aspect);
+        if (changed && transform.indices.length > 1) {
+          transform.indices.forEach((selectedIndex, position) => { boardEditor!.board.elements[selectedIndex] = moveBoardElement(transform.originals[position], dx, dy, aspect); });
+        }
       } else if (transform.mode === "resize") {
         const distance = Math.hypot((point.x - bounds.cx) * aspect, point.y - bounds.cy);
         const factor = distance / transform.startDistance;
@@ -1434,7 +1566,7 @@ function bindCourtBoardEditor() {
         next = rotateBoardElement(transform.original, delta);
       }
       if (changed && !transform.changed) { saveBoardUndo(); transform.changed = true; }
-      if (changed) boardEditor.board.elements[transform.index] = next;
+      if (changed && transform.indices.length === 1) boardEditor.board.elements[transform.index] = next;
       draw();
       return;
     }
@@ -1493,14 +1625,15 @@ function updateBoardSelectionUI() {
   const root = document.querySelector<HTMLElement>("[data-board-editor]");
   const bar = root?.querySelector<HTMLElement>("[data-board-selection-bar]");
   if (!root || !bar || !boardEditor) return;
+  const indices = boardEditor.selectedIndices.length ? boardEditor.selectedIndices : [boardEditor.selectedIndex].filter((index) => index >= 0);
   const item = boardEditor.board.elements[boardEditor.selectedIndex];
-  bar.hidden = !item || boardEditor.tool !== "select";
+  bar.hidden = !indices.length || boardEditor.tool !== "select";
   if (!item) return;
   const names: Record<BoardElement["type"], string> = { pen: "ペン", circle: "○", cross: "×", square: "□", triangle: "△", text: "文字" };
   const label = bar.querySelector("strong");
-  if (label) label.textContent = `${names[item.type]}を選択中`;
+  if (label) label.textContent = indices.length > 1 ? `${indices.length}個を選択中` : `${names[item.type]}を選択中`;
   const editText = bar.querySelector<HTMLButtonElement>("[data-board-command='edit-text']");
-  if (editText) editText.hidden = item.type !== "text";
+  if (editText) editText.hidden = indices.length !== 1 || item.type !== "text";
 }
 
 function openBoardTextInput(initialValue: string, title: string, onSave: (text: string) => void) {
@@ -1538,25 +1671,80 @@ function saveBoardUndo() {
 function runBoardCommand(command: string) {
   if (!boardEditor) return;
   if (command === "cancel") { closeCourtBoard(); return; }
+  if (command === "multi-select") {
+    boardEditor.multiSelect = !boardEditor.multiSelect;
+    document.querySelector<HTMLButtonElement>("[data-board-command='multi-select']")?.classList.toggle("active", boardEditor.multiSelect);
+    updateBoardSelectionUI();
+    return;
+  }
   if (command === "clear") {
-    if (boardEditor.board.elements.length && confirm("コート上の書き込みをすべて消しますか？")) { saveBoardUndo(); boardEditor.board = emptyCourtBoard(); boardEditor.selectedIndex = -1; updateBoardSelectionUI(); redrawBoardEditor(); }
+    if (boardEditor.board.elements.length && confirm("コート上の書き込みをすべて消しますか？")) { saveBoardUndo(); boardEditor.board = emptyCourtBoard(); boardEditor.selectedIndex = -1; boardEditor.selectedIndices = []; updateBoardSelectionUI(); redrawBoardEditor(); }
     return;
   }
   if (command === "undo" && boardEditor.undo.length) {
-    boardEditor.redo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.undo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); updateBoardSelectionUI(); redrawBoardEditor(); return;
+    boardEditor.redo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.undo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); boardEditor.selectedIndices = boardEditor.selectedIndices.filter((index) => index < boardEditor!.board.elements.length); updateBoardSelectionUI(); redrawBoardEditor(); return;
   }
   if (command === "redo" && boardEditor.redo.length) {
-    boardEditor.undo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.redo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); updateBoardSelectionUI(); redrawBoardEditor(); return;
+    boardEditor.undo.push(cloneCourtBoard(boardEditor.board)); boardEditor.board = boardEditor.redo.pop()!; boardEditor.selectedIndex = Math.min(boardEditor.selectedIndex, boardEditor.board.elements.length - 1); boardEditor.selectedIndices = boardEditor.selectedIndices.filter((index) => index < boardEditor!.board.elements.length); updateBoardSelectionUI(); redrawBoardEditor(); return;
   }
   if (command === "delete-selected") {
-    if (boardEditor.selectedIndex >= 0) {
+    const indices = (boardEditor.selectedIndices.length ? boardEditor.selectedIndices : [boardEditor.selectedIndex]).filter((index) => index >= 0).sort((a, b) => b - a);
+    if (indices.length) {
       saveBoardUndo();
-      boardEditor.board.elements.splice(boardEditor.selectedIndex, 1);
+      indices.forEach((index) => boardEditor!.board.elements.splice(index, 1));
       boardEditor.selectedIndex = -1;
+      boardEditor.selectedIndices = [];
       updateBoardSelectionUI();
       redrawBoardEditor();
     }
     return;
+  }
+  if (command === "copy-selected") {
+    const indices = (boardEditor.selectedIndices.length ? boardEditor.selectedIndices : [boardEditor.selectedIndex]).filter((index) => index >= 0);
+    if (!indices.length || boardEditor.board.elements.length + indices.length > 120) return;
+    saveBoardUndo();
+    const copies = indices.map((index) => moveBoardElement(boardEditor!.board.elements[index], .025, .025));
+    const start = boardEditor.board.elements.length;
+    boardEditor.board.elements.push(...copies);
+    boardEditor.selectedIndices = copies.map((_, index) => start + index);
+    boardEditor.selectedIndex = boardEditor.selectedIndices.at(-1) ?? -1;
+    updateBoardSelectionUI(); redrawBoardEditor(); return;
+  }
+  if (command === "bring-front" || command === "send-back") {
+    const selected = new Set((boardEditor.selectedIndices.length ? boardEditor.selectedIndices : [boardEditor.selectedIndex]).filter((index) => index >= 0));
+    if (!selected.size) return;
+    saveBoardUndo();
+    const chosen = boardEditor.board.elements.filter((_, index) => selected.has(index));
+    const remaining = boardEditor.board.elements.filter((_, index) => !selected.has(index));
+    boardEditor.board.elements = command === "bring-front" ? [...remaining, ...chosen] : [...chosen, ...remaining];
+    const start = command === "bring-front" ? remaining.length : 0;
+    boardEditor.selectedIndices = chosen.map((_, index) => start + index);
+    boardEditor.selectedIndex = boardEditor.selectedIndices.at(-1) ?? -1;
+    updateBoardSelectionUI(); redrawBoardEditor(); return;
+  }
+  if (command === "toggle-background") {
+    boardEditor.showingCourseBackground = !boardEditor.showingCourseBackground;
+    boardEditor.backgroundSrc = boardEditor.showingCourseBackground ? COURT_IMAGE_URL : boardEditor.originalBackgroundSrc;
+    const image = document.querySelector<HTMLImageElement>(".board-stage img");
+    if (image) image.src = boardEditor.backgroundSrc;
+    const button = document.querySelector<HTMLButtonElement>("[data-board-command='toggle-background']");
+    if (button) button.textContent = boardEditor.showingCourseBackground ? "背景：コート" : "背景：写真";
+    return;
+  }
+  if (command === "save-template") {
+    const name = prompt("テンプレート名を入力してください（20文字まで）", `作戦 ${loadBoardTemplates().length + 1}`)?.trim().slice(0, 20);
+    if (!name) return;
+    const templates = loadBoardTemplates();
+    templates.unshift({ name, board: cloneCourtBoard(boardEditor.board) });
+    localStorage.setItem(BOARD_TEMPLATES_KEY, JSON.stringify(templates.slice(0, 5)));
+    refreshBoardTemplateSelect();
+    return;
+  }
+  if (command === "load-template") {
+    const select = document.querySelector<HTMLSelectElement>("[data-board-template]");
+    const template = loadBoardTemplates()[Number(select?.value)];
+    if (!template) return;
+    saveBoardUndo(); boardEditor.board = cloneCourtBoard(template.board); boardEditor.selectedIndex = -1; boardEditor.selectedIndices = []; updateBoardSelectionUI(); redrawBoardEditor(); return;
   }
   if (command === "edit-text") {
     boardEditor.transform = null;
@@ -1599,7 +1787,20 @@ function runBoardCommand(command: string) {
 
 function redrawBoardEditor() {
   const canvas = document.querySelector<HTMLCanvasElement>("[data-board-canvas]");
-  if (canvas && boardEditor) drawCourtBoard(canvas, boardEditor.board, boardEditor.selectedIndex);
+  if (canvas && boardEditor) drawCourtBoard(canvas, boardEditor.board, boardEditor.selectedIndices.length ? boardEditor.selectedIndices : boardEditor.selectedIndex);
+}
+
+function loadBoardTemplates(): Array<{ name: string; board: CourtBoard }> {
+  try {
+    const value = JSON.parse(localStorage.getItem(BOARD_TEMPLATES_KEY) || "[]");
+    return Array.isArray(value) ? value.slice(0, 5).filter((item) => item && typeof item.name === "string").map((item) => ({ name: item.name.slice(0, 20), board: sanitizeCourtBoard(item.board) })) : [];
+  } catch { return []; }
+}
+
+function refreshBoardTemplateSelect() {
+  const select = document.querySelector<HTMLSelectElement>("[data-board-template]");
+  if (!select) return;
+  select.innerHTML = `<option value="">テンプレート</option>${loadBoardTemplates().map((template, index) => `<option value="${index}">${escapeHtml(template.name)}</option>`).join("")}`;
 }
 
 function closeCourtBoard() {
@@ -1618,13 +1819,36 @@ function filteredPracticeRecords() {
     const recordedAt = new Date(record.recordedAt).getTime();
     const searchable = `${record.account} ${record.accountName} ${record.notes} ${formatRecordDate(record.recordedAt)} ${record.total}`.toLowerCase();
     const accountMatches = activeAccount !== "ADMIN" || recordFilters.account === "ALL" || record.account === recordFilters.account;
-    return accountMatches && recordedAt >= dateFrom && recordedAt <= dateTo && record.total >= minScore && record.total <= maxScore && (!query || searchable.includes(query));
+    const mediaMatches = recordFilters.media === "all" ||
+      (recordFilters.media === "video" && record.hasVideo) ||
+      (recordFilters.media === "photo" && record.photos.length > 0) ||
+      (recordFilters.media === "memo" && Boolean(record.notes));
+    return accountMatches && mediaMatches && recordedAt >= dateFrom && recordedAt <= dateTo && record.total >= minScore && record.total <= maxScore && (!query || searchable.includes(query));
   }).sort((left, right) => {
     if (recordFilters.sort === "oldest") return new Date(left.recordedAt).getTime() - new Date(right.recordedAt).getTime();
     if (recordFilters.sort === "score-desc") return right.total - left.total;
     if (recordFilters.sort === "score-asc") return left.total - right.total;
     return new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime();
   });
+}
+
+async function renderRecordAnalytics() {
+  const host = document.querySelector<HTMLElement>("[data-record-analytics]");
+  if (!host) return;
+  const records = filteredPracticeRecords();
+  if (!records.length) {
+    host.innerHTML = "<p>分析できる記録がまだありません。</p>";
+    return;
+  }
+  const { analyzeRecords, trendPolyline } = await import("./recordAnalytics");
+  if (!host.isConnected) return;
+  const analytics = analyzeRecords(records);
+  const points = trendPolyline(analytics.trend.map((item) => item.total));
+  const changeText = analytics.change === null ? "比較なし" : `${analytics.change >= 0 ? "+" : ""}${analytics.change}点`;
+  host.innerHTML = `<header><div><p class="eyebrow">PROGRESS</p><h2>練習の進み方</h2></div><span>${analytics.count}回を分析</span></header>
+    <div class="analytics-summary"><article><small>最新</small><strong>${analytics.latest}<span>点</span></strong></article><article><small>平均</small><strong>${Math.round(analytics.average)}<span>点</span></strong></article><article><small>最高</small><strong>${analytics.best}<span>点</span></strong></article><article class="${(analytics.change || 0) >= 0 ? "improved" : "declined"}"><small>前回比</small><strong>${changeText}</strong></article></div>
+    <div class="analytics-grid"><section><h3>得点推移（直近12回）</h3><svg class="trend-chart" viewBox="0 0 600 180" role="img" aria-label="得点推移"><line x1="0" y1="90" x2="600" y2="90"></line><polyline points="${points}" /><g>${analytics.trend.map((item, index) => { const x = analytics.trend.length === 1 ? 300 : index * 600 / (analytics.trend.length - 1); const y = 160 - item.total / MAX_SCORE * 160; return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6"><title>${formatRecordDate(item.recordedAt)} ${item.total}点</title></circle>`; }).join("")}</g></svg></section>
+    <section><h3>ミッション別</h3><div class="mission-progress">${analytics.missions.map((mission) => { const delta = mission.latest - mission.previous; return `<div><span>${mission.label}</span><strong>${Math.round(mission.average)}点</strong><em class="${analytics.previous === null || delta >= 0 ? "up" : "down"}">${analytics.previous === null ? "比較なし" : `${delta >= 0 ? "+" : ""}${delta}`}</em></div>`; }).join("")}</div></section></div>`;
 }
 
 function updateRecordFiltersFromInputs() {
@@ -1635,7 +1859,7 @@ function updateRecordFiltersFromInputs() {
 }
 
 function resetRecordFilters() {
-  recordFilters = { query: "", dateFrom: "", dateTo: "", minScore: "", maxScore: "", account: "ALL", sort: "newest" };
+  recordFilters = { query: "", dateFrom: "", dateTo: "", minScore: "", maxScore: "", account: "ALL", media: "all", sort: "newest" };
 }
 
 function resultRow(label: string, score: number, max: number) {
@@ -1664,6 +1888,10 @@ function rulesView() {
     : isGeneral ? GENERAL_TRANSLATED_RULES_URL
     : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
   const driveBased = isHyogo || isGeneral || useDriveViewer;
+  const info = RULE_DOCUMENT_INFO[activeRulesDocument];
+  const currentPage = Math.max(1, Math.min(info.pages, rulesPreferences.pages[activeRulesDocument] || 1));
+  const favorites = rulesPreferences.favorites[activeRulesDocument];
+  const updated = rulesPreferences.seenRevisions[activeRulesDocument] !== info.revision;
   return shell(`
     <section class="page-intro rules-intro">
       <div><p class="eyebrow">${isHyogo ? "WRO HYOGO" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${driveBased ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
@@ -1674,6 +1902,13 @@ function rulesView() {
       <button type="button" data-action="select-rule-document" data-rule-document="general" class="${isGeneral ? "active" : ""}">Google翻訳版-General-Rules</button>
       <button type="button" data-action="select-rule-document" data-rule-document="hyogo" class="${isHyogo ? "active" : ""}">兵庫予選会 補足・ローカルルール</button>
     </nav>
+    ${updated ? `<aside class="rule-update-notice"><strong>このルール資料は更新されています</strong><span>資料版 ${info.revision}。内容を確認したら通知を消せます。</span><button data-action="ack-rule-update">確認済みにする</button></aside>` : ""}
+    <section class="rule-tools card" aria-label="PDFページ操作">
+      <div class="rule-page-controls"><label>ページ<input type="number" min="1" max="${info.pages}" value="${currentPage}" data-rule-page-input inputmode="numeric" /></label><span>/ ${info.pages}</span><button class="primary" data-action="open-rule-page">ページを開く・記憶</button><button class="secondary" data-action="toggle-rule-favorite">${favorites.includes(currentPage) ? "★ お気に入り解除" : "☆ お気に入り"}</button></div>
+      <div class="rule-shortcuts"><strong>よく見るページ</strong>${info.shortcuts.map(([page, label]) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}：${label}</button>`).join("")}</div>
+      ${favorites.length ? `<div class="rule-shortcuts favorites"><strong>お気に入り</strong>${favorites.map((page) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}ページ</button>`).join("")}</div>` : ""}
+      <details class="rule-summary"><summary>重要事項だけ確認</summary><ul>${info.summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></details>
+    </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
       <div class="rules-frame-host" data-rules-frame-host><div class="pdf-loading" role="status"><span></span>PDFを読み込んでいます…</div></div>
@@ -1748,6 +1983,11 @@ function linksView() {
           <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Assist 公開URL QRコード" loading="lazy" decoding="async" />
           <span><strong>RoboMission Assist</strong><small>${PUBLIC_APP_URL}</small></span>
         </a>
+      </article>
+      <article class="link-section card system-health">
+        <h2>アプリ動作情報</h2>
+        <dl><div><dt>通信</dt><dd>${online ? "オンライン" : "オフライン"}</dd></div><div><dt>画面描画</dt><dd>${lastModeRenderMs.toFixed(1)}ms</dd></div><div><dt>端末保存領域</dt><dd>${escapeHtml(storageSummary)}</dd></div><div><dt>未送信</dt><dd>${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件</dd></div></dl>
+        <button class="secondary" data-action="cleanup-runtime-cache">古い動画キャッシュを整理</button>
       </article>
       <article class="link-section card credits-section">
         <h2>ライセンス / クレジット</h2>
@@ -1937,6 +2177,34 @@ function parkRulesFrame() {
   rulesFrameParking.appendChild(persistentRulesFrame);
 }
 
+function disposeRulesFrame() {
+  if (persistentRulesFrame) {
+    persistentRulesFrame.src = "about:blank";
+    persistentRulesFrame.remove();
+  }
+  persistentRulesFrame = null;
+  persistentRulesFrameDocument = null;
+  persistentRulesFrameLoaded = false;
+}
+
+function loadRulesPreferences(): RulesPreferences {
+  const initial: RulesPreferences = { pages: { translated: 1, general: 1, hyogo: 1 }, favorites: { translated: [], general: [], hyogo: [] }, seenRevisions: {} };
+  try {
+    const saved = JSON.parse(localStorage.getItem(RULES_PREFERENCES_KEY) || "null");
+    if (!saved || typeof saved !== "object") return initial;
+    (Object.keys(initial.pages) as RulesDocument[]).forEach((document) => {
+      initial.pages[document] = Math.max(1, Math.min(RULE_DOCUMENT_INFO[document].pages, Number(saved.pages?.[document]) || 1));
+      initial.favorites[document] = Array.isArray(saved.favorites?.[document]) ? [...new Set(saved.favorites[document].map(Number).filter((page: number) => Number.isInteger(page) && page >= 1 && page <= RULE_DOCUMENT_INFO[document].pages))].slice(0, 8) : [];
+      if (typeof saved.seenRevisions?.[document] === "string") initial.seenRevisions[document] = saved.seenRevisions[document];
+    });
+    return initial;
+  } catch { return initial; }
+}
+
+function saveRulesPreferences() {
+  localStorage.setItem(RULES_PREFERENCES_KEY, JSON.stringify(rulesPreferences));
+}
+
 function attachRulesFrame() {
   const host = document.querySelector<HTMLElement>("[data-rules-frame-host]");
   if (!host) return;
@@ -1950,11 +2218,7 @@ function attachRulesFrame() {
   if (!frame) {
     const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     frame = document.createElement("iframe");
-    frame.src = activeRulesDocument === "hyogo"
-      ? HYOGO_LOCAL_RULES_PREVIEW_URL
-      : activeRulesDocument === "general"
-        ? GENERAL_TRANSLATED_RULES_PREVIEW_URL
-        : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+    frame.src = ruleFrameUrl(activeRulesDocument, rulesPreferences.pages[activeRulesDocument], useDriveViewer);
     frame.loading = "eager";
     frame.setAttribute("fetchpriority", "high");
     frame.allow = "fullscreen";
@@ -1974,6 +2238,12 @@ function attachRulesFrame() {
     loading?.remove();
   }, { once: true });
   host.appendChild(frame);
+}
+
+function ruleFrameUrl(document: RulesDocument, page: number, useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
+  const safePage = Math.max(1, Math.min(RULE_DOCUMENT_INFO[document].pages, Number(page) || 1));
+  const base = document === "hyogo" ? HYOGO_LOCAL_RULES_PREVIEW_URL : document === "general" ? GENERAL_TRANSLATED_RULES_PREVIEW_URL : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : RULES_PDF_URL;
+  return `${base}#page=${safePage}${document === "translated" && !useDriveViewer ? "&zoom=page-width" : ""}`;
 }
 
 function toggleScore(button: HTMLButtonElement) {
@@ -2016,6 +2286,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "edit-memo-photo") void editMemoPhoto(element);
   if (action === "delete-memo-photo") deleteMemoPhoto(element);
   if (action === "load-news") void loadHyogoNews();
+  if (action === "cleanup-runtime-cache") void cleanupRuntimeCache();
   if (action === "scroll-news-section") {
     const target = element.dataset.newsTarget;
     if (target === "news-event" || target === "news-app-updates") {
@@ -2034,6 +2305,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "close-record-video") closeRecordVideo();
   if (action === "remove-video") { selectedVideo = null; videoSelectionError = ""; render(); }
   if (action === "retry-video-upload") void retryPendingVideoUpload();
+  if (action === "retry-pending-saves") void retryPendingSaves(true);
   if (action === "camera-start") void startCameraRecording();
   if (action === "camera-stop") stopCameraRecording();
   if (action === "camera-expand") enterCameraFullscreen();
@@ -2047,6 +2319,25 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "timer-collapse") exitStopwatchFullscreen();
   if (action === "pdf-expand") enterPdfFullscreen();
   if (action === "pdf-collapse") exitPdfFullscreen();
+  if (action === "open-rule-page") {
+    const inputPage = Number(document.querySelector<HTMLInputElement>("[data-rule-page-input]")?.value || 1);
+    const requestedPage = Number(element.dataset.rulePage || inputPage);
+    const page = Math.max(1, Math.min(RULE_DOCUMENT_INFO[activeRulesDocument].pages, requestedPage));
+    rulesPreferences.pages[activeRulesDocument] = page;
+    saveRulesPreferences();
+    disposeRulesFrame();
+    render();
+  }
+  if (action === "toggle-rule-favorite") {
+    const page = Math.max(1, Math.min(RULE_DOCUMENT_INFO[activeRulesDocument].pages, Number(document.querySelector<HTMLInputElement>("[data-rule-page-input]")?.value || 1)));
+    const favorites = rulesPreferences.favorites[activeRulesDocument];
+    rulesPreferences.favorites[activeRulesDocument] = favorites.includes(page) ? favorites.filter((item) => item !== page) : [...favorites, page].sort((a, b) => a - b).slice(0, 8);
+    saveRulesPreferences(); render();
+  }
+  if (action === "ack-rule-update") {
+    rulesPreferences.seenRevisions[activeRulesDocument] = RULE_DOCUMENT_INFO[activeRulesDocument].revision;
+    saveRulesPreferences(); render();
+  }
   if (action === "select-rule-document") {
     const document = element.dataset.ruleDocument;
     if (document === "translated" || document === "general" || document === "hyogo") {
@@ -2211,9 +2502,11 @@ async function sendToSheet() {
   sheetStatus = "得点を保存中…"; render();
   const videoFile = selectedVideo;
   const preparedVideo = videoFile ? fileToStoredVideo(videoFile) : null;
+  const payload = resultPayload(targetAccount);
   try {
-    const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, resultPayload(targetAccount), new AbortController(), 15000);
-    if (!result.ok) throw new Error(result.message || "GASで保存できませんでした");
+    if (!online) throw new TypeError("offline");
+    const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, payload, new AbortController(), 15000);
+    if (!result.ok) throw new Error(`GAS:${result.message || "GASで保存できませんでした"}`);
     if (videoFile && preparedVideo && Number.isInteger(result.rowNumber) && result.recordedAt) {
       pendingVideoUpload = {
         file: videoFile,
@@ -2224,6 +2517,7 @@ async function sendToSheet() {
         status: "uploading",
         message: "得点を保存しました。動画をバックグラウンドで送信中…",
       };
+      if (localStorage.getItem(API_KEY_KEY)) void persistPendingVideoUpload(pendingVideoUpload);
     }
     resetStopwatch();
     selectedVideo = null;
@@ -2237,7 +2531,21 @@ async function sendToSheet() {
     if (pendingVideoUpload && preparedVideo) void uploadPendingVideo(preparedVideo);
     return;
   } catch (error) {
-    sheetStatus = `送信できませんでした。${communicationError(error)}`;
+    if (isRetryableCommunicationError(error)) {
+      queueScoreSubmission(payload, error, videoFile);
+      resetStopwatch();
+      selectedVideo = null;
+      videoSelectionError = "";
+      state = makeInitialState();
+      saveState();
+      pendingRequestId = createRequestId();
+      sheetStatus = "";
+      systemNotice = "通信できないため端末に保存しました。通信復帰後に自動再送します。";
+      location.hash = "#/score";
+      render();
+      return;
+    }
+    sheetStatus = `送信できませんでした。${String(error instanceof Error ? error.message.replace(/^GAS:/, "") : "保存エラー")}`;
   } finally {
     sheetSending = false;
   }
@@ -2263,6 +2571,7 @@ async function uploadPendingVideo(preparedVideo?: Promise<StoredVideo>) {
     }, new AbortController(), 90000);
     if (!result.ok) throw new Error(result.message || "動画を保存できませんでした");
     pendingVideoUpload = null;
+    await clearPersistedPendingVideo();
     systemNotice = "動画の保存が完了しました。";
     render();
     window.setTimeout(() => { systemNotice = ""; render(); }, 4000);
@@ -2357,6 +2666,8 @@ async function loginAccount(fromSwitch = false) {
       const routeChanged = location.hash !== "#/admin";
       location.hash = "#/admin";
       render();
+      void restorePendingVideoUpload();
+      void retryPendingSaves();
       if (!routeChanged) { void loadRecords(); void loadManagedAccounts(); }
       return;
     }
@@ -2385,6 +2696,8 @@ async function loginAccount(fromSwitch = false) {
     state = loadState();
     location.hash = "#/score";
     render();
+    void restorePendingVideoUpload();
+    void retryPendingSaves();
   } catch (error) {
     accountError = error instanceof Error ? error.message : "APIキーを確認できませんでした。";
     render();
@@ -2483,6 +2796,64 @@ async function loadManagedAccounts(shouldRender = true) {
     accountManagementStatus = `読み込めませんでした。${communicationError(error)}`;
   }
   if (shouldRender) render();
+}
+
+function isRetryableCommunicationError(error: unknown) {
+  return !String(error instanceof Error ? error.message : error).startsWith("GAS:");
+}
+
+function queueScoreSubmission(payload: ReturnType<typeof resultPayload>, error: unknown, videoFile: File | null) {
+  if (!pendingScoreSubmissions.some((item) => item.id === payload.requestId)) {
+    pendingScoreSubmissions.push({ id: payload.requestId, payload, createdAt: new Date().toISOString(), lastError: communicationError(error) });
+  }
+  if (videoFile) {
+    pendingScoreVideoFiles.set(payload.requestId, videoFile);
+    if (localStorage.getItem(API_KEY_KEY)) void persistQueuedScoreVideo(payload.requestId, videoFile);
+  }
+  savePendingScoreSubmissions();
+}
+
+async function retryPendingSaves(manual = false) {
+  if (pendingVideoUpload) {
+    if (pendingVideoUpload.status === "failed" && online) await retryPendingVideoUpload();
+    if (manual && pendingVideoUpload) { systemNotice = "先に未送信の動画を再送しています。"; render(); }
+    return;
+  }
+  if (!online || sheetSending || !pendingScoreSubmissions.length) {
+    if (manual && !online) { systemNotice = "オフラインのため再送できません。"; render(); }
+    return;
+  }
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint) return;
+  systemNotice = `未送信の採点結果${pendingScoreSubmissions.length}件を再送中…`;
+  render();
+  for (const queued of [...pendingScoreSubmissions]) {
+    try {
+      const result = await postJson<{ ok?: boolean; message?: string; rowNumber?: number; recordedAt?: string }>(endpoint, queued.payload, new AbortController(), 20000);
+      if (!result.ok) throw new Error(`GAS:${result.message || "保存できませんでした"}`);
+      pendingScoreSubmissions = pendingScoreSubmissions.filter((item) => item.id !== queued.id);
+      savePendingScoreSubmissions();
+      const videoFile = pendingScoreVideoFiles.get(queued.id) || await restoreQueuedScoreVideo(queued.id);
+      if (videoFile && Number.isInteger(result.rowNumber) && result.recordedAt) {
+        pendingScoreVideoFiles.delete(queued.id);
+        await clearQueuedScoreVideo(queued.id);
+        pendingVideoUpload = { file: videoFile, apiKey: String(queued.payload.apiKey || activeApiKey || ""), account: String(queued.payload.account || ""), rowNumber: result.rowNumber!, recordedAt: result.recordedAt, status: "uploading", message: "得点を再送しました。動画を送信中…" };
+        if (localStorage.getItem(API_KEY_KEY)) await persistPendingVideoUpload(pendingVideoUpload);
+        await uploadPendingVideo();
+        if (pendingVideoUpload) return;
+      }
+    } catch (error) {
+      queued.lastError = communicationError(error);
+      savePendingScoreSubmissions();
+      systemNotice = String(error instanceof Error ? error.message.replace(/^GAS:/, "") : "再送できませんでした");
+      render();
+      return;
+    }
+  }
+  systemNotice = "未送信の採点結果をすべて保存しました。";
+  if (location.hash === "#/records") void loadRecords(false);
+  render();
+  window.setTimeout(() => { if (!pendingScoreSubmissions.length && !pendingVideoUpload) { systemNotice = ""; render(); } }, 4000);
 }
 
 async function saveManagedAccount(accountId?: string) {
@@ -2849,6 +3220,115 @@ async function postJson<T>(endpoint: string, payload: unknown, controller = new 
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+function pendingVideoCacheUrl(kind: "upload" | "score", id = "current") {
+  return new URL(`${import.meta.env.BASE_URL}__pending_${kind}_video__/${encodeURIComponent(id)}`, location.origin).toString();
+}
+
+async function persistPendingVideoUpload(upload: PendingVideoUpload) {
+  if (!("caches" in window)) return;
+  try {
+    const cache = await caches.open(PENDING_VIDEO_CACHE_NAME);
+    await cache.put(pendingVideoCacheUrl("upload"), new Response(upload.file, { headers: {
+      "content-type": upload.file.type, "x-video-name": encodeURIComponent(upload.file.name), "x-account": upload.account,
+      "x-row": String(upload.rowNumber), "x-recorded-at": encodeURIComponent(upload.recordedAt),
+    } }));
+  } catch { /* 容量不足時は画面を閉じる前の警告で保護する */ }
+}
+
+async function restorePendingVideoUpload() {
+  if (!("caches" in window) || pendingVideoUpload || !activeApiKey) return;
+  try {
+    const response = await (await caches.open(PENDING_VIDEO_CACHE_NAME)).match(pendingVideoCacheUrl("upload"));
+    if (!response) return;
+    const blob = await response.blob();
+    const account = response.headers.get("x-account") || "";
+    const rowNumber = Number(response.headers.get("x-row"));
+    const recordedAt = decodeURIComponent(response.headers.get("x-recorded-at") || "");
+    if (!blob.type.startsWith("video/") || !account || !Number.isInteger(rowNumber) || !recordedAt) { await clearPersistedPendingVideo(); return; }
+    if (activeAccount !== "ADMIN" && activeAccount !== account) {
+      systemNotice = "別のアカウントに未送信動画があります。保存したアカウントへ切り替えると再送できます。";
+      render();
+      return;
+    }
+    const name = decodeURIComponent(response.headers.get("x-video-name") || "record-video");
+    pendingVideoUpload = { file: new File([blob], name, { type: blob.type }), apiKey: activeApiKey, account, rowNumber, recordedAt, status: "failed", message: "前回未完了だった動画があります。再送してください。" };
+    render();
+    if (online) void retryPendingVideoUpload();
+  } catch { /* キャッシュ非対応端末 */ }
+}
+
+async function clearPersistedPendingVideo() {
+  if (!("caches" in window)) return;
+  try { await (await caches.open(PENDING_VIDEO_CACHE_NAME)).delete(pendingVideoCacheUrl("upload")); } catch { /* noop */ }
+}
+
+async function persistQueuedScoreVideo(id: string, file: File) {
+  if (!("caches" in window)) return;
+  try {
+    const cache = await caches.open(PENDING_VIDEO_CACHE_NAME);
+    await cache.put(pendingVideoCacheUrl("score", id), new Response(file, { headers: { "content-type": file.type, "x-video-name": encodeURIComponent(file.name) } }));
+  } catch { /* 容量不足時は現在のタブ内だけで保持 */ }
+}
+
+async function restoreQueuedScoreVideo(id: string) {
+  if (!("caches" in window)) return null;
+  try {
+    const response = await (await caches.open(PENDING_VIDEO_CACHE_NAME)).match(pendingVideoCacheUrl("score", id));
+    if (!response) return null;
+    const blob = await response.blob();
+    return new File([blob], decodeURIComponent(response.headers.get("x-video-name") || "record-video"), { type: blob.type });
+  } catch { return null; }
+}
+
+async function clearQueuedScoreVideo(id: string) {
+  if (!("caches" in window)) return;
+  try { await (await caches.open(PENDING_VIDEO_CACHE_NAME)).delete(pendingVideoCacheUrl("score", id)); } catch { /* noop */ }
+}
+
+function loadPendingScoreSubmissions(): PendingScoreSubmission[] {
+  const read = (storage: Storage) => {
+    try {
+      const value = JSON.parse(storage.getItem(PENDING_SCORE_KEY) || "[]");
+      return Array.isArray(value) ? value.filter((item) => item && typeof item.id === "string" && item.payload && typeof item.payload === "object").slice(0, 10) : [];
+    } catch { return []; }
+  };
+  const merged = [...read(localStorage), ...read(sessionStorage)];
+  return merged.filter((item, index) => merged.findIndex((other) => other.id === item.id) === index);
+}
+
+function savePendingScoreSubmissions() {
+  const target = localStorage.getItem(API_KEY_KEY) ? localStorage : sessionStorage;
+  const other = target === localStorage ? sessionStorage : localStorage;
+  target.setItem(PENDING_SCORE_KEY, JSON.stringify(pendingScoreSubmissions.slice(0, 10)));
+  other.removeItem(PENDING_SCORE_KEY);
+}
+
+function hasUnsavedTransfers() {
+  return sheetSending || videoRecordingStatus !== "idle" || Boolean(pendingVideoUpload) || pendingScoreSubmissions.length > 0;
+}
+
+async function checkStorageCapacity() {
+  if (!navigator.storage?.estimate) { storageSummary = "端末情報なし"; return; }
+  try {
+    const estimate = await navigator.storage.estimate();
+    const usage = estimate.usage || 0;
+    const quota = estimate.quota || 0;
+    const percent = quota ? Math.round(usage / quota * 100) : 0;
+    storageSummary = quota ? `${formatFileSize(usage)} / ${formatFileSize(quota)}（${percent}%）` : formatFileSize(usage);
+    if (percent >= 85) { systemNotice = "端末の保存容量が少なくなっています。不要な動画やブラウザデータを整理してください。"; render(); }
+  } catch { storageSummary = "確認できません"; }
+}
+
+async function cleanupRuntimeCache() {
+  try {
+    await clearRecordVideoCache();
+    if (navigator.storage?.persist) await navigator.storage.persist();
+    systemNotice = "再生済み動画の一時キャッシュを整理しました。未送信データは保持しています。";
+    await checkStorageCapacity();
+  } catch { systemNotice = "キャッシュを整理できませんでした。"; }
+  render();
 }
 
 function sanitizeNews(value: unknown): NewsItem[] {
