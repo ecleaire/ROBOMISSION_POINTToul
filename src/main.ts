@@ -161,8 +161,6 @@ interface PendingScoreSubmission {
 }
 
 interface RulesPreferences {
-  pages: Record<RulesDocument, number>;
-  favorites: Record<RulesDocument, number[]>;
   seenRevisions: Partial<Record<RulesDocument, string>>;
 }
 
@@ -195,10 +193,10 @@ const NEWS_CACHE_KEY = "robomission-hyogo-news-v1";
 const HYOGO_EVENT_URL = "https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/";
 const HYOGO_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}`;
 const HYOGO_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}&output=embed`;
-const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string; pages: number; shortcuts: Array<[number, string]>; summary: string[] }> = {
-  translated: { revision: "2026-07-18", pages: 16, shortcuts: [[1, "表紙"], [8, "判定例"], [15, "採点表"]], summary: ["最大230点。チェックなしは0点として扱います。", "訪問者40点、赤い塔30点、黄色い塔50点、遺物60点、汚れ20点、ボーナス30点。", "完全に入る判定や接触の有無は、判定写真と大会審判の判断を優先します。"] },
-  general: { revision: "2026-07-16", pages: 31, shortcuts: [[1, "表紙"], [2, "目次"], [6, "ロボット規定"]], summary: ["世界大会共通の大会運営・競技進行に関する資料です。", "国内大会や予選会では、主催者が示す補足・ローカルルールも併せて確認します。"] },
-  hyogo: { revision: "2026-07-16", pages: 11, shortcuts: [[1, "表紙"], [2, "共通補足"], [5, "競技別ルール"]], summary: ["兵庫予選会で適用される補足・ローカルルールです。", "世界大会ルールと異なる記載がある場合は、予選会主催者の最新案内を確認します。"] },
+const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
+  translated: { revision: "2026-07-18" },
+  general: { revision: "2026-07-16" },
+  hyogo: { revision: "2026-07-16" },
 };
 const FALLBACK_HYOGO_NEWS: NewsItem[] = [
   { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
@@ -207,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.2", updatedAt: "2026.07.18", title: "ルール画面を整理", description: "ページ番号・ページ記憶・お気に入り・よく見るページ・重要事項の補助パネルを削除し、PDF閲覧へ操作を絞りました。" },
   { version: "1.6.1", updatedAt: "2026.07.18", title: "公開版の動作・UIを再点検", description: "PC・スマホ・iPad縦横で全モードを再確認し、Google Drive PDFではページ指定を記憶機能として明確化しました。" },
   { version: "1.6.0", updatedAt: "2026.07.18", title: "練習分析・保存復旧・メモ編集を強化", description: "未送信の自動再送、得点推移、記録比較、複数選択できるコート編集、PDFお気に入り・要点・更新通知、端末動作情報を追加しました。" },
-  { version: "1.5.3", updatedAt: "2026.07.18", title: "ルールPDF表示を高速・軽量化", description: "iPadのPDF取得経路を短縮し、同時に保持するPDFビューアを1つに制限。PDFの分割読み込みも安定化しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -1889,8 +1887,6 @@ function rulesView() {
     : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
   const driveBased = isHyogo || isGeneral || useDriveViewer;
   const info = RULE_DOCUMENT_INFO[activeRulesDocument];
-  const currentPage = Math.max(1, Math.min(info.pages, rulesPreferences.pages[activeRulesDocument] || 1));
-  const favorites = rulesPreferences.favorites[activeRulesDocument];
   const updated = rulesPreferences.seenRevisions[activeRulesDocument] !== info.revision;
   return shell(`
     <section class="page-intro rules-intro">
@@ -1903,13 +1899,6 @@ function rulesView() {
       <button type="button" data-action="select-rule-document" data-rule-document="hyogo" class="${isHyogo ? "active" : ""}">兵庫予選会 補足・ローカルルール</button>
     </nav>
     ${updated ? `<aside class="rule-update-notice"><strong>このルール資料は更新されています</strong><span>資料版 ${info.revision}。内容を確認したら通知を消せます。</span><button data-action="ack-rule-update">確認済みにする</button></aside>` : ""}
-    <section class="rule-tools card" aria-label="PDFページ操作">
-      <div class="rule-page-controls"><label>ページ<input type="number" min="1" max="${info.pages}" value="${currentPage}" data-rule-page-input inputmode="numeric" /></label><span>/ ${info.pages}</span><button class="primary" data-action="open-rule-page">${driveBased ? "ページを記憶" : "ページを開く・記憶"}</button><button class="secondary" data-action="toggle-rule-favorite">${favorites.includes(currentPage) ? "★ お気に入り解除" : "☆ お気に入り"}</button></div>
-      ${driveBased ? `<p class="rule-page-help">Google Drive PDFの移動は、下のビューア内でスクロールするかページ番号を操作してください。ここでは次回確認するページを記憶します。</p>` : ""}
-      <div class="rule-shortcuts"><strong>${driveBased ? "ページメモ" : "よく見るページ"}</strong>${info.shortcuts.map(([page, label]) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}：${label}</button>`).join("")}</div>
-      ${favorites.length ? `<div class="rule-shortcuts favorites"><strong>お気に入り</strong>${favorites.map((page) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}ページ</button>`).join("")}</div>` : ""}
-      <details class="rule-summary"><summary>重要事項だけ確認</summary><ul>${info.summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></details>
-    </section>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
       <div class="rules-frame-host" data-rules-frame-host><div class="pdf-loading" role="status"><span></span>PDFを読み込んでいます…</div></div>
@@ -2189,13 +2178,11 @@ function disposeRulesFrame() {
 }
 
 function loadRulesPreferences(): RulesPreferences {
-  const initial: RulesPreferences = { pages: { translated: 1, general: 1, hyogo: 1 }, favorites: { translated: [], general: [], hyogo: [] }, seenRevisions: {} };
+  const initial: RulesPreferences = { seenRevisions: {} };
   try {
     const saved = JSON.parse(localStorage.getItem(RULES_PREFERENCES_KEY) || "null");
     if (!saved || typeof saved !== "object") return initial;
-    (Object.keys(initial.pages) as RulesDocument[]).forEach((document) => {
-      initial.pages[document] = Math.max(1, Math.min(RULE_DOCUMENT_INFO[document].pages, Number(saved.pages?.[document]) || 1));
-      initial.favorites[document] = Array.isArray(saved.favorites?.[document]) ? [...new Set(saved.favorites[document].map(Number).filter((page: number) => Number.isInteger(page) && page >= 1 && page <= RULE_DOCUMENT_INFO[document].pages))].slice(0, 8) : [];
+    (["translated", "general", "hyogo"] as RulesDocument[]).forEach((document) => {
       if (typeof saved.seenRevisions?.[document] === "string") initial.seenRevisions[document] = saved.seenRevisions[document];
     });
     return initial;
@@ -2219,7 +2206,7 @@ function attachRulesFrame() {
   if (!frame) {
     const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     frame = document.createElement("iframe");
-    frame.src = ruleFrameUrl(activeRulesDocument, rulesPreferences.pages[activeRulesDocument], useDriveViewer);
+    frame.src = ruleFrameUrl(activeRulesDocument, useDriveViewer);
     frame.loading = "eager";
     frame.setAttribute("fetchpriority", "high");
     frame.allow = "fullscreen";
@@ -2241,10 +2228,9 @@ function attachRulesFrame() {
   host.appendChild(frame);
 }
 
-function ruleFrameUrl(document: RulesDocument, page: number, useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
-  const safePage = Math.max(1, Math.min(RULE_DOCUMENT_INFO[document].pages, Number(page) || 1));
+function ruleFrameUrl(document: RulesDocument, useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
   const base = document === "hyogo" ? HYOGO_LOCAL_RULES_PREVIEW_URL : document === "general" ? GENERAL_TRANSLATED_RULES_PREVIEW_URL : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : RULES_PDF_URL;
-  return `${base}#page=${safePage}${document === "translated" && !useDriveViewer ? "&zoom=page-width" : ""}`;
+  return document === "translated" && !useDriveViewer ? `${base}#page=1&zoom=page-width` : base;
 }
 
 function toggleScore(button: HTMLButtonElement) {
@@ -2320,21 +2306,6 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "timer-collapse") exitStopwatchFullscreen();
   if (action === "pdf-expand") enterPdfFullscreen();
   if (action === "pdf-collapse") exitPdfFullscreen();
-  if (action === "open-rule-page") {
-    const inputPage = Number(document.querySelector<HTMLInputElement>("[data-rule-page-input]")?.value || 1);
-    const requestedPage = Number(element.dataset.rulePage || inputPage);
-    const page = Math.max(1, Math.min(RULE_DOCUMENT_INFO[activeRulesDocument].pages, requestedPage));
-    rulesPreferences.pages[activeRulesDocument] = page;
-    saveRulesPreferences();
-    disposeRulesFrame();
-    render();
-  }
-  if (action === "toggle-rule-favorite") {
-    const page = Math.max(1, Math.min(RULE_DOCUMENT_INFO[activeRulesDocument].pages, Number(document.querySelector<HTMLInputElement>("[data-rule-page-input]")?.value || 1)));
-    const favorites = rulesPreferences.favorites[activeRulesDocument];
-    rulesPreferences.favorites[activeRulesDocument] = favorites.includes(page) ? favorites.filter((item) => item !== page) : [...favorites, page].sort((a, b) => a - b).slice(0, 8);
-    saveRulesPreferences(); render();
-  }
   if (action === "ack-rule-update") {
     rulesPreferences.seenRevisions[activeRulesDocument] = RULE_DOCUMENT_INFO[activeRulesDocument].revision;
     saveRulesPreferences(); render();
