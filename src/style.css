@@ -257,6 +257,7 @@ body.stopwatch-mode { overflow: hidden; }
 .rule-update-notice button { min-height: 44px; padding: 7px 13px; border: 1px solid #c9821c; border-radius: 8px; color: #784500; background: white; font-weight: 900; }
 .rule-tools { margin-bottom: 12px; padding: 14px; display: grid; gap: 10px; }
 .rule-page-controls, .rule-shortcuts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rule-page-help { margin: 2px 0 0; padding: 9px 11px; border-radius: 8px; color: #49677c; background: #edf6fb; font-size: .86rem; font-weight: 700; line-height: 1.55; }
 .rule-page-controls label { display: flex; align-items: center; gap: 6px; font-weight: 900; }
 .rule-page-controls input { width: 76px; min-height: 44px; padding: 7px; border: 1px solid #8eb7d1; border-radius: 8px; text-align: center; }
 .rule-page-controls button, .rule-shortcuts button { min-height: 44px; padding: 7px 12px; border: 1px solid #8bbbd9; border-radius: 8px; color: #135d91; background: #eff8fe; font-weight: 900; }

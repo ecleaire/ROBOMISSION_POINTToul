@@ -207,9 +207,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.1", updatedAt: "2026.07.18", title: "公開版の動作・UIを再点検", description: "PC・スマホ・iPad縦横で全モードを再確認し、Google Drive PDFではページ指定を記憶機能として明確化しました。" },
   { version: "1.6.0", updatedAt: "2026.07.18", title: "練習分析・保存復旧・メモ編集を強化", description: "未送信の自動再送、得点推移、記録比較、複数選択できるコート編集、PDFお気に入り・要点・更新通知、端末動作情報を追加しました。" },
   { version: "1.5.3", updatedAt: "2026.07.18", title: "ルールPDF表示を高速・軽量化", description: "iPadのPDF取得経路を短縮し、同時に保持するPDFビューアを1つに制限。PDFの分割読み込みも安定化しました。" },
-  { version: "1.5.2", updatedAt: "2026.07.17", title: "全画面UIを再点検・表示を改善", description: "PC・iPad縦横・スマホ縦で全モードを確認し、採点下部のはみ出し、タップ領域、スマホの文字サイズを改善しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -1904,8 +1904,9 @@ function rulesView() {
     </nav>
     ${updated ? `<aside class="rule-update-notice"><strong>このルール資料は更新されています</strong><span>資料版 ${info.revision}。内容を確認したら通知を消せます。</span><button data-action="ack-rule-update">確認済みにする</button></aside>` : ""}
     <section class="rule-tools card" aria-label="PDFページ操作">
-      <div class="rule-page-controls"><label>ページ<input type="number" min="1" max="${info.pages}" value="${currentPage}" data-rule-page-input inputmode="numeric" /></label><span>/ ${info.pages}</span><button class="primary" data-action="open-rule-page">ページを開く・記憶</button><button class="secondary" data-action="toggle-rule-favorite">${favorites.includes(currentPage) ? "★ お気に入り解除" : "☆ お気に入り"}</button></div>
-      <div class="rule-shortcuts"><strong>よく見るページ</strong>${info.shortcuts.map(([page, label]) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}：${label}</button>`).join("")}</div>
+      <div class="rule-page-controls"><label>ページ<input type="number" min="1" max="${info.pages}" value="${currentPage}" data-rule-page-input inputmode="numeric" /></label><span>/ ${info.pages}</span><button class="primary" data-action="open-rule-page">${driveBased ? "ページを記憶" : "ページを開く・記憶"}</button><button class="secondary" data-action="toggle-rule-favorite">${favorites.includes(currentPage) ? "★ お気に入り解除" : "☆ お気に入り"}</button></div>
+      ${driveBased ? `<p class="rule-page-help">Google Drive PDFの移動は、下のビューア内でスクロールするかページ番号を操作してください。ここでは次回確認するページを記憶します。</p>` : ""}
+      <div class="rule-shortcuts"><strong>${driveBased ? "ページメモ" : "よく見るページ"}</strong>${info.shortcuts.map(([page, label]) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}：${label}</button>`).join("")}</div>
       ${favorites.length ? `<div class="rule-shortcuts favorites"><strong>お気に入り</strong>${favorites.map((page) => `<button data-action="open-rule-page" data-rule-page="${page}">${page}ページ</button>`).join("")}</div>` : ""}
       <details class="rule-summary"><summary>重要事項だけ確認</summary><ul>${info.summary.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></details>
     </section>
