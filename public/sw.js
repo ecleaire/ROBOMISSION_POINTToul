@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v34";
+const CACHE = "robomission-junior-v35";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
@@ -60,6 +60,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (new URL(event.request.url).origin !== self.location.origin) return;
+  // PDFビューアのRangeリクエストはブラウザへ直接渡し、必要部分だけを高速取得する。
+  if (event.request.headers.has("range")) return;
 
   event.respondWith((async () => {
     const url = new URL(event.request.url);

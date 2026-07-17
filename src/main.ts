@@ -149,8 +149,6 @@ interface PendingVideoUpload {
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
-const PUBLIC_RULES_PDF_URL = `${PUBLIC_APP_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
-const RULES_GOOGLE_VIEWER_URL = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(PUBLIC_RULES_PDF_URL)}`;
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/preview";
@@ -180,9 +178,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.5.3", updatedAt: "2026.07.18", title: "ルールPDF表示を高速・軽量化", description: "iPadのPDF取得経路を短縮し、同時に保持するPDFビューアを1つに制限。PDFの分割読み込みも安定化しました。" },
   { version: "1.5.2", updatedAt: "2026.07.17", title: "全画面UIを再点検・表示を改善", description: "PC・iPad縦横・スマホ縦で全モードを確認し、採点下部のはみ出し、タップ領域、スマホの文字サイズを改善しました。" },
   { version: "1.5.1", updatedAt: "2026.07.17", title: "全体点検・写真保存を安定化", description: "得点計算、GAS、PWA、PDF、各画面を再点検し、写真メモの保存失敗時にも既存写真を保持するよう改善しました。" },
-  { version: "1.5.0", updatedAt: "2026.07.17", title: "メモ写真撮影・書き込みを追加", description: "メモ1件につき最大5枚をアプリ内カメラで撮影し、写真ごとに図形・ペン・文字を書き込めるようにしました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -238,7 +236,9 @@ let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
 let rulesConnectionsPrepared = false;
 let activeRulesDocument: RulesDocument = "translated";
-const persistentRulesFrames: Partial<Record<RulesDocument, HTMLIFrameElement>> = {};
+let persistentRulesFrame: HTMLIFrameElement | null = null;
+let persistentRulesFrameDocument: RulesDocument | null = null;
+let persistentRulesFrameLoaded = false;
 let rulesFrameParking: HTMLDivElement | null = null;
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
@@ -1676,7 +1676,7 @@ function rulesView() {
     </nav>
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
-      <div class="rules-frame-host" data-rules-frame-host></div>
+      <div class="rules-frame-host" data-rules-frame-host><div class="pdf-loading" role="status"><span></span>PDFを読み込んでいます…</div></div>
       <p>${isHyogo ? `表示できない場合は、<a href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会PDFを別画面で開く</a>を押してください。` : isGeneral ? `表示できない場合は、<a href="${GENERAL_TRANSLATED_RULES_URL}" target="_blank" rel="noopener">General Rules PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
@@ -1927,21 +1927,26 @@ function prepareRulesConnections() {
 }
 
 function parkRulesFrame() {
-  const connectedFrames = Object.values(persistentRulesFrames).filter((frame) => frame?.isConnected);
-  if (!connectedFrames.length) return;
+  if (!persistentRulesFrame?.isConnected) return;
   if (!rulesFrameParking) {
     rulesFrameParking = document.createElement("div");
     rulesFrameParking.className = "rules-frame-parking";
     rulesFrameParking.setAttribute("aria-hidden", "true");
     document.body.appendChild(rulesFrameParking);
   }
-  connectedFrames.forEach((frame) => rulesFrameParking?.appendChild(frame!));
+  rulesFrameParking.appendChild(persistentRulesFrame);
 }
 
 function attachRulesFrame() {
   const host = document.querySelector<HTMLElement>("[data-rules-frame-host]");
   if (!host) return;
-  let frame = persistentRulesFrames[activeRulesDocument];
+  if (persistentRulesFrame && persistentRulesFrameDocument !== activeRulesDocument) {
+    persistentRulesFrame.src = "about:blank";
+    persistentRulesFrame.remove();
+    persistentRulesFrame = null;
+    persistentRulesFrameLoaded = false;
+  }
+  let frame = persistentRulesFrame;
   if (!frame) {
     const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     frame = document.createElement("iframe");
@@ -1949,8 +1954,9 @@ function attachRulesFrame() {
       ? HYOGO_LOCAL_RULES_PREVIEW_URL
       : activeRulesDocument === "general"
         ? GENERAL_TRANSLATED_RULES_PREVIEW_URL
-        : useDriveViewer ? RULES_GOOGLE_VIEWER_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
+        : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : `${RULES_PDF_URL}#page=1&zoom=page-width`;
     frame.loading = "eager";
+    frame.setAttribute("fetchpriority", "high");
     frame.allow = "fullscreen";
     frame.referrerPolicy = "no-referrer";
     frame.title = activeRulesDocument === "hyogo"
@@ -1958,8 +1964,15 @@ function attachRulesFrame() {
       : activeRulesDocument === "general"
         ? "Google翻訳版 General Rules PDF"
         : "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
-    persistentRulesFrames[activeRulesDocument] = frame;
+    persistentRulesFrame = frame;
+    persistentRulesFrameDocument = activeRulesDocument;
   }
+  const loading = host.querySelector<HTMLElement>(".pdf-loading");
+  if (persistentRulesFrameLoaded) loading?.remove();
+  else frame.addEventListener("load", () => {
+    persistentRulesFrameLoaded = true;
+    loading?.remove();
+  }, { once: true });
   host.appendChild(frame);
 }
 
