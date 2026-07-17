@@ -180,9 +180,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.5.2", updatedAt: "2026.07.17", title: "全画面UIを再点検・表示を改善", description: "PC・iPad縦横・スマホ縦で全モードを確認し、採点下部のはみ出し、タップ領域、スマホの文字サイズを改善しました。" },
   { version: "1.5.1", updatedAt: "2026.07.17", title: "全体点検・写真保存を安定化", description: "得点計算、GAS、PWA、PDF、各画面を再点検し、写真メモの保存失敗時にも既存写真を保持するよう改善しました。" },
   { version: "1.5.0", updatedAt: "2026.07.17", title: "メモ写真撮影・書き込みを追加", description: "メモ1件につき最大5枚をアプリ内カメラで撮影し、写真ごとに図形・ペン・文字を書き込めるようにしました。" },
-  { version: "1.4.4", updatedAt: "2026.07.17", title: "General Rules・採点コートメモを追加", description: "3種類のルールPDF切替と、採点中の文章メモへコート画像を書き込んで結果と一緒に保存する機能を追加しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {

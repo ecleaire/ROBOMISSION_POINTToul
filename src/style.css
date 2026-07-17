@@ -269,7 +269,7 @@ body.pdf-mode { overflow: hidden; }
 .news-card h2 { margin: 0; color: #173b57; font-size: 1.08rem; line-height: 1.55; overflow-wrap: anywhere; }
 .news-card time { color: #5e768a; font-size: .86rem; font-weight: 800; }
 .news-card a { min-height: 44px; margin-top: auto; display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 2px solid #1682c5; border-radius: 9px; color: #075587; background: #eef8ff; text-decoration: none; font-weight: 900; }
-.news-source-link { display: block; width: fit-content; max-width: 100%; margin: 18px auto 0; color: #126fae; font-weight: 900; text-align: center; }
+.news-source-link { width: fit-content; max-width: 100%; min-height: 44px; margin: 18px auto 0; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; color: #126fae; background: #eef8ff; font-weight: 900; text-align: center; text-decoration: none; }
 .news-jump { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 22px; }
 .news-jump button { min-width: 0; min-height: 50px; display: grid; place-items: center; padding: 9px 14px; border: 2px solid #1682c5; border-radius: 11px; color: #075587; background: #edf8ff; font: inherit; font-size: 1.02rem; font-weight: 900; }
 .news-jump button:hover { border-color: #075f9c; background: #dceffc; }
@@ -547,7 +547,7 @@ body.board-editor-mode { overflow: hidden; }
 .photo-label.zero { color: #91483d; background: #fff1ee; }
 .photo-label.info { color: var(--blue); background: var(--pale-blue); }
 code { overflow-wrap: anywhere; }
-@media (max-width: 1050px) and (min-width: 641px) {
+@media (max-width: 1200px) and (min-width: 641px) {
   .app-header { grid-template-columns: 1fr; }
   .mode-nav, .mode-nav:has([data-nav="admin"]) { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
   .mode-nav button { white-space: normal; line-height: 1.2; overflow-wrap: anywhere; }
@@ -556,15 +556,19 @@ code { overflow-wrap: anywhere; }
   .news-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-update-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 1050px) {
+@media (max-width: 1200px) {
   .account-switch { min-height: 44px; }
   .account-switch button { min-width: 56px; min-height: 44px; }
   .mode-nav button { min-height: 44px; }
   .sheet-row > * { min-height: 44px; }
   .sheet-section { min-height: 44px; }
-  .sheet-section button { min-height: 44px; padding-inline: 12px; }
+  .sheet-section button { min-height: 44px; padding-inline: 12px; font-size: .75rem; }
   .sheet-target select, .dirt-count-cell select, .time-selects select { min-height: 44px; }
   .record-delete { min-height: 44px; }
+}
+@media (max-width: 900px) and (min-width: 641px) {
+  .sheet-footer-tools { grid-template-columns: 1fr; }
+  .time-card { border-right: 0; border-bottom: 1px solid #cbd8e3; }
 }
 @media (max-width: 640px) {
   :root { font-size: 16px; }
@@ -575,10 +579,11 @@ code { overflow-wrap: anywhere; }
   .app-brand strong { font-size: 1rem; }
   .current-mode { display: none; }
   .account-switch { min-height: 44px; }
+  .account-switch, .account-switch button { font-size: .75rem; }
   .account-switch button { min-width: 56px; min-height: 44px; }
   .icon-button { min-width: 44px; }
   .mode-nav, .mode-nav:has([data-nav="admin"]) { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-  .mode-nav button { min-height: 44px; padding: 6px 2px; border-radius: 7px; font-size: .68rem; }
+  .mode-nav button { min-height: 44px; padding: 6px 2px; border-radius: 7px; font-size: .75rem; }
   main { padding: 12px 14px 60px; }
   .record-filters { padding: 12px; }
   .managed-account, .new-managed-account { grid-template-columns: 1fr; }
@@ -599,7 +604,8 @@ code { overflow-wrap: anywhere; }
   .board-toolbar { padding-block: 6px; }
   .board-toolbar > button { min-height: 44px; }
   .board-selection-bar span { display: none; }
-  .board-colors button { width: 32px; height: 32px; }
+  .board-colors button { width: 44px; height: 44px; }
+  .board-colors input { width: 44px; height: 44px; min-height: 44px; }
   .board-stage { width: min(100%, calc((100dvh - 255px) * 2.067)); max-height: 100%; }
   .board-editor > footer { justify-content: stretch; }
   .board-editor > footer button { width: 100%; }
@@ -628,16 +634,16 @@ code { overflow-wrap: anywhere; }
   .camera-recorder-actions button { width: 100%; min-width: 0; }
   .camera-preview-wrap .camera-expand, .camera-preview-wrap .camera-collapse, .camera-preview-wrap .camera-overlay-stop { width: auto; grid-column: auto; }
   .camera-recorder-info small { font-size: .66rem; }
-  .score-sheet { --sheet-columns: 31% 20% 20% 15% 14%; font-size: .7rem; }
+  .score-sheet { --sheet-columns: 31% 20% 20% 15% 14%; font-size: .76rem; }
   .score-sheet-title { font-size: .92rem; }
-  .score-sheet-guide { font-size: .62rem; }
+  .score-sheet-guide { font-size: .68rem; }
   .score-sheet-guide span { display: block; }
   .sheet-row > * { min-height: 44px; padding-inline: 3px; }
-  .sheet-columns > * { min-height: 42px; font-size: .62rem; }
+  .sheet-columns > * { min-height: 44px; font-size: .72rem; }
   .sheet-target { gap: 2px; }
-  .sheet-target > strong { font-size: .78rem; }
-  .sheet-target select { width: 60px; min-height: 44px; font-size: .68rem; }
-  .sheet-section > strong { font-size: .72rem; }
+  .sheet-target > strong { font-size: .82rem; }
+  .sheet-target select { width: 60px; min-height: 44px; font-size: .75rem; }
+  .sheet-section > strong { font-size: .78rem; }
   .sheet-section { min-height: 44px; }
   .sheet-section button { min-height: 44px; padding-inline: 12px; }
   .dirt-count-cell select { min-height: 44px; }
