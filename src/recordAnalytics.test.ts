@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeRecords, trendPolyline, type AnalyticsRecord } from "./recordAnalytics";
+import { analyzeRecords, selectAnalyticsRecords, trendPolyline, type AnalyticsRecord } from "./recordAnalytics";
 
 const record = (date: string, total: number, visitors = 0): AnalyticsRecord => ({
   recordedAt: date, total, visitors, redTowers: 0, yellowTowers: 0, artifacts: 0, dirt: 0, bonus: 0,
@@ -33,6 +33,16 @@ describe("record analytics", () => {
     expect(result.previous).toBeNull();
     expect(result.change).toBeNull();
     expect(result.missions[0].latest).toBe(10);
+  });
+
+  it("selects records by date range and latest count", () => {
+    const records = [
+      record("2026-01-01T10:00:00.000Z", 80),
+      record("2026-01-02T10:00:00.000Z", 120),
+      record("2026-01-03T10:00:00.000Z", 160),
+    ];
+    expect(selectAnalyticsRecords(records, { dateFrom: "2026-01-02", dateTo: "2026-01-02" }).map((item) => item.total)).toEqual([120]);
+    expect(selectAnalyticsRecords(records, { dateFrom: "2026-01-01", dateTo: "2026-01-03", limit: 2 }).map((item) => item.total)).toEqual([160, 120]);
   });
 
   it("creates bounded chart points", () => {

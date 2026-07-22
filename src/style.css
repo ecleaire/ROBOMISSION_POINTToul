@@ -553,6 +553,7 @@ body.board-editor-mode { overflow: hidden; }
 .analytics-controls > span { padding-bottom: 11px; color: #60798e; font-weight: 900; }
 .analytics-controls button { min-height: 42px; padding: 7px 12px; border: 1px solid #a9cce2; border-radius: 8px; color: var(--blue); background: white; font-weight: 900; }
 .analytics-controls button:disabled { opacity: .45; cursor: default; }
+.analytics-empty { margin: 12px 0 0; padding: 18px; border-radius: 9px; color: #60798e; background: #f4f8fb; text-align: center; font-weight: 900; }
 .analytics-summary { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .analytics-summary article { padding: 12px; border: 1px solid #c9deeb; border-radius: 10px; background: #f4f9fc; }
 .analytics-summary small, .analytics-summary strong { display: block; }

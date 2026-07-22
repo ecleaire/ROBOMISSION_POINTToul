@@ -29,6 +29,31 @@ export const MISSION_MAX_SCORES: Record<MissionKey, number> = {
   bonus: 30,
 };
 
+export interface AnalyticsSelectionOptions {
+  limit?: number | null;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+function dateBoundary(value: string | undefined, endOfDay = false) {
+  if (!value) return endOfDay ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  const time = new Date(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}`).getTime();
+  if (Number.isNaN(time)) return endOfDay ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  return time;
+}
+
+export function selectAnalyticsRecords(records: AnalyticsRecord[], options: AnalyticsSelectionOptions = {}) {
+  const from = dateBoundary(options.dateFrom);
+  const to = dateBoundary(options.dateTo, true);
+  const ordered = records
+    .filter((record) => {
+      const recordedAt = new Date(record.recordedAt).getTime();
+      return !Number.isNaN(recordedAt) && recordedAt >= from && recordedAt <= to;
+    })
+    .sort((left, right) => new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime());
+  return options.limit ? ordered.slice(0, options.limit) : ordered;
+}
+
 export function analyzeRecords(records: AnalyticsRecord[]) {
   const ordered = [...records].sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
   const latest = ordered.at(-1);
