@@ -20,19 +20,34 @@ export const MISSION_LABELS = {
 
 export type MissionKey = keyof typeof MISSION_LABELS;
 
+export const MISSION_MAX_SCORES: Record<MissionKey, number> = {
+  visitors: 40,
+  redTowers: 30,
+  yellowTowers: 50,
+  artifacts: 60,
+  dirt: 20,
+  bonus: 30,
+};
+
 export function analyzeRecords(records: AnalyticsRecord[]) {
   const ordered = [...records].sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
   const latest = ordered.at(-1);
   const previous = ordered.at(-2);
   const average = ordered.length ? ordered.reduce((sum, record) => sum + record.total, 0) / ordered.length : 0;
   const best = ordered.length ? Math.max(...ordered.map((record) => record.total)) : 0;
-  const missions = (Object.keys(MISSION_LABELS) as MissionKey[]).map((key) => ({
-    key,
-    label: MISSION_LABELS[key],
-    average: ordered.length ? ordered.reduce((sum, record) => sum + Number(record[key] || 0), 0) / ordered.length : 0,
-    latest: Number(latest?.[key] || 0),
-    previous: Number(previous?.[key] || 0),
-  }));
+  const missions = (Object.keys(MISSION_LABELS) as MissionKey[]).map((key) => {
+    const average = ordered.length ? ordered.reduce((sum, record) => sum + Number(record[key] || 0), 0) / ordered.length : 0;
+    const max = MISSION_MAX_SCORES[key];
+    return {
+      key,
+      label: MISSION_LABELS[key],
+      max,
+      average,
+      successRate: Math.max(0, Math.min(100, average / max * 100)),
+      latest: Number(latest?.[key] || 0),
+      previous: Number(previous?.[key] || 0),
+    };
+  });
   return {
     count: ordered.length,
     average,

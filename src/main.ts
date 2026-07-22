@@ -205,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.6", updatedAt: "2026.07.23", title: "ミッション別成功率を追加", description: "各ミッションの平均得点を成功率とゲージで表示し、全期間・直近5回・10回・20回から分析範囲を指定できるようにしました。" },
   { version: "1.6.5", updatedAt: "2026.07.22", title: "保存前の動画確認を追加", description: "アプリ内録画または端末から選択した動画を、採点画面と結果画面で保存前に再生して確認できるようにしました。" },
   { version: "1.6.4", updatedAt: "2026.07.22", title: "録画終了後の画面復帰を修正", description: "カメラ録画停止時は全画面用プレビューを先に元の位置へ戻し、スマホやiPadで全画面表示だけが残る問題を修正しました。" },
-  { version: "1.6.3", updatedAt: "2026.07.22", title: "カメラ内ストップウォッチを調整", description: "録画時間と競技時間を明確に分離し、向き変更時の録画時間表示、スマホ横画面の配置、操作ボタンの押しやすさを改善しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -254,6 +254,7 @@ let recordFilters: RecordFilters = {
   media: "all",
   sort: "newest",
 };
+let analyticsRange: "5" | "10" | "20" | "all" = "all";
 const adminRevealPressCounts = { rules: 0, links: 0 };
 let adminModeUnlocked = activeAccount === "ADMIN";
 let adminError = "";
@@ -1861,7 +1862,11 @@ function filteredPracticeRecords() {
 async function renderRecordAnalytics() {
   const host = document.querySelector<HTMLElement>("[data-record-analytics]");
   if (!host) return;
-  const records = filteredPracticeRecords();
+  const filteredRecords = filteredPracticeRecords();
+  const limit = analyticsRange === "all" ? null : Number(analyticsRange);
+  const records = limit
+    ? [...filteredRecords].sort((left, right) => new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime()).slice(0, limit)
+    : filteredRecords;
   if (!records.length) {
     host.innerHTML = "<p>分析できる記録がまだありません。</p>";
     return;
@@ -1871,10 +1876,14 @@ async function renderRecordAnalytics() {
   const analytics = analyzeRecords(records);
   const points = trendPolyline(analytics.trend.map((item) => item.total));
   const changeText = analytics.change === null ? "比較なし" : `${analytics.change >= 0 ? "+" : ""}${analytics.change}点`;
-  host.innerHTML = `<header><div><p class="eyebrow">PROGRESS</p><h2>練習の進み方</h2></div><span>${analytics.count}回を分析</span></header>
+  host.innerHTML = `<header><div><p class="eyebrow">PROGRESS</p><h2>練習の進み方</h2></div><label class="analytics-range">分析範囲<select data-analytics-range aria-label="練習の進み方の分析範囲"><option value="all" ${analyticsRange === "all" ? "selected" : ""}>全期間</option><option value="5" ${analyticsRange === "5" ? "selected" : ""}>直近5回</option><option value="10" ${analyticsRange === "10" ? "selected" : ""}>直近10回</option><option value="20" ${analyticsRange === "20" ? "selected" : ""}>直近20回</option></select></label><span>${analytics.count}回を分析</span></header>
     <div class="analytics-summary"><article><small>最新</small><strong>${analytics.latest}<span>点</span></strong></article><article><small>平均</small><strong>${Math.round(analytics.average)}<span>点</span></strong></article><article><small>最高</small><strong>${analytics.best}<span>点</span></strong></article><article class="${(analytics.change || 0) >= 0 ? "improved" : "declined"}"><small>前回比</small><strong>${changeText}</strong></article></div>
     <div class="analytics-grid"><section><h3>得点推移（直近12回）</h3><svg class="trend-chart" viewBox="0 0 600 180" role="img" aria-label="得点推移"><line x1="0" y1="90" x2="600" y2="90"></line><polyline points="${points}" /><g>${analytics.trend.map((item, index) => { const x = analytics.trend.length === 1 ? 300 : index * 600 / (analytics.trend.length - 1); const y = 160 - item.total / MAX_SCORE * 160; return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6"><title>${formatRecordDate(item.recordedAt)} ${item.total}点</title></circle>`; }).join("")}</g></svg></section>
-    <section><h3>ミッション別</h3><div class="mission-progress">${analytics.missions.map((mission) => { const delta = mission.latest - mission.previous; return `<div><span>${mission.label}</span><strong>${Math.round(mission.average)}点</strong><em class="${analytics.previous === null || delta >= 0 ? "up" : "down"}">${analytics.previous === null ? "比較なし" : `${delta >= 0 ? "+" : ""}${delta}`}</em></div>`; }).join("")}</div></section></div>`;
+    <section><h3>ミッション別成功率</h3><p class="mission-rate-help">記録内の平均得点 ÷ ミッション満点</p><div class="mission-progress">${analytics.missions.map((mission) => { const delta = mission.latest - mission.previous; const rate = Math.round(mission.successRate); return `<div><span>${mission.label}</span><strong>${Math.round(mission.average)} / ${mission.max}点</strong><em class="${analytics.previous === null || delta >= 0 ? "up" : "down"}">${analytics.previous === null ? "比較なし" : `${delta >= 0 ? "+" : ""}${delta}`}</em><div class="mission-rate-bar" role="img" aria-label="${mission.label} 成功率 ${rate}%"><i style="width:${rate}%"></i></div><b>${rate}%</b></div>`; }).join("")}</div></section></div>`;
+  host.querySelector<HTMLSelectElement>("[data-analytics-range]")?.addEventListener("change", (event) => {
+    analyticsRange = (event.currentTarget as HTMLSelectElement).value as typeof analyticsRange;
+    void renderRecordAnalytics();
+  });
 }
 
 function updateRecordFiltersFromInputs() {

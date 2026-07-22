@@ -12,6 +12,14 @@ describe("record analytics", () => {
     expect(result.best).toBe(120);
     expect(result.change).toBe(20);
     expect(result.missions[0].average).toBe(15);
+    expect(result.missions[0].successRate).toBe(37.5);
+    expect(result.missions[0].max).toBe(40);
+  });
+
+  it("calculates bounded mission success rates from average score", () => {
+    const result = analyzeRecords([record("2026-01-01", 230, 50)]);
+    expect(result.missions[0].successRate).toBe(100);
+    expect(result.missions[1].successRate).toBe(0);
   });
 
   it("limits the trend to the latest twelve records", () => {
