@@ -599,7 +599,7 @@ function cameraRecorderView() {
     </div>
     <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
     <div class="camera-recorder-actions">
-      ${cameraStream ? `<button type="button" class="camera-main-expand" data-action="camera-expand">⛶ カメラを全画面</button>` : ""}
+      ${cameraStream && !isRecording ? `<button type="button" class="camera-main-expand" data-action="camera-expand">⛶ カメラを全画面</button>` : ""}
       ${isRecording
         ? `<button type="button" class="camera-stop" data-action="camera-stop">■ 録画停止</button>`
         : `<button type="button" class="camera-start" data-action="camera-start" ${isBusy ? "disabled" : ""}>${videoRecordingStatus === "starting" ? "カメラ準備中…" : videoRecordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
