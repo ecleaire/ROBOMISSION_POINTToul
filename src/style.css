@@ -126,17 +126,33 @@ body.camera-mode { position: fixed; inset: 0; touch-action: none; }
 .camera-preview-wrap.camera-preview-expanded .camera-collapse,
 .camera-preview-wrap.camera-preview-expanded .camera-overlay-stop { display: block; }
 .camera-preview-wrap.camera-preview-expanded .recording-indicator { left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); bottom: auto; padding: 8px 12px; font-size: 1rem; }
-.camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { position: absolute; z-index: 3; top: 50%; left: 50%; width: min(92vw, 680px); padding: clamp(14px, 3vw, 28px); display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 2vh, 18px); transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.26); border-radius: 22px; color: white; background: rgba(0,0,0,.48); box-shadow: 0 14px 40px rgba(0,0,0,.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { position: absolute; z-index: 3; top: 50%; left: 50%; width: min(92vw, 680px); padding: clamp(14px, 3vw, 28px); display: flex; flex-direction: column; align-items: center; gap: clamp(7px, 1.5vh, 14px); transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.3); border-radius: 22px; color: white; background: rgba(0,0,0,.52); box-shadow: 0 14px 40px rgba(0,0,0,.28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.camera-stopwatch-head { width: 100%; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; }
 .camera-stopwatch-label { font-size: clamp(.8rem, 2.2vw, 1.1rem); font-weight: 900; letter-spacing: .12em; }
-.camera-stopwatch-overlay > strong { font: 300 clamp(3.2rem, 13vw, 8.5rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.07em; text-shadow: 0 3px 14px #000; }
+.camera-recording-clock { padding: 5px 9px; border: 1px solid rgba(255,125,116,.66); border-radius: 999px; color: #ffd7d4; background: rgba(139,20,20,.62); font-size: clamp(.72rem, 1.8vw, .9rem); font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.camera-recording-clock strong { margin-left: 4px; color: white; font: inherit; }
+.camera-stopwatch-overlay > strong { font: 300 clamp(3.2rem, 13vw, 8.5rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.07em; text-shadow: 0 3px 14px #000; white-space: nowrap; }
+.camera-stopwatch-state { margin-top: -3px; color: rgba(255,255,255,.82); font-size: clamp(.68rem, 1.8vw, .88rem); font-weight: 800; }
 .camera-stopwatch-controls { width: min(420px, 100%); display: flex; justify-content: space-between; gap: 20px; }
-.camera-stopwatch-controls button { width: clamp(76px, 15vw, 112px); height: clamp(76px, 15vw, 112px); min-width: 0; min-height: 0; padding: 9px; display: grid; place-content: center; border: 2px solid rgba(255,255,255,.3); border-radius: 50%; color: white; background: rgba(20,20,20,.72); font-size: clamp(1.2rem, 4vw, 1.8rem); }
+.camera-stopwatch-controls button { width: clamp(82px, 15vw, 112px); height: clamp(82px, 15vw, 112px); min-width: 0; min-height: 0; padding: 9px; display: grid; place-content: center; border: 2px solid rgba(255,255,255,.3); border-radius: 50%; color: white; background: rgba(20,20,20,.76); font-size: clamp(1.2rem, 4vw, 1.8rem); touch-action: manipulation; }
 .camera-stopwatch-controls button span { display: block; margin-top: 3px; font-size: clamp(.68rem, 2vw, .9rem); font-weight: 900; }
 .camera-stopwatch-controls .camera-timer-start, .camera-stopwatch-controls .camera-timer-resume { color: #67ef78; border-color: rgba(77,221,94,.6); background: rgba(8,65,17,.72); }
 .camera-stopwatch-controls .camera-timer-pause { color: #ffc45b; border-color: rgba(255,178,41,.6); background: rgba(76,47,4,.72); }
 .camera-stopwatch-controls .camera-timer-finish { color: #ff837e; border-color: rgba(255,98,93,.65); background: rgba(83,16,13,.76); }
 .camera-stopwatch-controls button:disabled { opacity: .42; }
-.camera-stopwatch-overlay > small { min-height: 1.4em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.camera-latest-lap { min-height: 1.4em; font-weight: 800; font-variant-numeric: tabular-nums; }
+@media (max-height: 520px) and (orientation: landscape) {
+  .camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { width: min(72vw, 620px); padding: 9px 16px; gap: 4px; border-radius: 16px; }
+  .camera-stopwatch-head { gap: 5px 10px; }
+  .camera-stopwatch-label { font-size: .72rem; }
+  .camera-recording-clock { padding: 3px 7px; font-size: .68rem; }
+  .camera-stopwatch-overlay > strong { font-size: clamp(2.8rem, 17vh, 5.4rem); }
+  .camera-stopwatch-state { font-size: .66rem; }
+  .camera-stopwatch-controls { width: min(330px, 100%); gap: 16px; }
+  .camera-stopwatch-controls button { width: clamp(62px, 17vh, 82px); height: clamp(62px, 17vh, 82px); font-size: 1.1rem; }
+  .camera-stopwatch-controls button span { font-size: .62rem; }
+  .camera-latest-lap { font-size: .7rem; }
+}
 body.stopwatch-mode { overflow: hidden; }
 .stopwatch.stopwatch-expanded, .stopwatch:fullscreen, .stopwatch:-webkit-full-screen { position: fixed; z-index: 200; inset: 0; width: 100vw; height: 100vh; padding: max(56px, env(safe-area-inset-top)) clamp(16px, 5vw, 70px) max(28px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); align-content: start; justify-items: center; gap: clamp(42px, 9vh, 90px); overflow: hidden; border: 0; color: white; background: #000; }
 .stopwatch.stopwatch-expanded .stopwatch-time, .stopwatch:fullscreen .stopwatch-time, .stopwatch:-webkit-full-screen .stopwatch-time { width: 100%; margin-top: clamp(22px, 8vh, 90px); text-align: center; }

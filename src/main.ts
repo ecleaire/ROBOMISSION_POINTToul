@@ -2,7 +2,7 @@ import "./style.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
-import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
 import {
   boardPoint,
@@ -205,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.3", updatedAt: "2026.07.22", title: "カメラ内ストップウォッチを調整", description: "録画時間と競技時間を明確に分離し、向き変更時の録画時間表示、スマホ横画面の配置、操作ボタンの押しやすさを改善しました。" },
   { version: "1.6.2", updatedAt: "2026.07.18", title: "ルール画面を整理", description: "ページ番号・ページ記憶・お気に入り・よく見るページ・重要事項の補助パネルを削除し、PDF閲覧へ操作を絞りました。" },
   { version: "1.6.1", updatedAt: "2026.07.18", title: "公開版の動作・UIを再点検", description: "PC・スマホ・iPad縦横で全モードを再確認し、Google Drive PDFではページ指定を記憶機能として明確化しました。" },
-  { version: "1.6.0", updatedAt: "2026.07.18", title: "練習分析・保存復旧・メモ編集を強化", description: "未送信の自動再送、得点推移、記録比較、複数選択できるコート編集、PDFお気に入り・要点・更新通知、端末動作情報を追加しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -587,7 +587,7 @@ function cameraRecorderView() {
     <div class="camera-preview-wrap">
       <video data-camera-preview muted playsinline></video>
       <span class="camera-placeholder">背面カメラ</span>
-      ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-video-recording-time>00:00</span></strong>` : ""}
+      ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-video-recording-time>${currentVideoRecordingTime()}</span></strong>` : ""}
       ${cameraStream ? `<button type="button" class="camera-expand" data-action="camera-expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
         <button type="button" class="camera-collapse" data-action="camera-collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
         ${isRecording ? `<div class="camera-stopwatch-overlay" data-camera-stopwatch-overlay>${cameraStopwatchContents()}</div>` : ""}
@@ -624,10 +624,15 @@ function cameraStopwatchContents() {
       ? `<button class="camera-timer-lap" data-action="timer-lap">⚑<span>ラップ</span></button><button class="camera-timer-pause" data-action="timer-pause">Ⅱ<span>停止</span></button>`
       : `<button class="camera-timer-finish" data-action="timer-finish">■<span>競技終了</span></button><button class="camera-timer-resume" data-action="timer-resume">▶<span>再開</span></button>`;
   const latestLap = stopwatchLaps.at(-1);
-  return `<span class="camera-stopwatch-label">競技ストップウォッチ</span>
-    <strong data-camera-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong>
+  const stopwatchState = stopwatchStatus === "running" ? "計測中" : stopwatchStatus === "paused" ? "一時停止" : "未開始";
+  return `<div class="camera-stopwatch-head">
+      <span class="camera-stopwatch-label">競技ストップウォッチ</span>
+      <span class="camera-recording-clock">● 録画時間 <strong data-video-recording-time>${currentVideoRecordingTime()}</strong></span>
+    </div>
+    <strong data-camera-stopwatch-display aria-label="競技時間 ${formatStopwatch(currentStopwatchElapsed())}">${formatStopwatch(currentStopwatchElapsed())}</strong>
+    <small class="camera-stopwatch-state">${stopwatchState}・録画時間とは別に計測</small>
     <div class="camera-stopwatch-controls">${controls}</div>
-    ${latestLap === undefined ? "" : `<small>ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
+    ${latestLap === undefined ? "" : `<small class="camera-latest-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
 }
 
 function sheetSection(id: string, title: string, action = "") {
@@ -887,10 +892,15 @@ function attachCameraPreview() {
 }
 
 function updateVideoRecordingTime() {
-  const display = document.querySelector<HTMLElement>("[data-video-recording-time]");
-  if (!display || videoRecordingStatus !== "recording") return;
-  const seconds = Math.max(0, Math.floor((Date.now() - videoRecordingStartedAt) / 1000));
-  display.textContent = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  if (videoRecordingStatus !== "recording") return;
+  const formatted = currentVideoRecordingTime();
+  document.querySelectorAll<HTMLElement>("[data-video-recording-time]").forEach((display) => {
+    display.textContent = formatted;
+  });
+}
+
+function currentVideoRecordingTime() {
+  return formatRecordingTime(videoRecordingStatus === "recording" ? Date.now() - videoRecordingStartedAt : 0);
 }
 
 function artifactColorSelect(index: number, color: ArtifactColor) {
