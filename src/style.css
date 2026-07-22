@@ -547,8 +547,12 @@ body.board-editor-mode { overflow: hidden; }
 .record-analytics > header { display: flex; justify-content: space-between; align-items: end; gap: 10px; }
 .record-analytics h2, .record-analytics h3 { margin: 0; }
 .record-analytics > header > span { color: #60798e; font-weight: 800; }
-.analytics-range { margin-left: auto; display: flex; align-items: center; gap: 7px; color: #52677a; font-size: .76rem; white-space: nowrap; }
-.analytics-range select { width: auto; min-height: 40px; margin: 0; padding: 6px 30px 6px 10px; color: var(--blue-dark); font-weight: 900; }
+.analytics-controls { margin-top: 12px; padding: 10px; display: grid; grid-template-columns: minmax(120px, .65fr) repeat(3, minmax(140px, 1fr)) auto auto; align-items: end; gap: 8px; border: 1px solid #c9deeb; border-radius: 10px; background: #f7fbfe; }
+.analytics-controls label { color: #52677a; font-size: .72rem; }
+.analytics-controls input, .analytics-controls select { min-height: 42px; margin-top: 4px; padding-block: 7px; color: var(--blue-dark); font-weight: 900; }
+.analytics-controls > span { padding-bottom: 11px; color: #60798e; font-weight: 900; }
+.analytics-controls button { min-height: 42px; padding: 7px 12px; border: 1px solid #a9cce2; border-radius: 8px; color: var(--blue); background: white; font-weight: 900; }
+.analytics-controls button:disabled { opacity: .45; cursor: default; }
 .analytics-summary { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .analytics-summary article { padding: 12px; border: 1px solid #c9deeb; border-radius: 10px; background: #f4f9fc; }
 .analytics-summary small, .analytics-summary strong { display: block; }
@@ -732,8 +736,9 @@ code { overflow-wrap: anywhere; }
   .record-filter-header { align-items: stretch; flex-direction: column; gap: 10px; }
   .analytics-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .record-analytics > header { align-items: stretch; flex-wrap: wrap; }
-  .analytics-range { width: 100%; margin-left: 0; justify-content: space-between; }
-  .analytics-range select { flex: 1; }
+  .analytics-controls { grid-template-columns: 1fr auto 1fr; }
+  .analytics-controls label:first-child, .analytics-controls label:nth-child(2), .analytics-controls button { grid-column: 1 / -1; }
+  .analytics-controls > span { align-self: end; }
   .analytics-grid { grid-template-columns: 1fr; }
   .record-missions dl { grid-template-columns: 1fr 1fr; }
   .system-health dl { grid-template-columns: 1fr 1fr; }
