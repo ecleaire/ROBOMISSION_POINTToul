@@ -205,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.4", updatedAt: "2026.07.22", title: "録画終了後の画面復帰を修正", description: "カメラ録画停止時は全画面用プレビューを先に元の位置へ戻し、スマホやiPadで全画面表示だけが残る問題を修正しました。" },
   { version: "1.6.3", updatedAt: "2026.07.22", title: "カメラ内ストップウォッチを調整", description: "録画時間と競技時間を明確に分離し、向き変更時の録画時間表示、スマホ横画面の配置、操作ボタンの押しやすさを改善しました。" },
   { version: "1.6.2", updatedAt: "2026.07.18", title: "ルール画面を整理", description: "ページ番号・ページ記憶・お気に入り・よく見るページ・重要事項の補助パネルを削除し、PDF閲覧へ操作を絞りました。" },
-  { version: "1.6.1", updatedAt: "2026.07.18", title: "公開版の動作・UIを再点検", description: "PC・スマホ・iPad縦横で全モードを再確認し、Google Drive PDFではページ指定を記憶機能として明確化しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -792,7 +792,7 @@ function discardVideoRecordingNow() {
 }
 
 function stopCameraStream() {
-  collapseCameraFullscreen();
+  exitCameraFullscreen();
   cameraStream?.getTracks().forEach((track) => track.stop());
   cameraStream = null;
   void releaseScreenWakeLock();
@@ -864,17 +864,19 @@ function collapseCameraFullscreen() {
 function exitCameraFullscreen() {
   const fullscreenDocument = document as FullscreenCapableDocument;
   const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
-  if (activeFullscreenElement() && document.body.classList.contains("camera-mode") && exit) {
+  const shouldExitNativeFullscreen = Boolean(activeFullscreenElement() && document.body.classList.contains("camera-mode") && exit);
+
+  if (shouldExitNativeFullscreen && exit) {
     try {
       const result = exit();
-      if (result instanceof Promise) void result.catch(() => undefined).finally(collapseCameraFullscreen);
-      else collapseCameraFullscreen();
+      if (result instanceof Promise) void result.catch(() => undefined);
     } catch {
-      collapseCameraFullscreen();
+      // CSS全画面の解除を続行する。
     }
-  } else {
-    collapseCameraFullscreen();
   }
+  // ネイティブ全画面の非同期完了を待たず、再描画より先にプレビューを戻す。
+  // 待つと録画停止時のrender()が先に走り、全画面要素だけ残る端末がある。
+  collapseCameraFullscreen();
 }
 
 function clearVideoRecordingTimers() {
