@@ -205,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.5", updatedAt: "2026.07.22", title: "保存前の動画確認を追加", description: "アプリ内録画または端末から選択した動画を、採点画面と結果画面で保存前に再生して確認できるようにしました。" },
   { version: "1.6.4", updatedAt: "2026.07.22", title: "録画終了後の画面復帰を修正", description: "カメラ録画停止時は全画面用プレビューを先に元の位置へ戻し、スマホやiPadで全画面表示だけが残る問題を修正しました。" },
   { version: "1.6.3", updatedAt: "2026.07.22", title: "カメラ内ストップウォッチを調整", description: "録画時間と競技時間を明確に分離し、向き変更時の録画時間表示、スマホ横画面の配置、操作ボタンの押しやすさを改善しました。" },
-  { version: "1.6.2", updatedAt: "2026.07.18", title: "ルール画面を整理", description: "ページ番号・ページ記憶・お気に入り・よく見るページ・重要事項の補助パネルを削除し、PDF閲覧へ操作を絞りました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -260,6 +260,7 @@ let adminError = "";
 let managedAccounts: ManagedAccount[] = [];
 let accountManagementStatus = "";
 let selectedVideo: File | null = null;
+let selectedVideoPreviewUrl = "";
 let videoSelectionError = "";
 let recordVideoModal: { url: string; name: string } | null = null;
 let rulesConnectionsPrepared = false;
@@ -661,9 +662,24 @@ function videoPickerView() {
   return `<section class="video-card">
     <div><strong>動画</strong><small>任意・25MB以下／本人と管理者だけが閲覧できます</small></div>
     <label class="video-select">動画を選択<input data-video-input type="file" accept="video/*" /></label>
-    ${selectedVideo ? `<div class="selected-video"><span>${escapeHtml(selectedVideo.name)}（${formatFileSize(selectedVideo.size)}）</span><button type="button" data-action="remove-video">取り消す</button></div>` : ""}
+    ${selectedVideoPreviewView()}
     ${videoSelectionError ? `<p class="video-error" role="alert">${escapeHtml(videoSelectionError)}</p>` : ""}
   </section>`;
+}
+
+function selectedVideoPreviewView() {
+  if (!selectedVideo || !selectedVideoPreviewUrl) return "";
+  return `<div class="selected-video">
+    <div class="selected-video-head"><span><strong>保存前の動画を確認</strong>${escapeHtml(selectedVideo.name)}（${formatFileSize(selectedVideo.size)}）</span><button type="button" data-action="remove-video">取り消す</button></div>
+    <video src="${selectedVideoPreviewUrl}" controls playsinline preload="metadata"></video>
+    <small>再生ボタンを押して、撮影内容を確認してから保存できます。</small>
+  </div>`;
+}
+
+function setSelectedVideo(file: File | null) {
+  if (selectedVideoPreviewUrl) URL.revokeObjectURL(selectedVideoPreviewUrl);
+  selectedVideo = file;
+  selectedVideoPreviewUrl = file ? URL.createObjectURL(file) : "";
 }
 
 function supportedRecordingMimeType() {
@@ -684,7 +700,7 @@ async function startCameraRecording() {
     return;
   }
   if (selectedVideo && !confirm("選択済みの動画を新しい録画へ置き換えますか？")) return;
-  selectedVideo = null;
+  setSelectedVideo(null);
   videoSelectionError = "";
   videoRecordingStatus = "starting";
   render();
@@ -772,7 +788,7 @@ function finalizeCameraRecording(mimeType: string) {
     } else {
       const extension = type.includes("mp4") ? "mp4" : "webm";
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      selectedVideo = new File([blob], `robomission_${stamp}.${extension}`, { type });
+      setSelectedVideo(new File([blob], `robomission_${stamp}.${extension}`, { type }));
       videoSelectionError = "";
     }
   }
@@ -959,7 +975,7 @@ function resultView() {
       <h1>採点結果</h1>
       <div class="result-meta"><span>競技時間 ${formatTime(state.timeSeconds)}</span></div>
       ${state.notes ? `<p class="result-notes"><strong>メモ</strong>${escapeHtml(state.notes)}</p>` : ""}
-      ${selectedVideo ? `<p class="result-video"><strong>動画</strong>${escapeHtml(selectedVideo.name)}（${formatFileSize(selectedVideo.size)}）</p>` : ""}
+      ${selectedVideoPreviewView()}
       <div class="final-score"><span>合計得点</span><strong>${totalScore(state)} <small>/ ${MAX_SCORE} 点</small></strong></div>
       <dl class="score-breakdown">
         ${resultRow("訪問者を案内する", sections.visitors, 40)}
@@ -2088,13 +2104,13 @@ function bindEvents() {
     videoSelectionError = "";
     if (!file) return;
     if (!file.type.startsWith("video/")) {
-      selectedVideo = null;
+      setSelectedVideo(null);
       videoSelectionError = "動画ファイルを選択してください。";
     } else if (file.size > MAX_VIDEO_BYTES) {
-      selectedVideo = null;
+      setSelectedVideo(null);
       videoSelectionError = "動画は25MB以下にしてください。";
     } else {
-      selectedVideo = file;
+      setSelectedVideo(file);
     }
     render();
   });
@@ -2302,7 +2318,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "delete-record") void deleteRecord(element);
   if (action === "play-record-video") void playRecordVideo(element);
   if (action === "close-record-video") closeRecordVideo();
-  if (action === "remove-video") { selectedVideo = null; videoSelectionError = ""; render(); }
+  if (action === "remove-video") { setSelectedVideo(null); videoSelectionError = ""; render(); }
   if (action === "retry-video-upload") void retryPendingVideoUpload();
   if (action === "retry-pending-saves") void retryPendingSaves(true);
   if (action === "camera-start") void startCameraRecording();
@@ -2329,8 +2345,8 @@ function handleAction(action: string, element: HTMLElement) {
       render();
     }
   }
-  if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); discardVideoRecordingNow(); selectedVideo = null; videoSelectionError = ""; state = makeInitialState(); saveState(); render(); }
-  if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); discardVideoRecordingNow(); selectedVideo = null; videoSelectionError = ""; state = makeInitialState(); saveState(); location.hash = "#/score"; }
+  if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); discardVideoRecordingNow(); setSelectedVideo(null); videoSelectionError = ""; state = makeInitialState(); saveState(); render(); }
+  if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); discardVideoRecordingNow(); setSelectedVideo(null); videoSelectionError = ""; state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
   if (action === "send-sheet") void sendToSheet();
 }
@@ -2504,7 +2520,7 @@ async function sendToSheet() {
       if (localStorage.getItem(API_KEY_KEY)) void persistPendingVideoUpload(pendingVideoUpload);
     }
     resetStopwatch();
-    selectedVideo = null;
+    setSelectedVideo(null);
     videoSelectionError = "";
     state = makeInitialState();
     saveState();
@@ -2518,7 +2534,7 @@ async function sendToSheet() {
     if (isRetryableCommunicationError(error)) {
       queueScoreSubmission(payload, error, videoFile);
       resetStopwatch();
-      selectedVideo = null;
+      setSelectedVideo(null);
       videoSelectionError = "";
       state = makeInitialState();
       saveState();

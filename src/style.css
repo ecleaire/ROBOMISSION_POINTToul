@@ -75,9 +75,13 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .video-card small { margin-top: 3px; color: #60798e; font-size: .72rem; }
 .video-select { min-height: 44px; display: grid; place-items: center; padding: 8px 16px; border: 2px solid #1488d1; border-radius: 9px; color: white; background: var(--blue); font-weight: 900; cursor: pointer; }
 .video-select input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.selected-video { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid #a9cee9; border-radius: 8px; background: white; }
-.selected-video span { min-width: 0; overflow-wrap: anywhere; font-size: .84rem; font-weight: 800; }
+.selected-video { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px; border: 1px solid #a9cee9; border-radius: 10px; background: white; }
+.selected-video-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.selected-video span { min-width: 0; overflow-wrap: anywhere; color: #52677a; font-size: .78rem; font-weight: 800; }
+.selected-video span strong { display: block; margin-bottom: 2px; color: var(--blue-dark); font-size: .95rem; }
 .selected-video button { min-height: 38px; flex: 0 0 auto; padding: 6px 10px; border: 1px solid #d8a49d; border-radius: 7px; color: #91483d; background: #fff5f3; font-weight: 800; }
+.selected-video video { width: 100%; max-height: min(52vh, 540px); border-radius: 8px; background: black; }
+.selected-video > small { color: #52677a; font-size: .72rem; font-weight: 700; }
 .video-error { grid-column: 1 / -1; margin: 0; color: #934f00; font-weight: 800; }
 .sheet-warning { margin: 0 0 8px; }
 .score-sheet { --sheet-columns: 31% 20% 20% 16% 13%; width: 100%; overflow: hidden; border: 1px solid #9fb7cb; border-radius: 4px; background: white; box-shadow: none; font-size: .9rem; }
@@ -681,6 +685,9 @@ code { overflow-wrap: anywhere; }
   .score-memo-card { padding: 10px 8px; }
   .video-card { grid-template-columns: 1fr; }
   .video-select { width: 100%; }
+  .selected-video-head { align-items: stretch; flex-direction: column; }
+  .selected-video-head button { width: 100%; }
+  .selected-video video { max-height: 48vh; }
   .stopwatch { min-height: 108px; padding: 9px; grid-template-columns: 1fr; justify-items: center; gap: 8px; }
   .stopwatch-time { text-align: center; }
   .stopwatch-time strong { font-size: clamp(2.25rem, 13vw, 3.2rem); }
