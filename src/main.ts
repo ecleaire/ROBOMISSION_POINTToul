@@ -184,6 +184,7 @@ const RULES_PREFERENCES_KEY = "robomission-rules-preferences-v1";
 const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v1";
 const MAX_CACHED_RECORD_VIDEOS = 3;
 const NATIONAL_EVENT_URL = "https://www.wroj.org/action/2026";
+const NATIONAL_FACILITY_URL = "https://www.sanbo.metro.tokyo.lg.jp/hamamatsucho/facilities/floor/02-05/";
 const NATIONAL_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("東京都立産業貿易センター浜松町館")}`;
 const NATIONAL_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("東京都立産業貿易センター浜松町館")}&output=embed`;
 const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
@@ -192,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.6.15", updatedAt: "2026.07.28", title: "全国大会の会場リンクと録画FPSを改善", description: "リンク・大会情報の全国大会カードに、東京都立産業貿易センター浜松町館の施設・フロア詳細ページを追加しました。アプリ内録画は60fpsを優先するようにしました。" },
   { version: "1.6.14", updatedAt: "2026.07.28", title: "大会情報の表示と更新履歴を改善", description: "開催日・時間が重ならない表示へ直し、WROホームページ欄にWRO兵庫を戻しました。古いアプリ更新内容も必要時に表示できます。" },
   { version: "1.6.13", updatedAt: "2026.07.28", title: "PDF再表示と写真ボタンを改善", description: "一度表示したアプリ内PDFを端末へ保存し、次回表示時に保存済みPDFから読み込めるようにしました。採点表の写真ボタンも大きくしました。" },
   { version: "1.6.12", updatedAt: "2026.07.28", title: "録画画質と動画再生表示を改善", description: "アプリ内録画を1080p優先・高ビットレートへ変更し、記録動画の再生時に右上へ競技ストップウォッチ時間を表示するようにしました。" },
@@ -715,7 +717,7 @@ async function startCameraRecording() {
         facingMode: { ideal: "environment" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
-        frameRate: { ideal: 30, max: 30 },
+        frameRate: { ideal: 60, max: 60 },
       },
       audio: false,
     });
@@ -2013,7 +2015,7 @@ function nationalEventCard() {
       <section><h3>■ 開催日・時間</h3><dl class="event-schedule">
         ${[["2026年8月22日（土）", "14:00〜18:00"], ["2026年8月23日（日）", "9:00〜17:00"], ["タイムスケジュール詳細", "後日発表"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
       </dl></section>
-      <section class="event-venue"><h3>■ 場所</h3><strong>東京都立産業貿易センター浜松町館</strong><address>東京都港区海岸1-7-1</address><p>全国大会 会場</p><div class="event-mini-map"><iframe src="${NATIONAL_MAP_EMBED_URL}" title="東京都立産業貿易センター浜松町館 周辺地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><a class="map-button" href="${NATIONAL_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
+      <section class="event-venue"><h3>■ 場所</h3><strong>東京都立産業貿易センター浜松町館</strong><address>東京都港区海岸1-7-1</address><p>全国大会 会場</p><div class="event-mini-map"><iframe src="${NATIONAL_MAP_EMBED_URL}" title="東京都立産業貿易センター浜松町館 周辺地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><div class="event-venue-actions"><a class="map-button" href="${NATIONAL_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a><a class="facility-button" href="${NATIONAL_FACILITY_URL}" target="_blank" rel="noopener noreferrer">施設・フロア詳細 ↗</a></div></section>
     </div>
   </article>`;
 }

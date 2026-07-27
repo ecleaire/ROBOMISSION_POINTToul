@@ -356,7 +356,10 @@ body.pdf-mode { overflow: hidden; }
 .event-venue p { color: #5e768a; line-height: 1.6; }
 .event-mini-map { width: 100%; aspect-ratio: 16 / 9; margin-top: 12px; overflow: hidden; border: 1px solid #a9c5d7; border-radius: 10px; background: #dfeaf1; }
 .event-mini-map iframe { display: block; width: 100%; height: 100%; border: 0; }
-.map-button { min-height: 48px; display: inline-grid; place-items: center; margin-top: 10px; padding: 9px 16px; border-radius: 9px; color: white; background: #147a69; text-decoration: none; font-weight: 900; }
+.event-venue-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.map-button, .facility-button { min-height: 48px; display: inline-grid; place-items: center; padding: 9px 16px; border-radius: 9px; color: white; text-decoration: none; font-weight: 900; }
+.map-button { background: #147a69; }
+.facility-button { background: #1769aa; }
 .resource-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 10px; }
 .resource-links a { min-height: 78px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 2px solid #75b4dc; border-radius: 12px; color: #183b56; background: #eaf4fc; text-decoration: none; box-shadow: 0 4px 10px rgba(18, 97, 166, .13); }
 .resource-links a:hover { border-color: #1488d1; background: #dceefa; box-shadow: 0 6px 15px rgba(18, 97, 166, .2); }
