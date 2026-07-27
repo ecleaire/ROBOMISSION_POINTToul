@@ -205,9 +205,9 @@ const FALLBACK_HYOGO_NEWS: NewsItem[] = [
 ];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.9", updatedAt: "2026.07.27", title: "全画面操作を安定化", description: "全画面ボタンが反応しない場合でもアプリ内全画面表示を維持し、ダブルタップによる意図しないズームを抑制しました。" },
   { version: "1.6.8", updatedAt: "2026.07.23", title: "分析範囲を安定化", description: "日付条件を実際の集計へ反映し、該当0件でも指定解除できるようにしました。" },
   { version: "1.6.7", updatedAt: "2026.07.23", title: "分析日付の指定を追加", description: "練習の進み方を開始日・終了日で期間指定できるほか、「その日だけ」から1日を選んで分析できるようにしました。" },
-  { version: "1.6.6", updatedAt: "2026.07.23", title: "ミッション別成功率を追加", description: "各ミッションの平均得点を成功率とゲージで表示し、回数と開始日・終了日を組み合わせて分析範囲を指定できるようにしました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -239,6 +239,7 @@ const RECORD_PAGE_SIZE = 50;
 let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
 let recordsAutoRefreshTimer: number | null = null;
+let nativeFullscreenTarget: "camera" | "pdf" | "stopwatch" | null = null;
 let newsItems = loadNewsCache();
 let newsStatus = "保存済みのお知らせを表示しています。";
 let newsLoading = false;
@@ -338,6 +339,9 @@ document.addEventListener("pointerdown", (event) => {
   event.preventDefault();
   enterCameraFullscreen(true);
 }, { capture: true });
+document.addEventListener("dblclick", (event) => {
+  event.preventDefault();
+}, { capture: true });
 window.addEventListener("keydown", (event) => {
   if (photoCaptureStream && event.key === "Escape") { closeMemoPhotoCapture(); return; }
   if (boardEditor && event.key === "Escape") { closeCourtBoard(); return; }
@@ -348,17 +352,19 @@ window.addEventListener("keydown", (event) => {
   render();
 });
 function handleFullscreenChange() {
-  if (activeFullscreenElement()) return;
-  if (document.body.classList.contains("pdf-mode")) {
+  const target = nativeFullscreenTarget;
+  if (activeFullscreenElement() || !target) return;
+  nativeFullscreenTarget = null;
+  if (target === "pdf" && document.body.classList.contains("pdf-mode")) {
     document.body.classList.remove("pdf-mode");
     document.querySelector<HTMLElement>(".pdf-viewer")?.classList.remove("pdf-viewer-expanded");
   }
-  if (document.body.classList.contains("stopwatch-mode")) {
+  if (target === "stopwatch" && document.body.classList.contains("stopwatch-mode")) {
     document.body.classList.remove("stopwatch-mode");
     document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
     refreshStopwatch();
   }
-  if (document.body.classList.contains("camera-mode")) {
+  if (target === "camera" && document.body.classList.contains("camera-mode")) {
     collapseCameraFullscreen();
   }
 }
@@ -844,15 +850,29 @@ function activeFullscreenElement() {
   return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
 }
 
-function requestElementFullscreen(element: FullscreenCapableElement) {
+function requestElementFullscreen(element: FullscreenCapableElement, target: typeof nativeFullscreenTarget) {
   if (activeFullscreenElement()) return;
   try {
     const request = element.requestFullscreen?.bind(element) ?? element.webkitRequestFullscreen?.bind(element);
     if (!request) return;
+    nativeFullscreenTarget = target;
     const result = request();
-    if (result instanceof Promise) void result.catch(() => undefined);
+    if (result instanceof Promise) void result.catch(() => { nativeFullscreenTarget = null; });
   } catch {
+    nativeFullscreenTarget = null;
     // iOSなど全画面API非対応端末ではCSS全面表示を維持する。
+  }
+}
+
+function exitNativeFullscreen() {
+  const fullscreenDocument = document as FullscreenCapableDocument;
+  const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
+  if (!activeFullscreenElement() || !exit) return null;
+  nativeFullscreenTarget = null;
+  try {
+    return exit();
+  } catch {
+    return null;
   }
 }
 
@@ -866,7 +886,7 @@ function enterCameraFullscreen(requestNativeFullscreen = true) {
   }
   preview.classList.add("camera-preview-expanded");
   document.body.classList.add("camera-mode");
-  if (requestNativeFullscreen) requestElementFullscreen(preview);
+  if (requestNativeFullscreen) requestElementFullscreen(preview, "camera");
 }
 
 function collapseCameraFullscreen() {
@@ -881,18 +901,8 @@ function collapseCameraFullscreen() {
 }
 
 function exitCameraFullscreen() {
-  const fullscreenDocument = document as FullscreenCapableDocument;
-  const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
-  const shouldExitNativeFullscreen = Boolean(activeFullscreenElement() && document.body.classList.contains("camera-mode") && exit);
-
-  if (shouldExitNativeFullscreen && exit) {
-    try {
-      const result = exit();
-      if (result instanceof Promise) void result.catch(() => undefined);
-    } catch {
-      // CSS全画面の解除を続行する。
-    }
-  }
+  const result = document.body.classList.contains("camera-mode") ? exitNativeFullscreen() : null;
+  if (result instanceof Promise) void result.catch(() => undefined);
   // ネイティブ全画面の非同期完了を待たず、再描画より先にプレビューを戻す。
   // 待つと録画停止時のrender()が先に走り、全画面要素だけ残る端末がある。
   collapseCameraFullscreen();
@@ -2402,9 +2412,7 @@ function enterPdfFullscreen() {
   if (!viewer) return;
   viewer.classList.add("pdf-viewer-expanded");
   document.body.classList.add("pdf-mode");
-  if (!document.fullscreenElement && viewer.requestFullscreen) {
-    void viewer.requestFullscreen().catch(() => undefined);
-  }
+  requestElementFullscreen(viewer, "pdf");
 }
 
 function exitPdfFullscreen() {
@@ -2412,7 +2420,8 @@ function exitPdfFullscreen() {
     document.body.classList.remove("pdf-mode");
     document.querySelector<HTMLElement>(".pdf-viewer")?.classList.remove("pdf-viewer-expanded");
   };
-  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined).finally(collapse);
+  const result = exitNativeFullscreen();
+  if (result instanceof Promise) void result.catch(() => undefined).finally(collapse);
   else collapse();
 }
 
@@ -2437,7 +2446,7 @@ function enterStopwatchFullscreen() {
   if (!stopwatch) return;
   stopwatch?.classList.add("stopwatch-expanded");
   document.body.classList.add("stopwatch-mode");
-  if (!document.fullscreenElement) void stopwatch.requestFullscreen().catch(() => undefined);
+  requestElementFullscreen(stopwatch, "stopwatch");
   refreshStopwatch();
 }
 
@@ -2447,8 +2456,9 @@ function exitStopwatchFullscreen() {
     document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
     refreshStopwatch();
   };
-  if (document.fullscreenElement) {
-    void document.exitFullscreen().catch(() => undefined).finally(collapse);
+  const result = exitNativeFullscreen();
+  if (result instanceof Promise) {
+    void result.catch(() => undefined).finally(collapse);
   } else {
     collapse();
   }
@@ -2481,8 +2491,9 @@ function finishStopwatch() {
     document.body.classList.remove("stopwatch-mode");
     render();
   };
-  if (document.fullscreenElement) {
-    void document.exitFullscreen().catch(() => undefined).finally(finish);
+  const result = exitNativeFullscreen();
+  if (result instanceof Promise) {
+    void result.catch(() => undefined).finally(finish);
   } else {
     finish();
   }
@@ -2515,7 +2526,8 @@ function resetStopwatch() {
   stopStopwatchUpdates();
   document.body.classList.remove("stopwatch-mode");
   document.querySelector<HTMLElement>(".stopwatch")?.classList.remove("stopwatch-expanded");
-  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  const result = exitNativeFullscreen();
+  if (result instanceof Promise) void result.catch(() => undefined);
 }
 
 function startStopwatchUpdates() {

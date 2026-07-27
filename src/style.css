@@ -6,14 +6,15 @@
   --green: #157c52; --pale-green: #e8f7ef; --orange: #a85d00; --pale-orange: #fff3df;
   --border: #d5e1ec; --shadow: 0 2px 8px rgba(22, 55, 84, .07);
 }
-html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { touch-action: pan-x pan-y pinch-zoom; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: #f4f8fc; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #f4f8fc; touch-action: pan-x pan-y pinch-zoom; }
 .save-state-strip { max-width: 1600px; margin: 0 auto 6px; min-height: 38px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; padding: 6px 12px; border: 1px solid #c8ddeb; border-radius: 9px; color: #526d80; background: white; font-size: .75rem; }
 .save-state-strip .online { color: var(--green); }
 .save-state-strip .offline { color: #a05043; }
-button, input, select, textarea { max-width: 100%; min-width: 0; font: inherit; }
+button, input, select, textarea { max-width: 100%; min-width: 0; font: inherit; touch-action: manipulation; }
 button { cursor: pointer; overflow-wrap: anywhere; white-space: normal; }
+label, a, summary, .score-table, .score-table *, .record-card, .memo-card, .judging-card, .stopwatch, .pdf-viewer { touch-action: manipulation; }
 p, strong, span, label, h1, h2, h3 { overflow-wrap: anywhere; }
 main > *, .card, section, article, header, nav, dl, div { min-width: 0; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #f0a33b; outline-offset: 2px; }
