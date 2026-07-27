@@ -193,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.6.19", updatedAt: "2026.07.28", title: "全体表示の安定性を改善", description: "下部バー、通知、記録カード、分析表示、メモ写真カードなどで文字やボタンが重なりにくいよう、共通レイアウトと余白を調整しました。" },
   { version: "1.6.18", updatedAt: "2026.07.28", title: "全体の不自然な改行を抑制", description: "アプリ全体のボタン・見出し・短いラベルが1文字ずつ不自然に改行されないよう、共通の文字折り返し設定を見直しました。" },
   { version: "1.6.17", updatedAt: "2026.07.28", title: "下部の合計得点ボタンを修正", description: "採点画面下部の「結果を見る」「合計得点」が不自然に改行されないよう、ボタン幅と折り返しを調整しました。" },
   { version: "1.6.16", updatedAt: "2026.07.28", title: "採点表の文字と数字を拡大", description: "採点モードのミッション名、条件、得点、小計、合計得点を大きくし、PC・タブレットでも読みやすい表示にしました。" },
