@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v45";
+const CACHE = "robomission-junior-v46";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
