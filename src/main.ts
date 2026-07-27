@@ -191,11 +191,14 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   translatedGeneral: { revision: "2026-07-16" },
   japanFinalGeneral: { revision: "2026-07-28" },
 };
-// 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.14", updatedAt: "2026.07.28", title: "大会情報の表示と更新履歴を改善", description: "開催日・時間が重ならない表示へ直し、WROホームページ欄にWRO兵庫を戻しました。古いアプリ更新内容も必要時に表示できます。" },
   { version: "1.6.13", updatedAt: "2026.07.28", title: "PDF再表示と写真ボタンを改善", description: "一度表示したアプリ内PDFを端末へ保存し、次回表示時に保存済みPDFから読み込めるようにしました。採点表の写真ボタンも大きくしました。" },
   { version: "1.6.12", updatedAt: "2026.07.28", title: "録画画質と動画再生表示を改善", description: "アプリ内録画を1080p優先・高ビットレートへ変更し、記録動画の再生時に右上へ競技ストップウォッチ時間を表示するようにしました。" },
   { version: "1.6.11", updatedAt: "2026.07.28", title: "大会情報を全国大会仕様へ変更", description: "補足・ローカルルールPDFを削除し、大会情報を全国大会の日程・会場表示へ切り替えました。" },
+  { version: "1.6.10", updatedAt: "2026.07.27", title: "全画面解除を安定化", description: "解除ボタンを押した瞬間にアプリ内全画面を戻し、ストップウォッチ・カメラ・PDFで解除操作を取りこぼしにくくしました。" },
+  { version: "1.6.9", updatedAt: "2026.07.27", title: "全画面操作を安定化", description: "全画面ボタンが反応しない場合でもアプリ内全画面表示を維持し、ダブルタップによる意図しないズームを抑制しました。" },
+  { version: "1.6.8", updatedAt: "2026.07.23", title: "分析範囲を安定化", description: "日付条件を実際の集計へ反映し、該当0件でも指定解除できるようにしました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -259,6 +262,7 @@ let persistentRulesFrameDocument: RulesDocument | null = null;
 let persistentRulesFrameLoaded = false;
 let rulesFrameParking: HTMLDivElement | null = null;
 const rulesPdfCacheTasks = new Set<string>();
+let showAllAppUpdates = false;
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
@@ -1984,6 +1988,7 @@ function rulesView() {
 }
 
 function newsView() {
+  const appUpdates = showAllAppUpdates ? APP_UPDATES : APP_UPDATES.slice(0, 3);
   return shell(`
     <section class="page-intro news-intro">
       <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>全国大会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
@@ -1995,7 +2000,8 @@ function newsView() {
     </section>
     <section class="news-section" id="news-app-updates" aria-labelledby="news-app-updates-title">
       <div class="news-section-heading"><div><p class="eyebrow">CHANGELOG</p><h2 id="news-app-updates-title">アプリ更新内容</h2></div><span>現在 v${APP_VERSION}</span></div>
-      <div class="app-update-list">${APP_UPDATES.map((update) => `<article class="app-update-card card"><div><span class="update-version">v${update.version}</span><time datetime="${update.updatedAt.replaceAll(".", "-")}">${update.updatedAt}</time></div><h3>${escapeHtml(update.title)}</h3><p>${escapeHtml(update.description)}</p></article>`).join("")}</div>
+      <div class="app-update-toolbar"><span>${showAllAppUpdates ? `全${APP_UPDATES.length}件を表示中` : "最新3件を表示中"}</span><button type="button" data-action="toggle-app-updates">${showAllAppUpdates ? "最新3件だけ表示" : "過去の更新も表示"}</button></div>
+      <div class="app-update-list">${appUpdates.map((update) => `<article class="app-update-card card"><div><span class="update-version">v${update.version}</span><time datetime="${update.updatedAt.replaceAll(".", "-")}">${update.updatedAt}</time></div><h3>${escapeHtml(update.title)}</h3><p>${escapeHtml(update.description)}</p></article>`).join("")}</div>
     </section>
   `, { title: "ニュース" });
 }
@@ -2024,6 +2030,7 @@ function linksView() {
       ${linkGroup("WRO ホームページ", [
         ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
         ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
+        ["WRO兵庫", "兵庫地区の大会・予選会情報", "https://wro-hyogo.jp/"],
       ])}
       ${linkGroup("ルール関連", [
         ["Google翻訳", "RoboMission JuniorルールのGoogle翻訳版", GOOGLE_TRANSLATED_RULES_URL],
@@ -2372,6 +2379,7 @@ function handleAction(action: string, element: HTMLElement) {
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
+  if (action === "toggle-app-updates") { showAllAppUpdates = !showAllAppUpdates; render(); }
   if (action === "load-memo-data") void loadMemoData();
   if (action === "apply-record-filters") { updateRecordFiltersFromInputs(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
   if (action === "reset-record-filters") { resetRecordFilters(); recordVisibleCount = RECORD_PAGE_SIZE; render(); }
