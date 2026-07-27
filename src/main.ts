@@ -173,9 +173,9 @@ const ACCOUNT_KEY = "robomission-junior-account";
 const API_KEY_KEY = "robomission-junior-api-key";
 const ACCOUNT_STORAGE_MIGRATION_KEY = "robomission-account-storage-version";
 const ACCOUNT_STORAGE_VERSION = "2026-07-15-optional-save-v1";
-const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
-const VIDEO_RECORDING_BITRATE = 1_000_000;
+const VIDEO_RECORDING_BITRATE = 2_500_000;
 const RECORD_VIDEO_CACHE_NAME = "robomission-record-videos-v1";
 const PENDING_VIDEO_CACHE_NAME = "robomission-pending-video-v1";
 const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
@@ -192,9 +192,9 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
 };
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.12", updatedAt: "2026.07.28", title: "録画画質と動画再生表示を改善", description: "アプリ内録画を1080p優先・高ビットレートへ変更し、記録動画の再生時に右上へ競技ストップウォッチ時間を表示するようにしました。" },
   { version: "1.6.11", updatedAt: "2026.07.28", title: "大会情報を全国大会仕様へ変更", description: "補足・ローカルルールPDFを削除し、大会情報を全国大会の日程・会場表示へ切り替えました。" },
   { version: "1.6.10", updatedAt: "2026.07.27", title: "全画面解除を安定化", description: "解除ボタンを押した瞬間にアプリ内全画面を戻し、ストップウォッチ・カメラ・PDFで解除操作を取りこぼしにくくしました。" },
-  { version: "1.6.9", updatedAt: "2026.07.27", title: "全画面操作を安定化", description: "全画面ボタンが反応しない場合でもアプリ内全画面表示を維持し、ダブルタップによる意図しないズームを抑制しました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -250,7 +250,7 @@ let accountManagementStatus = "";
 let selectedVideo: File | null = null;
 let selectedVideoPreviewUrl = "";
 let videoSelectionError = "";
-let recordVideoModal: { url: string; name: string } | null = null;
+let recordVideoModal: { url: string; name: string; stopwatchTime: string } | null = null;
 let rulesConnectionsPrepared = false;
 let activeRulesDocument: RulesDocument = "translated";
 let persistentRulesFrame: HTMLIFrameElement | null = null;
@@ -593,7 +593,7 @@ function cameraRecorderView() {
         ${isRecording ? `<div class="camera-stopwatch-overlay" data-camera-stopwatch-overlay>${cameraStopwatchContents()}</div>` : ""}
         ${isRecording ? `<button type="button" class="camera-overlay-stop" data-action="camera-stop">■ 録画停止</button>` : ""}` : ""}
     </div>
-    <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・最長3分。録画中もストップウォッチを操作できます。</small></div>
+    <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・高画質1080p優先・最長3分。録画中もストップウォッチを操作できます。</small></div>
     <div class="camera-recorder-actions">
       ${cameraStream && !isRecording ? `<button type="button" class="camera-main-expand" data-action="camera-expand">⛶ カメラを全画面</button>` : ""}
       ${isRecording
@@ -659,7 +659,7 @@ function timePicker(value: number | null) {
 
 function videoPickerView() {
   return `<section class="video-card">
-    <div><strong>動画</strong><small>任意・25MB以下／本人と管理者だけが閲覧できます</small></div>
+    <div><strong>動画</strong><small>任意・45MB以下／本人と管理者だけが閲覧できます</small></div>
     <label class="video-select">動画を選択<input data-video-input type="file" accept="video/*" /></label>
     ${selectedVideoPreviewView()}
     ${videoSelectionError ? `<p class="video-error" role="alert">${escapeHtml(videoSelectionError)}</p>` : ""}
@@ -707,9 +707,9 @@ async function startCameraRecording() {
     cameraStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 24, max: 30 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
       audio: false,
     });
@@ -783,7 +783,7 @@ function finalizeCameraRecording(mimeType: string) {
     if (!blob.size) {
       videoSelectionError = "録画した動画を作成できませんでした。";
     } else if (blob.size > MAX_VIDEO_BYTES) {
-      videoSelectionError = "録画した動画が25MBを超えました。画質設定または録画時間を短くしてください。";
+      videoSelectionError = "録画した動画が45MBを超えました。録画時間を短くしてください。";
     } else {
       const extension = type.includes("mp4") ? "mp4" : "webm";
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -2091,7 +2091,10 @@ function recordVideoModalView() {
   return `<div class="modal-backdrop" data-action="close-record-video">
     <section class="record-video-modal card" role="dialog" aria-modal="true" aria-label="記録動画">
       <header><div><strong>記録動画</strong><small>${escapeHtml(recordVideoModal.name)}</small></div><button class="icon-button" data-action="close-record-video" aria-label="閉じる">×</button></header>
-      <video src="${recordVideoModal.url}" controls playsinline preload="metadata"></video>
+      <div class="record-video-player">
+        <span class="record-video-stopwatch">⏱ ${escapeHtml(recordVideoModal.stopwatchTime)}</span>
+        <video src="${recordVideoModal.url}" controls playsinline preload="metadata"></video>
+      </div>
     </section>
   </div>`;
 }
@@ -2145,7 +2148,7 @@ function bindEvents() {
       videoSelectionError = "動画ファイルを選択してください。";
     } else if (file.size > MAX_VIDEO_BYTES) {
       setSelectedVideo(null);
-      videoSelectionError = "動画は25MB以下にしてください。";
+      videoSelectionError = "動画は45MB以下にしてください。";
     } else {
       setSelectedVideo(file);
     }
@@ -3130,13 +3133,15 @@ async function playRecordVideo(element: HTMLElement) {
   const recordedAt = element.dataset.recordedAt ?? "";
   const recordAccount = element.dataset.recordAccount ?? activeAccount ?? "";
   if (!endpoint || !activeAccount || !activeApiKey || !Number.isInteger(rowNumber) || rowNumber < 2) return;
+  const record = practiceRecords.find((item) => item.account === recordAccount && item.rowNumber === rowNumber && item.recordedAt === recordedAt);
+  const stopwatchTime = formatTime(record?.timeSeconds ?? null);
   recordsStatus = "動画を読み込み中…";
   render();
   try {
     const cachedVideo = await getCachedRecordVideo(recordAccount, rowNumber, recordedAt);
     if (cachedVideo) {
       closeRecordVideo(false);
-      recordVideoModal = { url: URL.createObjectURL(cachedVideo.blob), name: cachedVideo.name };
+      recordVideoModal = { url: URL.createObjectURL(cachedVideo.blob), name: cachedVideo.name, stopwatchTime };
       recordsStatus = "端末に保存した動画を表示中";
       render();
       return;
@@ -3151,7 +3156,7 @@ async function playRecordVideo(element: HTMLElement) {
     }
     closeRecordVideo(false);
     const blob = base64ToBlob(video.base64, video.type);
-    recordVideoModal = { url: URL.createObjectURL(blob), name: video.name };
+    recordVideoModal = { url: URL.createObjectURL(blob), name: video.name, stopwatchTime };
     void cacheRecordVideo(recordAccount, rowNumber, recordedAt, video.name, blob);
     recordsStatus = `${practiceRecords.length}件の記録を表示中`;
   } catch (error) {

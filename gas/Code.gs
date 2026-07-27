@@ -21,7 +21,7 @@ const ACCOUNT_NAME_PROPERTIES = Object.freeze({
 const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
 const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
 const MEMO_PHOTO_FOLDER_PROPERTY = "MEMO_PHOTO_FOLDER_ID";
-const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_MEMO_PHOTO_BYTES = 4 * 1024 * 1024;
 const HYOGO_NEWS_FEED_URL = "https://wro-hyogo.jp/feed/";
 const HYOGO_NEWS_CACHE_KEY = "hyogo-news-v1";
@@ -520,7 +520,7 @@ function saveVideo_(account, video) {
   const encoded = String(video && video.base64 || "");
   if (type.indexOf("video/") !== 0) throw new Error("動画ファイルを選択してください。");
   if (!Number.isFinite(declaredSize) || declaredSize <= 0 || declaredSize > MAX_VIDEO_BYTES) {
-    throw new Error("動画は25MB以下にしてください。");
+    throw new Error("動画は45MB以下にしてください。");
   }
   if (!encoded || encoded.length > Math.ceil(MAX_VIDEO_BYTES * 4 / 3) + 8) {
     throw new Error("動画データが無効です。");

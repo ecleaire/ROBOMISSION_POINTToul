@@ -593,7 +593,24 @@ body.board-editor-mode { overflow: hidden; }
 .record-video-modal header { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px 10px 20px; border-bottom: 1px solid var(--border); }
 .record-video-modal header strong, .record-video-modal header small { display: block; }
 .record-video-modal header small { max-width: min(70vw, 680px); margin-top: 3px; overflow: hidden; color: #60798e; text-overflow: ellipsis; white-space: nowrap; }
-.record-video-modal video { display: block; width: 100%; max-height: calc(95vh - 68px); background: black; }
+.record-video-player { position: relative; background: black; }
+.record-video-player video { display: block; width: 100%; max-height: calc(95vh - 68px); background: black; }
+.record-video-stopwatch {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .62);
+  color: white;
+  font-size: clamp(1rem, 2.6vw, 1.45rem);
+  font-weight: 950;
+  letter-spacing: .04em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
+  pointer-events: none;
+}
 .empty-state { padding: 44px 20px; text-align: center; color: #52677a; }
 .empty-state strong { color: #183b56; }
 .empty-state p { margin-bottom: 0; }
