@@ -193,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.6.17", updatedAt: "2026.07.28", title: "下部の合計得点ボタンを修正", description: "採点画面下部の「結果を見る」「合計得点」が不自然に改行されないよう、ボタン幅と折り返しを調整しました。" },
   { version: "1.6.16", updatedAt: "2026.07.28", title: "採点表の文字と数字を拡大", description: "採点モードのミッション名、条件、得点、小計、合計得点を大きくし、PC・タブレットでも読みやすい表示にしました。" },
   { version: "1.6.15", updatedAt: "2026.07.28", title: "全国大会の会場リンクと録画FPSを改善", description: "リンク・大会情報の全国大会カードに、東京都立産業貿易センター浜松町館の施設・フロア詳細ページを追加しました。アプリ内録画は60fpsを優先するようにしました。" },
   { version: "1.6.14", updatedAt: "2026.07.28", title: "大会情報の表示と更新履歴を改善", description: "開催日・時間が重ならない表示へ直し、WROホームページ欄にWRO兵庫を戻しました。古いアプリ更新内容も必要時に表示できます。" },

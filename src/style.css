@@ -264,11 +264,11 @@ body.stopwatch-mode { overflow: hidden; }
 }
 .photo-button:active { transform: translateY(1px); }
 .bottom-space { height: 72px; }
-.bottom-bar { position: fixed; z-index: 20; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(120px, 220px) minmax(180px, 360px); justify-content: center; gap: 10px; padding: 10px max(14px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); background: rgba(255,255,255,.94); border-top: 1px solid var(--border); backdrop-filter: blur(16px); }
+.bottom-bar { position: fixed; z-index: 20; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(140px, 220px) minmax(360px, 520px); justify-content: center; gap: 12px; padding: 10px max(14px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); background: rgba(255,255,255,.94); border-top: 1px solid var(--border); backdrop-filter: blur(16px); }
 .bottom-bar button { min-height: 52px; }
-.bottom-bar .primary { display: flex; align-items: center; justify-content: space-between; }
-.bottom-bar .primary > span { font-size: 1.02rem; }
-.bottom-bar .primary > strong { font-size: 1.42rem; }
+.bottom-bar .primary { display: flex; align-items: center; justify-content: center; gap: 18px; white-space: nowrap; }
+.bottom-bar .primary > span { flex: 0 0 auto; font-size: 1.02rem; }
+.bottom-bar .primary > strong { flex: 0 0 auto; font-size: 1.42rem; white-space: nowrap; }
 .reset-button { border: 0; background: transparent; color: #8a4651; font-weight: 700; }
 .page-intro { padding: 28px 0; }
 .page-intro h1 { margin: 6px 0; font-size: 2.4rem; }
@@ -811,9 +811,9 @@ code { overflow-wrap: anywhere; }
   .dirt-rows { grid-template-columns: 1fr; }
   .bottom-bar { grid-template-columns: 1fr 1.5fr; }
   .bottom-bar .primary { padding-inline: 10px; }
-  .bottom-bar .primary { flex-direction: column; justify-content: center; gap: 2px; }
+  .bottom-bar .primary { flex-direction: column; justify-content: center; gap: 2px; white-space: normal; }
   .bottom-bar .primary > span { font-size: .9rem; }
-  .bottom-bar .primary > strong { font-size: 1.22rem; }
+  .bottom-bar .primary > strong { font-size: clamp(1rem, 4.2vw, 1.22rem); white-space: nowrap; }
 }
 @media (min-width: 760px) {
   body:has(.score-sheet) main { max-width: 1600px; padding: 4px 12px 60px; }
