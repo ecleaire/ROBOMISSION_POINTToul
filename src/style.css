@@ -249,7 +249,20 @@ body.stopwatch-mode { overflow: hidden; }
 .option-list.compact { grid-template-columns: 1fr 1fr; }
 .option-list.compact .score-option { display: flex; min-height: 44px; padding: 8px; }
 .option-list.compact .score-option > span:last-child { display: none; }
-.photo-button { min-height: 32px; padding: 4px 7px; border: 1px solid #91bad8; border-radius: 6px; background: white; color: var(--blue); font-size: .7rem; font-weight: 800; white-space: nowrap; }
+.photo-button {
+  min-height: 42px;
+  min-width: 76px;
+  padding: 7px 12px;
+  border: 2px solid #7fb4db;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--blue);
+  font-size: .88rem;
+  font-weight: 950;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(18, 111, 177, .14);
+}
+.photo-button:active { transform: translateY(1px); }
 .bottom-space { height: 72px; }
 .bottom-bar { position: fixed; z-index: 20; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: minmax(120px, 220px) minmax(180px, 360px); justify-content: center; gap: 10px; padding: 10px max(14px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); background: rgba(255,255,255,.94); border-top: 1px solid var(--border); backdrop-filter: blur(16px); }
 .bottom-bar button { min-height: 52px; }
@@ -820,7 +833,7 @@ code { overflow-wrap: anywhere; }
 @media (min-width: 1080px) {
   .mission-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .mission-header { grid-template-columns: 32px 1fr auto auto; }
-  .mission-header .photo-button { grid-column: auto; width: auto; min-height: 30px; }
+  .mission-header .photo-button { grid-column: auto; width: auto; min-height: 42px; }
 }
 @media (max-width: 390px) {
   .score-option { grid-template-columns: 20px 48px 1fr; padding-inline: 9px; }

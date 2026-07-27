@@ -181,6 +181,7 @@ const PENDING_VIDEO_CACHE_NAME = "robomission-pending-video-v1";
 const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
 const BOARD_TEMPLATES_KEY = "robomission-board-templates-v1";
 const RULES_PREFERENCES_KEY = "robomission-rules-preferences-v1";
+const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v1";
 const MAX_CACHED_RECORD_VIDEOS = 3;
 const NATIONAL_EVENT_URL = "https://www.wroj.org/action/2026";
 const NATIONAL_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("東京都立産業貿易センター浜松町館")}`;
@@ -192,9 +193,9 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
 };
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.13", updatedAt: "2026.07.28", title: "PDF再表示と写真ボタンを改善", description: "一度表示したアプリ内PDFを端末へ保存し、次回表示時に保存済みPDFから読み込めるようにしました。採点表の写真ボタンも大きくしました。" },
   { version: "1.6.12", updatedAt: "2026.07.28", title: "録画画質と動画再生表示を改善", description: "アプリ内録画を1080p優先・高ビットレートへ変更し、記録動画の再生時に右上へ競技ストップウォッチ時間を表示するようにしました。" },
   { version: "1.6.11", updatedAt: "2026.07.28", title: "大会情報を全国大会仕様へ変更", description: "補足・ローカルルールPDFを削除し、大会情報を全国大会の日程・会場表示へ切り替えました。" },
-  { version: "1.6.10", updatedAt: "2026.07.27", title: "全画面解除を安定化", description: "解除ボタンを押した瞬間にアプリ内全画面を戻し、ストップウォッチ・カメラ・PDFで解除操作を取りこぼしにくくしました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -257,6 +258,7 @@ let persistentRulesFrame: HTMLIFrameElement | null = null;
 let persistentRulesFrameDocument: RulesDocument | null = null;
 let persistentRulesFrameLoaded = false;
 let rulesFrameParking: HTMLDivElement | null = null;
+const rulesPdfCacheTasks = new Set<string>();
 let cameraStream: MediaStream | null = null;
 let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
@@ -636,7 +638,7 @@ function cameraStopwatchContents() {
 }
 
 function sheetSection(id: string, title: string, action = "") {
-  return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
+  return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
 }
 
 function timePicker(value: number | null) {
@@ -2261,9 +2263,33 @@ function saveRulesPreferences() {
   localStorage.setItem(RULES_PREFERENCES_KEY, JSON.stringify(rulesPreferences));
 }
 
+function cacheableRulesPdfUrl(document: RulesDocument, useDriveViewer: boolean) {
+  if (document !== "translated" || useDriveViewer) return "";
+  return new URL(RULES_PDF_URL, location.href).toString();
+}
+
+async function cacheRulesPdfForNextView(document: RulesDocument, useDriveViewer: boolean) {
+  if (!("caches" in window)) return;
+  const url = cacheableRulesPdfUrl(document, useDriveViewer);
+  if (!url || rulesPdfCacheTasks.has(url)) return;
+  rulesPdfCacheTasks.add(url);
+  try {
+    const cache = await caches.open(RULES_PDF_CACHE_NAME);
+    if (await cache.match(url)) return;
+    const response = await fetch(url, { cache: "reload" });
+    if (response.ok) await cache.put(url, response.clone());
+  } catch {
+    // PDFキャッシュ非対応・容量不足・通信失敗時も通常表示は続ける。
+  } finally {
+    rulesPdfCacheTasks.delete(url);
+  }
+}
+
 function attachRulesFrame() {
   const host = document.querySelector<HTMLElement>("[data-rules-frame-host]");
   if (!host) return;
+  const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+  void cacheRulesPdfForNextView(activeRulesDocument, useDriveViewer);
   if (persistentRulesFrame && persistentRulesFrameDocument !== activeRulesDocument) {
     persistentRulesFrame.src = "about:blank";
     persistentRulesFrame.remove();
@@ -2272,7 +2298,6 @@ function attachRulesFrame() {
   }
   let frame = persistentRulesFrame;
   if (!frame) {
-    const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     frame = document.createElement("iframe");
     frame.src = ruleFrameUrl(activeRulesDocument, useDriveViewer);
     frame.loading = "eager";

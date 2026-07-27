@@ -1,4 +1,5 @@
-const CACHE = "robomission-junior-v48";
+const CACHE = "robomission-junior-v49";
+const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
@@ -60,8 +61,10 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (new URL(event.request.url).origin !== self.location.origin) return;
-  // PDFビューアのRangeリクエストはブラウザへ直接渡し、必要部分だけを高速取得する。
-  if (event.request.headers.has("range")) return;
+  if (event.request.headers.has("range")) {
+    event.respondWith(rangeFromCachedPdf(event.request));
+    return;
+  }
 
   event.respondWith((async () => {
     const url = new URL(event.request.url);
@@ -85,3 +88,28 @@ self.addEventListener("fetch", (event) => {
     }
   })());
 });
+
+async function rangeFromCachedPdf(request) {
+  const range = request.headers.get("range") || "";
+  const match = range.match(/bytes=(\d+)-(\d*)/);
+  if (!match) return fetch(request);
+  const cached = await (await caches.open(RULES_PDF_CACHE)).match(request) || await caches.match(request);
+  if (!cached) return fetch(request);
+  const blob = await cached.blob();
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : blob.size - 1;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || start >= blob.size) {
+    return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${blob.size}` } });
+  }
+  const sliced = blob.slice(start, Math.min(end + 1, blob.size), cached.headers.get("content-type") || "application/pdf");
+  return new Response(sliced, {
+    status: 206,
+    statusText: "Partial Content",
+    headers: {
+      "Content-Type": cached.headers.get("content-type") || "application/pdf",
+      "Content-Length": String(sliced.size),
+      "Content-Range": `bytes ${start}-${Math.min(end, blob.size - 1)}/${blob.size}`,
+      "Accept-Ranges": "bytes",
+    },
+  });
+}
