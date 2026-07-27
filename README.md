@@ -1,6 +1,6 @@
 # RoboMission Junior 得点計算
 
-現在のアプリバージョン：`v1.6.10`
+現在のアプリバージョン：`v1.6.11`
 
 WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webアプリです。スマートフォン、タブレット、PCで利用でき、PWAとしてインストールすると採点と全判定写真をオフラインでも利用できます。ルールPDFは必要になった時だけ読み込みます。
 
@@ -37,16 +37,13 @@ WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webア�
 - 再生した記録動画を端末へ最大3件キャッシュし、2回目以降は通信なしで高速再生
 - アプリで削除した練習記録を一覧から隠し、スプレッドシートには「削除」チェック付きの赤い行として保管
 - Google翻訳版ルールPDFのアプリ内表示・文字検索・全画面表示（iPadは複数ページ対応ビューアへ自動切り替え）
-- Google翻訳版と兵庫予選会の補足・ローカルルールPDFを、ルール画面内のボタンで切り替えて表示
-- Google翻訳版-General-Rulesを含む3種類のPDF切替
+- Google翻訳版、Google翻訳版-General-Rules、Japan決勝大会-General-Rulesの3種類のPDF切替
 - iPadでは二重取得を避け、Google Drive PDFビューアへ直接接続
 - 表示中のPDFビューア1つだけを保持し、再表示を高速化しながらメモリ消費を抑制
-- WRO兵庫予選会公式サイトの直近3件を表示するニュース（通信失敗時は保存済み情報を表示）
 - ニュース画面に大会情報とアプリ更新内容を分けて表示
 - ニュース内ボタンはURLハッシュを変更せず、同じニュース画面内の該当区分へスクロール
-- 兵庫予選会ロボミッション（エキスパート競技）の日程・会場・Googleマップ
-- 大会会場の遅延読み込みミニマップと「開催概要 詳細」リンク
-- 兵庫予選会のルール補足及びローカルルールを、ルール画面とリンク画面の両方から表示
+- 全国大会の日程・会場・Googleマップ
+- 大会会場の遅延読み込みミニマップ
 - 全モードボタンはページ上部にまとめ、スクロール中は固定せず作業領域を広く確保
 - WRO公式サイト、ルール、Q&A、関連動画、GitHub、公開URL QRコードをまとめた「リンク・大会情報」画面
 - 全画面ストップウォッチ（ラップ・停止・再開・終了）
@@ -78,7 +75,7 @@ WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webア�
 8. 上部メニューの「練習記録」から、現在のキーに対応する記録だけを確認できます。
    「メモ」では各練習回のメモを新しく作成したり、既存のメモを編集したりできます。
 9. 不要な記録は「この記録を削除」で一覧から消せます。元の行はスプレッドシートに赤い行で残り、「削除」のチェックを外すとアプリへ再表示できます。完全に消す場合は、スプレッドシートでその行自体を削除します。
-10. 上部メニューの「リンク・大会情報」から兵庫予選会の日程・会場、WROホームページ、ルール、Q&A、関連動画、公開URL QRコードを確認できます。
+10. 上部メニューの「リンク・大会情報」から全国大会の日程・会場、WROホームページ、ルール、Q&A、関連動画、公開URL QRコードを確認できます。
 
 ## 開発
 
@@ -157,16 +154,14 @@ Apps Scriptプロジェクト（スクリプトID `1dZLK_-vhhS-uTBt8huiPr34bBiMo
 
 - [WRO Japan](https://www.wroj.org/action/2026)
 - [WRO 国際](https://wro-association.org/)
-- [WRO兵庫](https://wro-hyogo.jp/)
-- [WRO兵庫 2026年 開催概要](https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/)
 - [Google翻訳版ルール](https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing)
+- [Google翻訳版-General-Rules](https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/view?usp=sharing)
+- [Japan決勝大会-General-Rules](https://drive.google.com/file/d/1RdQ19wtNHlPXrF_6MhRs_GXnjlOcO_mD/view?usp=sharing)
 - [世界大会ルール](https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing)
-- [兵庫予選会 ルール補足及びローカルルール](https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk)
 - [WRO Q&A](https://wro-association.org/competition/questions-answers/)
 - [YouTube関連動画](https://youtube.com/playlist?list=PL5-Hc8xo0J3ns_WHhwGI-AxDOyEL9-l2O&si=YglnMNN6SpMbn9AN)
 
 ルール本文・判定画像の権利は各権利者に帰属します。本リポジトリで再配布・公開する前に、公式規約と画像利用条件を確認してください。開発支援はOpenAI ChatGPT / Codexです。
 
-WROおよびWROロゴはWorld Robot Olympiad Association Ltd.の商標です。本アプリはWRO公式アプリではなく、WROロゴも使用していません。
 - メモ内のJuniorコート画像へ、ペン・○・×・□・△・文字を色付きで書き込み（全画面編集・取り消し・再編集対応）
 - 選択ツールで配置済みの図形・文字・ペン線を移動、拡大縮小、回転。文字内容と色も後から編集可能

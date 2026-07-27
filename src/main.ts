@@ -134,14 +134,7 @@ interface StoredImage {
   base64: string;
 }
 
-interface NewsItem {
-  source: string;
-  title: string;
-  url: string;
-  updatedAt: string;
-}
-
-type RulesDocument = "translated" | "general" | "hyogo";
+type RulesDocument = "translated" | "translatedGeneral" | "japanFinalGeneral";
 
 interface PendingVideoUpload {
   file: File;
@@ -170,9 +163,9 @@ const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/preview";
+const JAPAN_FINAL_GENERAL_RULES_URL = "https://drive.google.com/file/d/1RdQ19wtNHlPXrF_6MhRs_GXnjlOcO_mD/view?usp=sharing";
+const JAPAN_FINAL_GENERAL_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1RdQ19wtNHlPXrF_6MhRs_GXnjlOcO_mD/preview";
 const WORLD_RULES_URL = "https://drive.google.com/file/d/1OVybBEc3_l8hV7nrjWLtlJUsXoLXGws0/view?usp=sharing";
-const HYOGO_LOCAL_RULES_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/view?usp=drivesdk";
-const HYOGO_LOCAL_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1tdMoVbPFivoZVrjN3pIAhV6ZkiQGaDwc/preview";
 const COURT_IMAGE_URL = `${import.meta.env.BASE_URL}assets/memo/junior-course.webp`;
 
 const STORAGE_KEY = "robomission-junior-score-v2";
@@ -189,25 +182,19 @@ const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
 const BOARD_TEMPLATES_KEY = "robomission-board-templates-v1";
 const RULES_PREFERENCES_KEY = "robomission-rules-preferences-v1";
 const MAX_CACHED_RECORD_VIDEOS = 3;
-const NEWS_CACHE_KEY = "robomission-hyogo-news-v1";
-const HYOGO_EVENT_URL = "https://wro-hyogo.jp/2026%E5%B9%B4-%E9%96%8B%E5%82%AC%E6%A6%82%E8%A6%81/";
-const HYOGO_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}`;
-const HYOGO_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("関西学院初等部 〒665-0844 兵庫県宝塚市武庫川町6番27号")}&output=embed`;
+const NATIONAL_EVENT_URL = "https://www.wroj.org/action/2026";
+const NATIONAL_MAP_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("東京都立産業貿易センター浜松町館")}`;
+const NATIONAL_MAP_EMBED_URL = `https://www.google.com/maps?q=${encodeURIComponent("東京都立産業貿易センター浜松町館")}&output=embed`;
 const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   translated: { revision: "2026-07-18" },
-  general: { revision: "2026-07-16" },
-  hyogo: { revision: "2026-07-16" },
+  translatedGeneral: { revision: "2026-07-16" },
+  japanFinalGeneral: { revision: "2026-07-28" },
 };
-const FALLBACK_HYOGO_NEWS: NewsItem[] = [
-  { source: "兵庫", title: "〖2026〗選手・コーチのみなさまへ", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E9%81%B8%E6%89%8B%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%81%E3%81%AE%E3%81%BF%E3%81%AA%E3%81%95%E3%81%BE%E3%81%B8/", updatedAt: "2026.07.15" },
-  { source: "兵庫", title: "〖2026〗大会当日の注意事項について", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E5%A4%A7%E4%BC%9A%E5%BD%93%E6%97%A5%E3%81%AE%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A0%85%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.07.08" },
-  { source: "兵庫", title: "〖2026〗ルール補足とローカルルールについて", url: "https://wro-hyogo.jp/%E3%80%902026%E3%80%91%E3%83%AB%E3%83%BC%E3%83%AB%E8%A3%9C%E8%B6%B3%E3%81%A8%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%83%AB%E3%83%BC%E3%83%AB%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6/", updatedAt: "2026.06.27" },
-];
 // 軽量化のため公開版には最新3件だけ保持し、追加時は最古の1件を削除する。
 const APP_UPDATES = [
+  { version: "1.6.11", updatedAt: "2026.07.28", title: "大会情報を全国大会仕様へ変更", description: "補足・ローカルルールPDFを削除し、大会情報を全国大会の日程・会場表示へ切り替えました。" },
   { version: "1.6.10", updatedAt: "2026.07.27", title: "全画面解除を安定化", description: "解除ボタンを押した瞬間にアプリ内全画面を戻し、ストップウォッチ・カメラ・PDFで解除操作を取りこぼしにくくしました。" },
   { version: "1.6.9", updatedAt: "2026.07.27", title: "全画面操作を安定化", description: "全画面ボタンが反応しない場合でもアプリ内全画面表示を維持し、ダブルタップによる意図しないズームを抑制しました。" },
-  { version: "1.6.8", updatedAt: "2026.07.23", title: "分析範囲を安定化", description: "日付条件を実際の集計へ反映し、該当0件でも指定解除できるようにしました。" },
 ] as const;
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
@@ -240,9 +227,6 @@ let recordVisibleCount = RECORD_PAGE_SIZE;
 let recordsAbortController: AbortController | null = null;
 let recordsAutoRefreshTimer: number | null = null;
 let nativeFullscreenTarget: "camera" | "pdf" | "stopwatch" | null = null;
-let newsItems = loadNewsCache();
-let newsStatus = "保存済みのお知らせを表示しています。";
-let newsLoading = false;
 let sheetSending = false;
 let pendingRequestId = createRequestId();
 let recordFilters: RecordFilters = {
@@ -316,7 +300,6 @@ window.addEventListener("hashchange", () => {
   render();
   configureRecordsAutoRefresh();
   if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
-  if (location.hash === "#/news") void loadHyogoNews();
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
@@ -401,7 +384,6 @@ void restorePendingVideoUpload();
 void retryPendingSaves();
 void checkStorageCapacity();
 if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
-if (location.hash === "#/news" && activeAccount) void loadHyogoNews();
 if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
 
 function render() {
@@ -1968,33 +1950,33 @@ function photoGalleryView() {
 
 function rulesView() {
   const useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-  const isHyogo = activeRulesDocument === "hyogo";
-  const isGeneral = activeRulesDocument === "general";
-  const documentTitle = isHyogo
-    ? "兵庫予選会 ルール補足及びローカルルール"
-    : isGeneral ? "Google翻訳版-General-Rules" : "Google翻訳版 RoboMission Juniorルール";
-  const externalUrl = isHyogo
-    ? HYOGO_LOCAL_RULES_URL
-    : isGeneral ? GENERAL_TRANSLATED_RULES_URL
+  const isTranslatedGeneral = activeRulesDocument === "translatedGeneral";
+  const isJapanFinalGeneral = activeRulesDocument === "japanFinalGeneral";
+  const documentTitle = isJapanFinalGeneral
+    ? "WRO 2026 Robo Mission Category - Japan決勝大会 General-Rules"
+    : isTranslatedGeneral ? "Google翻訳版-General-Rules" : "Google翻訳版 RoboMission Juniorルール";
+  const externalUrl = isJapanFinalGeneral
+    ? JAPAN_FINAL_GENERAL_RULES_URL
+    : isTranslatedGeneral ? GENERAL_TRANSLATED_RULES_URL
     : useDriveViewer ? GOOGLE_TRANSLATED_RULES_URL : RULES_PDF_URL;
-  const driveBased = isHyogo || isGeneral || useDriveViewer;
+  const driveBased = isJapanFinalGeneral || isTranslatedGeneral || useDriveViewer;
   const info = RULE_DOCUMENT_INFO[activeRulesDocument];
   const updated = rulesPreferences.seenRevisions[activeRulesDocument] !== info.revision;
   return shell(`
     <section class="page-intro rules-intro">
-      <div><p class="eyebrow">${isHyogo ? "WRO HYOGO" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${driveBased ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
+      <div><p class="eyebrow">${isJapanFinalGeneral ? "Japan決勝大会" : "Google翻訳版"}</p><h1>${documentTitle}</h1><p>${driveBased ? "複数ページ対応ビューアで表示しています。上下にスクロールして全ページを確認できます。" : "PDF内の検索ボタン、またはキーボードの Ctrl + F（Macは ⌘ + F）で単語や文字を検索できます。"}</p></div>
       <div class="pdf-actions"><button class="primary pdf-open" data-action="pdf-expand">⛶ 全画面表示</button><a class="secondary pdf-open" href="${externalUrl}" target="_blank" rel="noopener">別画面で開く</a></div>
     </section>
     <nav class="rule-document-tabs" aria-label="表示するルールPDF">
       <button type="button" data-action="select-rule-document" data-rule-document="translated" class="${activeRulesDocument === "translated" ? "active" : ""}">Google翻訳版</button>
-      <button type="button" data-action="select-rule-document" data-rule-document="general" class="${isGeneral ? "active" : ""}">Google翻訳版-General-Rules</button>
-      <button type="button" data-action="select-rule-document" data-rule-document="hyogo" class="${isHyogo ? "active" : ""}">兵庫予選会 補足・ローカルルール</button>
+      <button type="button" data-action="select-rule-document" data-rule-document="translatedGeneral" class="${isTranslatedGeneral ? "active" : ""}">Google翻訳版-General-Rules</button>
+      <button type="button" data-action="select-rule-document" data-rule-document="japanFinalGeneral" class="${isJapanFinalGeneral ? "active" : ""}">Japan決勝大会-General-Rules</button>
     </nav>
     ${updated ? `<aside class="rule-update-notice"><strong>このルール資料は更新されています</strong><span>資料版 ${info.revision}。内容を確認したら通知を消せます。</span><button data-action="ack-rule-update">確認済みにする</button></aside>` : ""}
     <section class="pdf-viewer card">
       <button class="pdf-collapse" data-action="pdf-collapse" aria-label="PDFの全画面表示を終了">× 全画面解除</button>
       <div class="rules-frame-host" data-rules-frame-host><div class="pdf-loading" role="status"><span></span>PDFを読み込んでいます…</div></div>
-      <p>${isHyogo ? `表示できない場合は、<a href="${HYOGO_LOCAL_RULES_URL}" target="_blank" rel="noopener">兵庫予選会PDFを別画面で開く</a>を押してください。` : isGeneral ? `表示できない場合は、<a href="${GENERAL_TRANSLATED_RULES_URL}" target="_blank" rel="noopener">General Rules PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
+      <p>${isJapanFinalGeneral ? `表示できない場合は、<a href="${JAPAN_FINAL_GENERAL_RULES_URL}" target="_blank" rel="noopener">Japan決勝大会-General-Rules PDFを別画面で開く</a>を押してください。` : isTranslatedGeneral ? `表示できない場合は、<a href="${GENERAL_TRANSLATED_RULES_URL}" target="_blank" rel="noopener">Google翻訳版-General-Rules PDFを別画面で開く</a>を押してください。` : useDriveViewer ? `表示できない場合は、<a href="${RULES_DRIVE_PREVIEW_URL}" target="_blank" rel="noopener">Google Drive版</a>または<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">端末内PDF</a>を開いてください。` : `この端末でPDFが表示されない場合は、<a href="${RULES_PDF_URL}" target="_blank" rel="noopener">別画面で開く</a>を押してください。`}</p>
     </section>
   `, { back: "score", title: "ルール" });
 }
@@ -2002,19 +1984,12 @@ function rulesView() {
 function newsView() {
   return shell(`
     <section class="page-intro news-intro">
-      <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>兵庫予選会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
-      <button class="primary" data-action="load-news" ${newsLoading ? "disabled" : ""}>${newsLoading ? "確認中…" : "↻ 最新情報を確認"}</button>
+      <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>全国大会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
     </section>
     <nav class="news-jump" aria-label="ニュース内メニュー"><button type="button" data-action="scroll-news-section" data-news-target="news-event">大会情報</button><button type="button" data-action="scroll-news-section" data-news-target="news-app-updates">アプリ更新内容</button></nav>
     <section class="news-section" id="news-event" aria-labelledby="news-event-title">
-      <div class="news-section-heading"><div><p class="eyebrow">WRO HYOGO 2026</p><h2 id="news-event-title">大会情報</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式情報を見る ↗</a></div>
-      ${hyogoEventCard()}
-      <div class="news-subheading"><h3>兵庫予選会の最新情報</h3><span>直近3件</span></div>
-      ${newsStatus ? `<p class="news-status" role="status">${escapeHtml(newsStatus)}</p>` : ""}
-      <div class="news-list" aria-label="兵庫予選会の最新情報">
-        ${newsItems.map((item) => `<article class="news-card card"><span class="news-source">${escapeHtml(item.source)}</span><h2>【${escapeHtml(item.source)}】「${escapeHtml(item.title)}」が更新されました。</h2><time datetime="${item.updatedAt.replaceAll(".", "-")}">更新日時：${escapeHtml(item.updatedAt)}</time><a href="${item.url}" target="_blank" rel="noopener noreferrer">記事を見る <b aria-hidden="true">↗</b></a></article>`).join("")}
-      </div>
-      <a class="news-source-link" href="https://wro-hyogo.jp/" target="_blank" rel="noopener noreferrer">WRO Japan 2026 公認 兵庫予選会 公式サイトを見る ↗</a>
+      <div class="news-section-heading"><div><p class="eyebrow">WRO Japan 2026</p><h2 id="news-event-title">大会情報</h2></div><a href="${NATIONAL_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式情報を見る ↗</a></div>
+      ${nationalEventCard()}
     </section>
     <section class="news-section" id="news-app-updates" aria-labelledby="news-app-updates-title">
       <div class="news-section-heading"><div><p class="eyebrow">CHANGELOG</p><h2 id="news-app-updates-title">アプリ更新内容</h2></div><span>現在 v${APP_VERSION}</span></div>
@@ -2023,14 +1998,14 @@ function newsView() {
   `, { title: "ニュース" });
 }
 
-function hyogoEventCard() {
+function nationalEventCard() {
   return `<article class="event-info link-section card">
-    <header><div><p class="eyebrow">WRO HYOGO 2026</p><h2>ロボミッション【エキスパート競技】</h2></div><a href="${HYOGO_EVENT_URL}" target="_blank" rel="noopener noreferrer">開催概要 詳細</a></header>
+    <header><div><p class="eyebrow">WRO Japan 2026</p><h2>全国大会</h2></div><a href="${NATIONAL_EVENT_URL}" target="_blank" rel="noopener noreferrer">公式情報を見る</a></header>
     <div class="event-info-grid">
-      <section><h3>■ スケジュール</h3><p class="event-date">2026年7月26日（日）</p><dl class="event-schedule">
-        ${[["12:00 ～ 12:15", "開場・受付"], ["12:15 ～ 12:45", "開会式"], ["12:45 ～ 13:45", "調整①"], ["13:45 ～ 14:15", "抽選・競技①"], ["14:15 ～ 14:25", "エクストラチャレンジルール発表"], ["14:25 ～ 15:45", "調整②"], ["15:45 ～ 16:15", "抽選・競技②"], ["16:15 ～ 16:40", "片付け・スコア集計・チャペル移動"], ["16:40 ～ 17:10", "閉会式"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
+      <section><h3>■ 開催日・時間</h3><dl class="event-schedule">
+        ${[["2026年8月22日（土）", "14:00〜18:00"], ["2026年8月23日（日）", "9:00〜17:00"], ["タイムスケジュール詳細", "後日発表"]].map(([time, activity]) => `<div><dt>${time}</dt><dd>${activity}</dd></div>`).join("")}
       </dl></section>
-      <section class="event-venue"><h3>■ 場所</h3><strong>関西学院初等部</strong><address>〒665-0844<br />兵庫県宝塚市武庫川町6番27号</address><p>ロボミッション（エキスパート競技）・ロボスポーツ競技 会場</p><div class="event-mini-map"><iframe src="${HYOGO_MAP_EMBED_URL}" title="関西学院初等部 周辺地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><a class="map-button" href="${HYOGO_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
+      <section class="event-venue"><h3>■ 場所</h3><strong>東京都立産業貿易センター浜松町館</strong><address>東京都港区海岸1-7-1</address><p>全国大会 会場</p><div class="event-mini-map"><iframe src="${NATIONAL_MAP_EMBED_URL}" title="東京都立産業貿易センター浜松町館 周辺地図" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div><a class="map-button" href="${NATIONAL_MAP_URL}" target="_blank" rel="noopener noreferrer">Googleマップで表示 ↗</a></section>
     </div>
   </article>`;
 }
@@ -2040,19 +2015,19 @@ function linksView() {
     <section class="page-intro links-intro">
       <p class="eyebrow">EVENT / RELATED LINKS</p>
       <h1>リンク・大会情報</h1>
-      <p>兵庫予選会の大会情報と、WROの公式情報・ルール・関連動画をまとめています。</p>
+      <p>大会情報・ルール・関連動画をまとめています。</p>
     </section>
     <section class="link-groups">
-      ${hyogoEventCard()}
+      ${nationalEventCard()}
       ${linkGroup("WRO ホームページ", [
         ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
         ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
-        ["WRO兵庫", "兵庫地区の大会・予選会情報", "https://wro-hyogo.jp/"],
       ])}
       ${linkGroup("ルール関連", [
         ["Google翻訳", "RoboMission JuniorルールのGoogle翻訳版", GOOGLE_TRANSLATED_RULES_URL],
+        ["Google翻訳版-General-Rules", "General RulesのGoogle翻訳版", GENERAL_TRANSLATED_RULES_URL],
+        ["Japan決勝大会-General-Rules", "WRO 2026 Robo Mission Category - Japan決勝大会 General-Rules", JAPAN_FINAL_GENERAL_RULES_URL],
         ["世界大会ルール", "RoboMission Juniorの世界大会ルール", WORLD_RULES_URL],
-        ["兵庫予選会 ルール補足及びローカルルール", "兵庫予選会で適用される補足・ローカルルール", HYOGO_LOCAL_RULES_URL],
         ["Q&A", "WRO国際サイトの質問・回答", "https://wro-association.org/competition/questions-answers/"],
       ])}
       ${linkGroup("その他", [
@@ -2074,7 +2049,6 @@ function linksView() {
       <article class="link-section card credits-section">
         <h2>ライセンス / クレジット</h2>
         <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Juniorの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
-        <p>WROおよびWROロゴはWorld Robot Olympiad Association Ltd.の商標です。正式な情報と判定はWRO公式サイトおよび各大会の案内を確認してください。</p>
         <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
       </article>
     </section>
@@ -2143,7 +2117,6 @@ function bindEvents() {
       location.hash = `#/${target}`;
       if (target === "records" && sameRoute) void loadRecords();
       if (target === "memo" && sameRoute) void loadMemoData();
-      if (target === "news" && sameRoute) void loadHyogoNews();
     }),
   );
   document.querySelectorAll<HTMLButtonElement>("[data-score-section]").forEach((button) =>
@@ -2274,7 +2247,7 @@ function loadRulesPreferences(): RulesPreferences {
   try {
     const saved = JSON.parse(localStorage.getItem(RULES_PREFERENCES_KEY) || "null");
     if (!saved || typeof saved !== "object") return initial;
-    (["translated", "general", "hyogo"] as RulesDocument[]).forEach((document) => {
+    (["translated", "translatedGeneral", "japanFinalGeneral"] as RulesDocument[]).forEach((document) => {
       if (typeof saved.seenRevisions?.[document] === "string") initial.seenRevisions[document] = saved.seenRevisions[document];
     });
     return initial;
@@ -2303,9 +2276,9 @@ function attachRulesFrame() {
     frame.setAttribute("fetchpriority", "high");
     frame.allow = "fullscreen";
     frame.referrerPolicy = "no-referrer";
-    frame.title = activeRulesDocument === "hyogo"
-      ? "兵庫予選会 ルール補足及びローカルルールPDF"
-      : activeRulesDocument === "general"
+    frame.title = activeRulesDocument === "japanFinalGeneral"
+      ? "Japan決勝大会 General-Rules PDF"
+      : activeRulesDocument === "translatedGeneral"
         ? "Google翻訳版 General Rules PDF"
         : "WRO 2026 RoboMission Junior Google翻訳版ルールPDF";
     persistentRulesFrame = frame;
@@ -2321,7 +2294,7 @@ function attachRulesFrame() {
 }
 
 function ruleFrameUrl(document: RulesDocument, useDriveViewer = isAppleTouchDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
-  const base = document === "hyogo" ? HYOGO_LOCAL_RULES_PREVIEW_URL : document === "general" ? GENERAL_TRANSLATED_RULES_PREVIEW_URL : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : RULES_PDF_URL;
+  const base = document === "japanFinalGeneral" ? JAPAN_FINAL_GENERAL_RULES_PREVIEW_URL : document === "translatedGeneral" ? GENERAL_TRANSLATED_RULES_PREVIEW_URL : useDriveViewer ? RULES_DRIVE_PREVIEW_URL : RULES_PDF_URL;
   return document === "translated" && !useDriveViewer ? `${base}#page=1&zoom=page-width` : base;
 }
 
@@ -2364,7 +2337,6 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "capture-memo-photo") void startMemoPhotoCapture(element);
   if (action === "edit-memo-photo") void editMemoPhoto(element);
   if (action === "delete-memo-photo") deleteMemoPhoto(element);
-  if (action === "load-news") void loadHyogoNews();
   if (action === "cleanup-runtime-cache") void cleanupRuntimeCache();
   if (action === "scroll-news-section") {
     const target = element.dataset.newsTarget;
@@ -2404,7 +2376,7 @@ function handleAction(action: string, element: HTMLElement) {
   }
   if (action === "select-rule-document") {
     const document = element.dataset.ruleDocument;
-    if (document === "translated" || document === "general" || document === "hyogo") {
+    if (document === "translated" || document === "translatedGeneral" || document === "japanFinalGeneral") {
       activeRulesDocument = document;
       render();
     }
@@ -3389,44 +3361,6 @@ async function cleanupRuntimeCache() {
     await checkStorageCapacity();
   } catch { systemNotice = "キャッシュを整理できませんでした。"; }
   render();
-}
-
-function sanitizeNews(value: unknown): NewsItem[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 3).filter((item): item is NewsItem => {
-    if (!item || typeof item !== "object") return false;
-    const candidate = item as Partial<NewsItem>;
-    try {
-      return candidate.source === "兵庫" && typeof candidate.title === "string" && candidate.title.length > 0 && candidate.title.length <= 160 && typeof candidate.updatedAt === "string" && /^\d{4}\.\d{2}\.\d{2}$/.test(candidate.updatedAt) && typeof candidate.url === "string" && new URL(candidate.url).origin === "https://wro-hyogo.jp";
-    } catch { return false; }
-  });
-}
-
-function loadNewsCache(): NewsItem[] {
-  try {
-    const cached = sanitizeNews(JSON.parse(localStorage.getItem(NEWS_CACHE_KEY) || "null"));
-    return cached.length ? cached : FALLBACK_HYOGO_NEWS;
-  } catch { return FALLBACK_HYOGO_NEWS; }
-}
-
-async function loadHyogoNews() {
-  if (newsLoading) return;
-  newsLoading = true;
-  newsStatus = "兵庫予選会サイトの最新情報を確認しています…";
-  render();
-  try {
-    const result = await postJson<{ ok?: boolean; news?: unknown; message?: string }>(DEFAULT_GAS_WEB_APP_URL, { action: "news" }, new AbortController(), 10000);
-    const latest = sanitizeNews(result.news);
-    if (!result.ok || !latest.length) throw new Error(result.message || "最新情報を取得できませんでした。");
-    newsItems = latest;
-    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(latest));
-    newsStatus = "兵庫予選会公式サイトから最新3件を取得しました。";
-  } catch {
-    newsStatus = "通信できなかったため、保存済みのお知らせを表示しています。";
-  } finally {
-    newsLoading = false;
-    if (location.hash === "#/news") render();
-  }
 }
 
 function communicationError(error: unknown) {
