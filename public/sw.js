@@ -1,8 +1,10 @@
-const CACHE = "robomission-junior-v55";
+const CACHE = "robomission-junior-v56";
 const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
+  "./assets/elementary/memo/elementary-course.webp",
+  "./assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf",
   "./assets/memo/junior-course.webp",
   "./assets/judging/visitors/full-upright.webp",
   "./assets/judging/visitors/partial.webp",
@@ -41,8 +43,14 @@ self.addEventListener("install", (event) => {
     const cache = await caches.open(CACHE);
     const response = await fetch("./index.html", { cache: "no-store" });
     const html = await response.text();
-    const bundles = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)].map((match) => match[1]);
+    const elementaryResponse = await fetch("./elementary/index.html", { cache: "no-store" });
+    const elementaryHtml = await elementaryResponse.text();
+    const bundles = [
+      ...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+      ...elementaryHtml.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g),
+    ].map((match) => match[1]);
     await cache.put("./index.html", new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } }));
+    await cache.put("./elementary/index.html", new Response(elementaryHtml, { headers: { "Content-Type": "text/html; charset=utf-8" } }));
     await Promise.all([...PRECACHE, ...bundles].map(async (url) => {
       try { await cache.add(url); } catch { /* 必須でないファイルの失敗ではインストールを止めない */ }
     }));
@@ -83,7 +91,7 @@ self.addEventListener("fetch", (event) => {
     } catch {
       const cached = await caches.match(event.request);
       if (cached) return cached;
-      if (event.request.mode === "navigate") return caches.match("./index.html");
+      if (event.request.mode === "navigate") return url.pathname.includes("/elementary/") ? caches.match("./elementary/index.html") : caches.match("./index.html");
       return Response.error();
     }
   })());
