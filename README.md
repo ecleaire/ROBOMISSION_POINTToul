@@ -12,11 +12,14 @@ WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webア�
 WRO 2026 RoboMission Elementary向けの軽量な別アプリを追加しています。ジュニア版の採点アプリとは別ページです。
 
 - 公開URL：`https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/`
-- Elementaryアプリバージョン：`v0.3.0`
+- Elementaryアプリバージョン：`v0.4.0`
 - 最大得点：255点
 - ルールPDF：`public/assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`
 - コース画像：`public/assets/elementary/memo/elementary-course.webp`
 - 判定写真：ルールPDFから切り出した個別判定写真を軽量WebP化して、ミッション別に表示
+- ログインなしでも採点・ストップウォッチを使用可能
+- ログインすると結果・メモ・競技時間・録画を既存GASアカウントへ保存可能
+- 録画機能はログインユーザー限定
 
 ## 主な機能
 
