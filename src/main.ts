@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.13", updatedAt: "2026.08.02", title: "全デバイス向けUI安定化", description: "Junior/Elementaryの全モードを再確認し、Elementary側にもJuniorと同じスマホ操作、文字折り返し、はみ出し防止の共通CSSを追加しました。" },
   { version: "1.7.12", updatedAt: "2026.08.02", title: "Junior/Elementaryの共通UIを再統一", description: "ヘッダー、ログイン、リンク、採点、コース、判定写真まわりの文字サイズ・太さ・余白を見直し、iPad幅でも採点表が小さくならないよう調整しました。" },
   { version: "1.7.11", updatedAt: "2026.08.02", title: "共通UIの差分を再確認して調整", description: "スマホ幅を中心に、JuniorとElementaryのヘッダー高さ、ページ見出し、リンクカード、採点カード基準フォント、余白を再調整しました。" },
   { version: "1.7.10", updatedAt: "2026.08.02", title: "採点共通UIと未ログイン表示を統一", description: "JuniorとElementaryの採点表、写真ボタン、ストップウォッチ操作、下部合計バーの見た目と操作感を揃えました。未ログイン時は動画録画欄を表示しないようにしました。" },

@@ -3,6 +3,12 @@
   font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", "Segoe UI", sans-serif;
 }
 
+html {
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 #elementary-app {
   --blue: #1261a6;
   --blue-dark: #0c4a80;
@@ -21,6 +27,7 @@ body {
   margin: 0;
   min-width: 320px;
   background: #f4f8fc;
+  touch-action: pan-x pan-y pinch-zoom;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -40,6 +47,62 @@ button {
   overflow-wrap: normal;
   white-space: nowrap;
   word-break: keep-all;
+}
+
+label,
+a,
+summary,
+.elementary-score-card,
+.elementary-score-card *,
+.elementary-gallery-card,
+.elementary-stopwatch,
+.elementary-pdf {
+  touch-action: manipulation;
+}
+
+p,
+label,
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
+  line-break: strict;
+  text-wrap: pretty;
+}
+
+strong,
+span {
+  overflow-wrap: normal;
+}
+
+a,
+code,
+textarea,
+.warning,
+.elementary-save-status,
+.elementary-result-memo,
+.elementary-result-video {
+  overflow-wrap: anywhere;
+}
+
+main > *,
+.card,
+section,
+article,
+header,
+nav,
+dl,
+div {
+  min-width: 0;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  line-height: 1.25;
 }
 
 button:focus-visible,
