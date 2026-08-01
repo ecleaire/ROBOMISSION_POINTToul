@@ -184,7 +184,7 @@ const PENDING_VIDEO_CACHE_NAME = "robomission-pending-video-v1";
 const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
 const BOARD_TEMPLATES_KEY = "robomission-board-templates-v1";
 const RULES_PREFERENCES_KEY = "robomission-rules-preferences-v1";
-const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v1";
+const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v2";
 const MAX_CACHED_RECORD_VIDEOS = 3;
 const NATIONAL_EVENT_URL = "https://www.wroj.org/action/2026";
 const NATIONAL_FACILITY_URL = "https://www.sanbo.metro.tokyo.lg.jp/hamamatsucho/facilities/floor/02-05/";
@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.16", updatedAt: "2026.08.02", title: "PDFキャッシュを自動整理", description: "古いPDF保存キャッシュが端末に残り続けないよう、PDFキャッシュの世代を更新して自動整理するようにしました。" },
   { version: "1.7.15", updatedAt: "2026.08.02", title: "PDF読み込みを軽量化", description: "ElementaryルールPDFの初回先読みをやめ、PDFは開いた時だけ端末に保存する方式へ変更しました。更新時の待ち時間とキャッシュ負荷を減らしています。" },
   { version: "1.7.14", updatedAt: "2026.08.02", title: "QRコード表示をJunior基準に統一", description: "リンク画面の公開URL QRコードカードを、Junior側の余白・枠線・背景・文字間隔に合わせて統一しました。" },
   { version: "1.7.13", updatedAt: "2026.08.02", title: "全デバイス向けUI安定化", description: "Junior/Elementaryの全モードを再確認し、Elementary側にもJuniorと同じスマホ操作、文字折り返し、はみ出し防止の共通CSSを追加しました。" },

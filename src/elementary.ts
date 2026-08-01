@@ -58,13 +58,13 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.15";
+const ELEMENTARY_VERSION = "0.4.16";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
 const RULE_PDF = `${import.meta.env.BASE_URL}assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`;
-const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v1";
+const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v2";
 const JUDGING_IMAGE_BASE = `${import.meta.env.BASE_URL}assets/elementary/judging/`;
 const JUNIOR_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
