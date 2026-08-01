@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.3";
+const ELEMENTARY_VERSION = "0.4.4";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -78,8 +78,13 @@ let adminStatus = "";
 let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
 let judgeModal: ElementaryJudgeGroupId | null = null;
-let stopwatch = { running: false, startedAt: 0, elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000) };
+let stopwatch: { status: "idle" | "running" | "paused" | "finished"; startedAt: number; elapsedMs: number } = {
+  status: state.timeSeconds ? "finished" : "idle",
+  startedAt: 0,
+  elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000),
+};
 let timerId = 0;
+let nativeFullscreenTarget: "stopwatch" | null = null;
 let mediaStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let videoChunks: Blob[] = [];
@@ -212,16 +217,24 @@ function scoreView() {
 }
 
 function stopwatchView() {
+  return `<section class="elementary-stopwatch">${stopwatchContents()}</section>`;
+}
+
+function stopwatchContents() {
   const elapsed = currentElapsedMs();
+  const isRunning = stopwatch.status === "running";
+  const hasTime = elapsed > 0;
+  const startLabel = stopwatch.status === "paused" || stopwatch.status === "finished" ? "▶ 再開" : "▶ スタート";
   return `
-    <section class="elementary-stopwatch">
-      <div><span>STOPWATCH</span><strong>${formatStopwatch(elapsed)}</strong></div>
-      <div>
-        <button type="button" data-timer="lap">⚑ ラップ</button>
-        <button type="button" class="primary" data-timer="${stopwatch.running ? "pause" : "start"}">${stopwatch.running ? "Ⅱ 停止" : "▶ スタート"}</button>
-        <button type="button" data-timer="finish">■ 終了</button>
-      </div>
-    </section>
+    <div><span>STOPWATCH</span><strong>${formatStopwatch(elapsed)}</strong></div>
+    <div>
+      <button type="button" data-timer="lap" ${isRunning ? "" : "disabled"}>⚑ ラップ</button>
+      <button type="button" class="primary ${isRunning ? "timer-pause" : "timer-start"}" data-timer="${isRunning ? "pause" : "start"}">${isRunning ? "Ⅱ 停止" : startLabel}</button>
+      ${stopwatch.status === "paused" ? `<button type="button" class="timer-finish" data-timer="finish">■ 終了</button>` : ""}
+      ${hasTime && !isRunning ? `<button type="button" class="timer-reset" data-timer="reset">↺ リセット</button>` : ""}
+      <button type="button" class="timer-expand" data-timer="expand">⛶ 全画面</button>
+      <button type="button" class="timer-collapse" data-timer="collapse">× 全画面解除</button>
+    </div>
   `;
 }
 
@@ -357,11 +370,19 @@ function judgingRuleClass(score: string, groupTitle: string) {
 }
 
 function judgingRulesHtml(group: ReturnType<typeof elementaryJudgeGroups>[ElementaryJudgeGroupId]) {
-  return `<div class="elementary-rule-list">${group.rules.map(([score, desc]) => `<span class="${judgingRuleClass(score, group.title)}"><strong>${score}</strong>${escapeHtml(desc)}</span>`).join("")}</div>`;
+  return `<div>${group.rules.map(([score, desc]) => `<article><span class="photo-label ${judgingRuleClass(score, group.title)}">${escapeHtml(score)}</span><p><strong>${score === "0点" ? "0点" : judgingRuleClass(score, group.title) === "partial" ? "部分点" : "満点"}</strong>${escapeHtml(desc)}</p></article>`).join("")}</div>`;
 }
 
 function judgingPhotosHtml(group: ReturnType<typeof elementaryJudgeGroups>[ElementaryJudgeGroupId]) {
-  return `<div class="elementary-judge-photo-grid">${group.images.map(([src, alt]) => `<figure><img src="${JUDGING_IMAGE_BASE}${src}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" /><figcaption>${escapeHtml(alt)}</figcaption></figure>`).join("")}</div>`;
+  return `<div class="photo-matrix">${group.images.map(([src, alt]) => {
+    const score = alt.match(/\d+点|0点/)?.[0] ?? "";
+    const labelClass = score === "0点" ? "zero" : judgingRuleClass(score, group.title);
+    const label = labelClass === "zero" ? "0点" : labelClass === "partial" ? "部分点" : "満点";
+    return `<article class="photo-example">
+      <img src="${JUDGING_IMAGE_BASE}${src}" alt="${escapeHtml(alt)}" loading="lazy" decoding="async" />
+      <div><span class="photo-label ${labelClass}">${escapeHtml(score || label)}</span><strong>${label}</strong><p>${escapeHtml(alt)}</p></div>
+    </article>`;
+  }).join("")}</div>`;
 }
 
 function judgingView() {
@@ -371,7 +392,7 @@ function judgingView() {
     <div class="elementary-judge-grid">${groups.map((group) => `
       <article class="card elementary-judge-card">
         <h3>${escapeHtml(group.title)}</h3><p>${escapeHtml(group.text)}</p>
-        ${judgingRulesHtml(group)}
+        <section class="judging-rules"><h3>判定ルール</h3>${judgingRulesHtml(group)}</section>
         <details class="elementary-judge-photos" open><summary>判定写真を見る</summary>${judgingPhotosHtml(group)}</details>
       </article>`).join("")}</div>
   </section>`;
@@ -379,17 +400,17 @@ function judgingView() {
 
 function judgeModalView(groupId: ElementaryJudgeGroupId) {
   const group = elementaryJudgeGroups()[groupId];
-  return `<div class="elementary-modal-backdrop" data-action="close-judge-modal">
-    <section class="elementary-photo-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(group.title)}の判定写真">
+  return `<div class="modal-backdrop elementary-modal-backdrop" data-action="close-judge-modal">
+    <section class="photo-modal elementary-photo-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(group.title)}の判定写真">
       <header>
         <div><strong>${escapeHtml(group.title)}の判定写真</strong><small>${group.images.length}件の判定例を一覧表示</small></div>
         <button type="button" class="elementary-modal-close" data-action="close-judge-modal" aria-label="閉じる">×</button>
       </header>
-      <div class="elementary-modal-body">
+      <section class="judging-rules" aria-label="判定ルール">
         <h3>判定ルール</h3>
         ${judgingRulesHtml(group)}
-        ${judgingPhotosHtml(group)}
-      </div>
+      </section>
+      ${judgingPhotosHtml(group)}
     </section>
   </div>`;
 }
@@ -554,7 +575,7 @@ function bindEvents() {
   app.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener("click", () => {
     if (!confirm("Elementaryの採点をリセットしますか？")) return;
     state = makeInitialState();
-    stopwatch = { running: false, startedAt: 0, elapsedMs: 0 };
+    resetStopwatch();
     saveState();
     render();
   });
@@ -574,37 +595,120 @@ function bindEvents() {
 
 function timerAction(action: string) {
   if (action === "start") {
-    stopwatch.running = true;
+    stopwatch.status = "running";
     stopwatch.startedAt = Date.now();
+    refreshStopwatch();
+    enterStopwatchFullscreen();
     startTicker();
+    return;
   } else if (action === "pause") {
     stopwatch.elapsedMs = currentElapsedMs();
-    stopwatch.running = false;
+    stopwatch.status = "paused";
     state.timeSeconds = secondsFromStopwatch(stopwatch.elapsedMs);
     saveState();
+    refreshStopwatch();
+    return;
   } else if (action === "finish") {
+    if (stopwatch.status !== "paused") return;
     stopwatch.elapsedMs = currentElapsedMs();
-    stopwatch.running = false;
+    stopwatch.status = "finished";
     state.timeSeconds = secondsFromStopwatch(stopwatch.elapsedMs);
     saveState();
+    exitStopwatchFullscreen();
+    render();
+    return;
+  } else if (action === "reset") {
+    resetStopwatch();
+    saveState();
+    render();
+    return;
+  } else if (action === "expand") {
+    enterStopwatchFullscreen();
+    refreshStopwatch();
+    return;
+  } else if (action === "collapse") {
+    exitStopwatchFullscreen();
+    refreshStopwatch();
+    return;
   } else if (action === "lap") {
+    if (stopwatch.status !== "running") return;
     state.timeSeconds = secondsFromStopwatch(currentElapsedMs());
     saveState();
+    refreshStopwatch();
+    return;
   }
-  render();
 }
 
 function currentElapsedMs() {
-  return stopwatch.running ? stopwatch.elapsedMs + Date.now() - stopwatch.startedAt : stopwatch.elapsedMs;
+  return stopwatch.status === "running" ? stopwatch.elapsedMs + Date.now() - stopwatch.startedAt : stopwatch.elapsedMs;
 }
 
 function startTicker() {
   window.clearInterval(timerId);
   timerId = window.setInterval(() => {
-    if (!stopwatch.running) return;
+    if (stopwatch.status !== "running") return;
     const el = app.querySelector<HTMLElement>(".elementary-stopwatch strong");
     if (el) el.textContent = formatStopwatch(currentElapsedMs());
   }, 120);
+}
+
+function refreshStopwatch() {
+  const element = app.querySelector<HTMLElement>(".elementary-stopwatch");
+  if (!element) return;
+  element.innerHTML = stopwatchContents();
+  element.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
+    button.addEventListener("click", () => timerAction(button.dataset.timer!)),
+  );
+}
+
+function resetStopwatch() {
+  stopwatch = { status: "idle", startedAt: 0, elapsedMs: 0 };
+  state.timeSeconds = null;
+  exitStopwatchFullscreen();
+}
+
+type FullscreenCapableElement = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+type FullscreenCapableDocument = Document & { webkitExitFullscreen?: () => Promise<void> | void; webkitFullscreenElement?: Element | null };
+
+function activeFullscreenElement() {
+  const fullscreenDocument = document as FullscreenCapableDocument;
+  return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
+}
+
+function requestElementFullscreen(element: FullscreenCapableElement) {
+  if (activeFullscreenElement()) return;
+  try {
+    const request = element.requestFullscreen?.bind(element) ?? element.webkitRequestFullscreen?.bind(element);
+    if (!request) return;
+    nativeFullscreenTarget = "stopwatch";
+    const result = request();
+    if (result instanceof Promise) void result.catch(() => { nativeFullscreenTarget = null; });
+  } catch {
+    nativeFullscreenTarget = null;
+  }
+}
+
+function exitNativeFullscreen() {
+  const fullscreenDocument = document as FullscreenCapableDocument;
+  const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
+  if (!activeFullscreenElement() || !exit) return null;
+  nativeFullscreenTarget = null;
+  try { return exit(); } catch { return null; }
+}
+
+function enterStopwatchFullscreen() {
+  const element = app.querySelector<HTMLElement>(".elementary-stopwatch");
+  if (!element) return;
+  element.classList.add("elementary-stopwatch-expanded");
+  document.body.classList.add("elementary-stopwatch-mode");
+  requestElementFullscreen(element);
+}
+
+function exitStopwatchFullscreen() {
+  document.body.classList.remove("elementary-stopwatch-mode");
+  app.querySelector<HTMLElement>(".elementary-stopwatch")?.classList.remove("elementary-stopwatch-expanded");
+  const result = exitNativeFullscreen();
+  if (result instanceof Promise) void result.catch(() => undefined);
 }
 
 function loadState() {
@@ -837,7 +941,7 @@ async function saveResult() {
     saveStatus = "保存しました。";
     recordedVideo = null;
     state = makeInitialState();
-    stopwatch = { running: false, startedAt: 0, elapsedMs: 0 };
+    resetStopwatch();
     saveState();
     mode = "score";
   } catch (error) {
@@ -890,6 +994,16 @@ function escapeHtml(value: string) {
 function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
 }
+
+function handleFullscreenChange() {
+  if (activeFullscreenElement() || nativeFullscreenTarget !== "stopwatch") return;
+  nativeFullscreenTarget = null;
+  document.body.classList.remove("elementary-stopwatch-mode");
+  app.querySelector<HTMLElement>(".elementary-stopwatch")?.classList.remove("elementary-stopwatch-expanded");
+}
+
+document.addEventListener("fullscreenchange", handleFullscreenChange);
+document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
 if (adminMode) {
   mode = "admin";

@@ -195,6 +195,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.4", updatedAt: "2026.08.01", title: "Elementaryの操作感をJuniorに統一", description: "Elementaryのストップウォッチを開始時に全画面表示へ変更し、終了後リセットを追加しました。判定写真もJuniorと同じ判定ルール付き一覧表UIに揃えました。" },
   { version: "1.7.3", updatedAt: "2026.08.01", title: "共通リンクとコース表示を整理", description: "未ログイン時はメモ・練習記録を非表示にし、リンク・大会情報では公開リンク、QRコード、クレジットだけ確認できるようにしました。Juniorにもコース表示を追加しました。" },
   { version: "1.7.2", updatedAt: "2026.08.01", title: "ニュース・リンクをログイン時のみ表示", description: "未ログイン時はニュースとリンク・大会情報を非表示にし、ログイン後だけメニューと内容を確認できるようにしました。" },
   { version: "1.7.1", updatedAt: "2026.08.01", title: "JuniorとElementaryの基本UIを統一", description: "ログイン状態表示、ログイン画面、未ログイン時の案内、ヘッダー周りの見た目をElementary版と揃えました。" },

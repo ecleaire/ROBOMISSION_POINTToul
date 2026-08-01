@@ -261,6 +261,157 @@ textarea {
   font-weight: 950;
 }
 
+.elementary-stopwatch button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+
+.elementary-stopwatch .timer-start {
+  border-color: var(--blue);
+  color: white;
+  background: var(--blue);
+}
+
+.elementary-stopwatch .timer-pause {
+  border-color: #e2bf6a;
+  color: #8a5600;
+  background: #fff7dd;
+}
+
+.elementary-stopwatch .timer-finish,
+.elementary-stopwatch .timer-reset {
+  border-color: #dca39b;
+  color: #8a4651;
+  background: #fff1ee;
+}
+
+.elementary-stopwatch .timer-expand {
+  color: var(--blue);
+  background: #f7fbfe;
+}
+
+.elementary-stopwatch .timer-collapse {
+  display: none;
+}
+
+body.elementary-stopwatch-mode {
+  overflow: hidden;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded,
+.elementary-stopwatch:fullscreen,
+.elementary-stopwatch:-webkit-full-screen {
+  position: fixed;
+  z-index: 2147483000;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  padding: max(56px, env(safe-area-inset-top)) clamp(16px, 5vw, 70px) max(28px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(42px, 9vh, 90px);
+  overflow: hidden;
+  border: 0;
+  color: white;
+  background: #000;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded > div:first-child,
+.elementary-stopwatch:fullscreen > div:first-child,
+.elementary-stopwatch:-webkit-full-screen > div:first-child {
+  width: 100%;
+  text-align: center;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded span,
+.elementary-stopwatch:fullscreen span,
+.elementary-stopwatch:-webkit-full-screen span {
+  display: none;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded strong,
+.elementary-stopwatch:fullscreen strong,
+.elementary-stopwatch:-webkit-full-screen strong {
+  color: white;
+  font-size: clamp(4.2rem, 18vw, 13rem);
+  font-weight: 300;
+  letter-spacing: -.075em;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded > div:last-child,
+.elementary-stopwatch:fullscreen > div:last-child,
+.elementary-stopwatch:-webkit-full-screen > div:last-child {
+  width: min(900px, 100%);
+  justify-content: space-between;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded button,
+.elementary-stopwatch:fullscreen button,
+.elementary-stopwatch:-webkit-full-screen button {
+  flex: 0 0 auto;
+  width: clamp(92px, 17vw, 148px);
+  height: clamp(92px, 17vw, 148px);
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  border-width: 2px;
+  border-radius: 50%;
+  color: #bbb;
+  background: #171717;
+  border-color: #393939;
+  font-size: clamp(1rem, 3vw, 1.65rem);
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-start,
+.elementary-stopwatch:fullscreen .timer-start,
+.elementary-stopwatch:-webkit-full-screen .timer-start {
+  color: #5be36d;
+  background: #0d2511;
+  border-color: #1d5a27;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-pause,
+.elementary-stopwatch:fullscreen .timer-pause,
+.elementary-stopwatch:-webkit-full-screen .timer-pause {
+  color: #ffb229;
+  background: #2a1c06;
+  border-color: #76500e;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-finish,
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-reset,
+.elementary-stopwatch:fullscreen .timer-finish,
+.elementary-stopwatch:fullscreen .timer-reset,
+.elementary-stopwatch:-webkit-full-screen .timer-finish,
+.elementary-stopwatch:-webkit-full-screen .timer-reset {
+  color: #ff625d;
+  background: #2a0d0c;
+  border-color: #722623;
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-collapse,
+.elementary-stopwatch:fullscreen .timer-collapse,
+.elementary-stopwatch:-webkit-full-screen .timer-collapse {
+  position: absolute;
+  z-index: 12;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  width: auto;
+  height: 46px;
+  padding: 7px 16px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  color: white;
+  background: #b43a32;
+  border-color: #ff8a80;
+  box-shadow: 0 0 0 3px rgba(255, 103, 92, .22), 0 6px 18px rgba(0, 0, 0, .45);
+  font-size: 1rem;
+}
+
 .elementary-recorder {
   min-height: 96px;
   padding: 10px 14px;
@@ -723,7 +874,7 @@ textarea {
   max-height: min(92vh, 980px);
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   border-radius: 18px;
   background: white;
   box-shadow: 0 18px 52px rgba(0, 0, 0, .28);
@@ -767,6 +918,119 @@ textarea {
   box-shadow: 0 3px 10px rgba(22, 55, 84, .12);
   font-size: 2rem;
   line-height: 1;
+}
+
+.judging-rules {
+  flex: 0 0 auto;
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid #cbdce8;
+  background: #f4f9fc;
+}
+
+.judging-rules h3 {
+  margin: 0 0 8px;
+  color: #173b57;
+  font-size: 1.08rem;
+}
+
+.judging-rules > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
+  gap: 7px;
+}
+
+.judging-rules article {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid #d0e0eb;
+  border-radius: 9px;
+  background: white;
+}
+
+.judging-rules article p {
+  margin: 0;
+  color: #405a6e;
+  font-size: .86rem;
+  line-height: 1.45;
+}
+
+.judging-rules article p strong {
+  display: block;
+  color: #173b57;
+  font-size: .8rem;
+}
+
+.photo-matrix {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  overflow: auto;
+  background: #d4dee6;
+  gap: 1px;
+}
+
+.photo-example {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(170px, 1fr) auto;
+  margin: 0;
+  background: white;
+}
+
+.photo-example img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 170px;
+  max-height: 260px;
+  padding: 10px;
+  object-fit: contain;
+  background: #f5f8fa;
+}
+
+.photo-example > div {
+  min-height: 118px;
+  padding: 12px 14px 14px;
+  text-align: center;
+}
+
+.photo-example > div > strong {
+  margin-left: 7px;
+  color: #173b57;
+  font-size: .86rem;
+}
+
+.photo-example p {
+  margin: 8px 0 0;
+  color: #52677a;
+  font-size: .86rem;
+  line-height: 1.5;
+}
+
+.photo-label {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 99px;
+  font-weight: 950;
+  font-size: .86rem;
+}
+
+.photo-label.full {
+  color: var(--green);
+  background: #e8f7ef;
+}
+
+.photo-label.partial {
+  color: #9a5400;
+  background: #fff1cf;
+}
+
+.photo-label.zero {
+  color: #91483d;
+  background: #fff1ee;
 }
 
 .elementary-modal-body {
