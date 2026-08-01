@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.17";
+const ELEMENTARY_VERSION = "0.4.18";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -213,7 +213,7 @@ function scoreView() {
   return `
     <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>送信待ちなし</span></aside>
     <section class="elementary-score-card">
-      <div class="elementary-title-bar">WRO 2026 RoboMission Elementary 得点チェック</div>
+      <div class="elementary-title-bar">WRO 2026 RoboMission Elementary　得点チェック</div>
       ${stopwatchView()}
       ${videoRecorderView()}
       <div class="elementary-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認</div>
@@ -232,10 +232,14 @@ function scoreView() {
         ${sheetRows(bonusRows())}
         ${subtotal(scores.bonus, 40)}
         <div class="elementary-row elementary-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
+        <div class="elementary-row elementary-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
+        <div class="elementary-sheet-footer-tools">
+          ${timePicker(state.timeSeconds)}
+          <section class="elementary-memo-card" aria-label="採点メモ">
+            <label class="elementary-notes-card">メモ<textarea data-memo rows="2" maxlength="800" placeholder="ミスした部分、練習で気づいたことなど">${escapeHtml(state.memo)}</textarea></label>
+          </section>
+        </div>
       </div>
-      <section class="elementary-memo card">
-        <label>メモ<textarea data-memo maxlength="800" placeholder="ミスした部分、練習で気づいたことなど">${escapeHtml(state.memo)}</textarea></label>
-      </section>
     </section>
     <div class="elementary-bottom-space"></div>
     <nav class="elementary-bottom">
@@ -300,6 +304,24 @@ function videoRecorderView() {
 
 function sectionHeader(label: string, groupId: ElementaryJudgeGroupId) {
   return `<div class="elementary-section"><strong>${label}</strong><button type="button" data-judge-modal="${groupId}">▧ 写真</button></div>`;
+}
+
+function timePicker(value: number | null) {
+  const centiseconds = value === null ? null : Math.max(0, Math.round(value * 100));
+  const minutes = centiseconds === null ? "" : String(Math.min(2, Math.max(0, Math.floor(centiseconds / 6000))));
+  const seconds = centiseconds === null ? 0 : Math.floor((centiseconds % 6000) / 100);
+  const hundredths = centiseconds === null ? 0 : centiseconds % 100;
+  const numberOptions = (length: number, selected: number) => Array.from({ length }, (_, number) =>
+    `<option value="${number}" ${number === selected ? "selected" : ""}>${String(number).padStart(2, "0")}</option>`,
+  ).join("");
+  return `<section class="elementary-time-card">
+    <div><strong>競技時間</strong><small>タイマー終了時に自動反映・手動修正できます</small></div>
+    <div class="elementary-time-selects">
+      <label><select data-time-part="minutes" aria-label="競技時間の分"><option value="" ${minutes === "" ? "selected" : ""}>--</option><option value="0" ${minutes === "0" ? "selected" : ""}>0</option><option value="1" ${minutes === "1" ? "selected" : ""}>1</option><option value="2" ${minutes === "2" ? "selected" : ""}>2</option></select><span>分</span></label>
+      <label><select data-time-part="seconds" aria-label="競技時間の秒">${numberOptions(60, seconds)}</select><span>秒</span></label>
+      <label><select data-time-part="hundredths" aria-label="競技時間の100分の1秒">${numberOptions(100, hundredths)}</select><span>1/100秒</span></label>
+    </div>
+  </section>`;
 }
 
 function sheetRows(rows: MissionRow[]) {
@@ -645,6 +667,9 @@ function bindEvents() {
     state.updatedAt = new Date().toISOString();
     saveState();
   });
+  app.querySelectorAll<HTMLSelectElement>("[data-time-part]").forEach((select) => {
+    select.addEventListener("change", updateTime);
+  });
   app.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener("click", () => {
     if (!confirm("Elementaryの採点をリセットしますか？")) return;
     state = makeInitialState();
@@ -664,6 +689,15 @@ function bindEvents() {
   app.querySelector<HTMLButtonElement>('[data-action="save-result"]')?.addEventListener("click", () => void saveResult());
   const preview = app.querySelector<HTMLVideoElement>("[data-recorder-preview]");
   if (preview && mediaStream && preview.srcObject !== mediaStream) preview.srcObject = mediaStream;
+}
+
+function updateTime() {
+  const minutes = app.querySelector<HTMLSelectElement>('[data-time-part="minutes"]')?.value ?? "";
+  const seconds = Number(app.querySelector<HTMLSelectElement>('[data-time-part="seconds"]')?.value ?? 0);
+  const hundredths = Number(app.querySelector<HTMLSelectElement>('[data-time-part="hundredths"]')?.value ?? 0);
+  state.timeSeconds = minutes === "" ? null : Number(minutes) * 60 + seconds + hundredths / 100;
+  state.updatedAt = new Date().toISOString();
+  saveState();
 }
 
 function timerAction(action: string) {

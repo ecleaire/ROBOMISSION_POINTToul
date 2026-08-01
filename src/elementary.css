@@ -894,13 +894,26 @@ body.elementary-stopwatch-mode {
   background: #fff7dd;
 }
 
-.elementary-total > * {
+.elementary-maximum {
+  background: #e8f7df;
+}
+
+.elementary-total > *,
+.elementary-maximum > * {
   min-height: 64px;
   font-weight: 950;
 }
 
-.elementary-total strong:first-child {
+.elementary-maximum > * {
+  min-height: 50px;
+}
+
+.elementary-total strong:first-child,
+.elementary-maximum strong:first-child {
   justify-content: flex-end;
+}
+
+.elementary-total strong:first-child {
   font-size: 1.62rem;
 }
 
@@ -910,23 +923,94 @@ body.elementary-stopwatch-mode {
   font-size: 1.9rem;
 }
 
-.elementary-memo {
-  margin: 12px;
-  padding: 14px;
+.elementary-maximum strong:first-child {
+  font-size: 1.2rem;
 }
 
-.elementary-memo label {
+.elementary-maximum strong:nth-child(4),
+.elementary-maximum strong:nth-child(5) {
+  justify-content: center;
+  font-size: 1.32rem;
+}
+
+.elementary-sheet-footer-tools {
   display: grid;
-  gap: 8px;
+  grid-template-columns: auto minmax(280px, 1fr);
+  border-top: 2px solid #9fb7cb;
+  background: #f7fbfe;
+}
+
+.elementary-time-card {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-right: 1px solid #cbd8e3;
+}
+
+.elementary-time-card strong,
+.elementary-notes-card {
   color: #173b57;
-  font-size: 1rem;
   font-weight: 950;
 }
 
-.elementary-memo textarea {
-  min-height: 110px;
+.elementary-time-card small {
+  display: block;
+  margin-top: 3px;
+  color: #60798e;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.elementary-time-selects {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.elementary-time-selects label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #173b57;
+  font-size: .8rem;
+  font-weight: 900;
+}
+
+.elementary-time-selects select {
+  width: 66px;
+  min-height: 46px;
+  margin: 0;
+  padding: 6px 7px;
+  border: 1px solid #9eb9ce;
+  border-radius: 8px;
+  background: white;
+  color: #102a43;
+  font: inherit;
+  font-weight: 900;
+  text-align: center;
+}
+
+.elementary-time-selects label:first-child select {
+  width: 58px;
+}
+
+.elementary-memo-card {
+  padding: 12px 14px;
+}
+
+.elementary-notes-card {
+  display: grid;
+  gap: 7px;
+}
+
+.elementary-notes-card textarea {
+  width: 100%;
+  min-height: 86px;
+  margin-top: 0;
   resize: vertical;
-  line-height: 1.6;
+  line-height: 1.55;
 }
 
 .elementary-bottom-space {
@@ -2003,6 +2087,62 @@ body.elementary-stopwatch-mode {
   .elementary-total strong:nth-child(4),
   .elementary-total strong:nth-child(5) {
     font-size: 1.35rem;
+  }
+
+  .elementary-maximum strong:first-child {
+    font-size: 1rem;
+  }
+
+  .elementary-maximum strong:nth-child(4),
+  .elementary-maximum strong:nth-child(5) {
+    font-size: 1.1rem;
+  }
+
+  .elementary-sheet-footer-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .elementary-time-card {
+    padding: 10px 8px;
+    flex-direction: column;
+    gap: 7px;
+    border-right: 0;
+    border-bottom: 1px solid #cbd8e3;
+  }
+
+  .elementary-time-card > div:first-child {
+    text-align: center;
+  }
+
+  .elementary-time-card > div:first-child strong {
+    font-size: .8rem;
+  }
+
+  .elementary-time-selects {
+    gap: 5px;
+  }
+
+  .elementary-time-selects label {
+    gap: 2px;
+  }
+
+  .elementary-time-selects select {
+    width: 55px;
+    min-height: 44px;
+    padding: 4px;
+    font-size: .78rem;
+  }
+
+  .elementary-time-selects label:first-child select {
+    width: 48px;
+  }
+
+  .elementary-time-selects span {
+    font-size: .62rem;
+  }
+
+  .elementary-memo-card {
+    padding: 10px 8px;
   }
 
   .elementary-bottom-space {

@@ -211,7 +211,7 @@ body.stopwatch-mode { overflow: hidden; }
 .sheet-target > strong { font-size: 1.26rem; line-height: 1.2; letter-spacing: .01em; }
 .sheet-target select { width: 86px; min-height: 30px; margin: 0; padding: 3px 5px; border-radius: 4px; font-size: .72rem; }
 .dirt-count-cell { justify-content: center; background: #fbfcfd; }
-.dirt-count-cell select { width: 90px; min-height: 32px; margin: 0; padding: 4px 8px; border-radius: 6px; font-weight: 900; text-align: center; }
+.dirt-count-cell select { width: 132px; min-height: 48px; margin: 0; padding: 7px 14px; border: 2px solid #8dbad8; border-radius: 10px; color: #102a43; background: white; font-size: 1.08rem; font-weight: 950; text-align: center; }
 .sheet-check-cell { justify-content: center; gap: 8px; margin: 0; border-width: 0 1px 1px 0; border-style: solid; border-color: #d4dee6; border-radius: 0; color: inherit; font: inherit; cursor: pointer; background: #fbfcfd; }
 .sheet-check-cell .check-box { width: 36px; height: 36px; border-radius: 6px; font-size: 1.12rem; }
 .sheet-check-cell small { display: block; color: #52677a; font-size: 1.02rem; font-weight: 900; }
@@ -793,7 +793,7 @@ code { overflow-wrap: anywhere; }
   .sheet-section > strong { font-size: .96rem; }
   .sheet-section { min-height: 44px; }
   .sheet-section button { min-height: 44px; padding-inline: 12px; }
-  .dirt-count-cell select { min-height: 44px; }
+  .dirt-count-cell select { width: 112px; min-height: 46px; font-size: .95rem; }
   .record-delete { min-height: 44px; }
   .sheet-check-cell .check-box { width: 29px; height: 29px; font-size: .92rem; }
   .sheet-check-cell small { display: none; }

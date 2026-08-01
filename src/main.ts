@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.18", updatedAt: "2026.08.02", title: "採点UIをさらに共通化", description: "JuniorとElementaryで、採点表の満点行、競技時間、メモ欄、下部合計バーの流れを揃え、石畳の汚れプルダウンも押しやすくしました。" },
   { version: "1.7.17", updatedAt: "2026.08.02", title: "ストップウォッチ仕様を統一", description: "JuniorとElementaryで、スタート・停止・再開・終了・リセット・別画面中の継続表示を同じ仕様とUIに揃えました。" },
   { version: "1.7.16", updatedAt: "2026.08.02", title: "PDFキャッシュを自動整理", description: "古いPDF保存キャッシュが端末に残り続けないよう、PDFキャッシュの世代を更新して自動整理するようにしました。" },
   { version: "1.7.15", updatedAt: "2026.08.02", title: "PDF読み込みを軽量化", description: "ElementaryルールPDFの初回先読みをやめ、PDFは開いた時だけ端末に保存する方式へ変更しました。更新時の待ち時間とキャッシュ負荷を減らしています。" },
