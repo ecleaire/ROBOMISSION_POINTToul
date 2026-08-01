@@ -554,6 +554,41 @@ textarea {
   font-size: 1.1rem;
 }
 
+.elementary-judge-photos {
+  margin-top: 14px;
+  border-top: 1px solid #d5e1ec;
+  padding-top: 10px;
+}
+
+.elementary-judge-photos summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  color: var(--blue);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.elementary-judge-photos figure {
+  margin: 10px 0 0;
+  overflow: hidden;
+  border: 1px solid #c8ddeb;
+  border-radius: 12px;
+  background: #f7fbfe;
+}
+
+.elementary-judge-photos img {
+  width: 100%;
+  display: block;
+}
+
+.elementary-judge-photos figcaption {
+  padding: 8px 10px;
+  color: #526d80;
+  font-size: .86rem;
+  font-weight: 900;
+}
+
 .elementary-course {
   overflow: hidden;
   padding: 10px;

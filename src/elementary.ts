@@ -34,11 +34,12 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.1.0";
+const ELEMENTARY_VERSION = "0.2.0";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
 const RULE_PDF = `${import.meta.env.BASE_URL}assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`;
+const JUDGING_IMAGE_BASE = `${import.meta.env.BASE_URL}assets/elementary/judging/`;
 const NOTE_LABELS = ["赤の音符", "青の音符", "緑の音符", "黄色の音符", "白の音符", "黒の音符"];
 
 let mode: Mode = "score";
@@ -228,17 +229,38 @@ function bonusRows(): MissionRow[] {
 
 function judgingView() {
   const groups = [
-    ["アンプとスピーカーをつなぐ", "ケーブルは灰色エリアに置きます。完全に入るとは、対象物が対応エリアに触れ、マット上の他エリアに触れていない状態です。", [["15点", "灰色エリア内に完全に入り、直立"], ["5点", "一部だけ入っている、または直立していない"], ["0点", "エリア外"]]],
-    ["ショーの準備", "マイクはステージ上の薄緑エリア、楽器は左下のピンク色バックステージへ運びます。", [["20点", "マイクが対象エリア内・直立"], ["10点", "マイクが一部だけ、または直立していない"], ["15点", "楽器がバックステージ内"]]],
-    ["曲を演奏する", "6色の音符を対応する色の音符ターゲットエリアへ置きます。灰色のふちもターゲットエリアに含まれます。", [["20点", "対応色エリア内に完全に入り、直立"], ["10点", "一部だけ、または直立していない"], ["0点", "エリア外、または色違い"]]],
-    ["ボーナスポイント", "ト音記号・スピーカー・アンプが開始時の状態から移動または損傷していない場合に得点します。", [["10点", "移動していない、損傷していない"], ["0点", "移動、転倒、損傷あり"]]],
+    {
+      title: "アンプとスピーカーをつなぐ",
+      text: "ケーブルは灰色エリアに置きます。完全に入るとは、対象物が対応エリアに触れ、マット上の他エリアに触れていない状態です。",
+      rules: [["15点", "灰色エリア内に完全に入り、直立"], ["5点", "一部だけ入っている、または直立していない"], ["0点", "エリア外"]],
+      images: [["cables-1.webp", "ケーブル判定例 1"], ["cables-2-microphone-1.webp", "ケーブル判定例 2"]],
+    },
+    {
+      title: "ショーの準備",
+      text: "マイクはステージ上の薄緑エリア、楽器は左下のピンク色バックステージへ運びます。",
+      rules: [["20点", "マイクが対象エリア内・直立"], ["10点", "マイクが一部だけ、または直立していない"], ["15点", "楽器がバックステージ内"]],
+      images: [["cables-2-microphone-1.webp", "マイク判定例 1"], ["microphone-2-instruments.webp", "マイク・楽器判定例"], ["instruments-notes-1.webp", "楽器判定例"]],
+    },
+    {
+      title: "曲を演奏する",
+      text: "6色の音符を対応する色の音符ターゲットエリアへ置きます。灰色のふちもターゲットエリアに含まれます。",
+      rules: [["20点", "対応色エリア内に完全に入り、直立"], ["10点", "一部だけ、または直立していない"], ["0点", "エリア外、または色違い"]],
+      images: [["instruments-notes-1.webp", "音符判定例 1"], ["notes-2.webp", "音符判定例 2"]],
+    },
+    {
+      title: "ボーナスポイント",
+      text: "ト音記号・スピーカー・アンプが開始時の状態から移動または損傷していない場合に得点します。",
+      rules: [["10点", "移動していない、損傷していない"], ["0点", "移動、転倒、損傷あり"]],
+      images: [["bonus.webp", "ボーナス判定例"]],
+    },
   ];
   return `<section class="elementary-page">
     <p class="eyebrow">JUDGING RULES</p><h2>判定ルール</h2>
-    <div class="elementary-judge-grid">${groups.map(([title, text, rules]) => `
+    <div class="elementary-judge-grid">${groups.map((group) => `
       <article class="card elementary-judge-card">
-        <h3>${title}</h3><p>${text}</p>
-        <div>${(rules as string[][]).map(([score, desc]) => `<span class="${score === "0点" ? "zero" : score === "10点" || score === "5点" ? "partial" : "full"}"><strong>${score}</strong>${desc}</span>`).join("")}</div>
+        <h3>${group.title}</h3><p>${group.text}</p>
+        <div>${group.rules.map(([score, desc]) => `<span class="${score === "0点" ? "zero" : score === "10点" || score === "5点" ? "partial" : "full"}"><strong>${score}</strong>${desc}</span>`).join("")}</div>
+        <details class="elementary-judge-photos"><summary>判定写真を見る</summary>${group.images.map(([src, alt]) => `<figure><img src="${JUDGING_IMAGE_BASE}${src}" alt="${alt}" loading="lazy" decoding="async" /><figcaption>${alt}</figcaption></figure>`).join("")}</details>
       </article>`).join("")}</div>
   </section>`;
 }

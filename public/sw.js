@@ -1,10 +1,16 @@
-const CACHE = "robomission-junior-v56";
+const CACHE = "robomission-junior-v57";
 const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
   "./assets/elementary/memo/elementary-course.webp",
   "./assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf",
+  "./assets/elementary/judging/cables-1.webp",
+  "./assets/elementary/judging/cables-2-microphone-1.webp",
+  "./assets/elementary/judging/microphone-2-instruments.webp",
+  "./assets/elementary/judging/instruments-notes-1.webp",
+  "./assets/elementary/judging/notes-2.webp",
+  "./assets/elementary/judging/bonus.webp",
   "./assets/memo/junior-course.webp",
   "./assets/judging/visitors/full-upright.webp",
   "./assets/judging/visitors/partial.webp",
