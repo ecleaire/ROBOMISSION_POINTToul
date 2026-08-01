@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.4";
+const ELEMENTARY_VERSION = "0.4.5";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -147,19 +147,22 @@ function totalScore(s = state) {
 }
 
 function render() {
+  const title = modeTitle(mode);
   app.innerHTML = `
     <header class="elementary-header">
-      <div>
-        <p>WRO 2026 / ROBOMISSION ELEMENTARY</p>
-        <h1>RoboMission Elementary Assist <span>v${ELEMENTARY_VERSION}</span></h1>
+      <div class="elementary-brand">
+        <div>
+          <p>WRO 2026 / ROBOMISSION ELEMENTARY</p>
+          <h1>RoboMission Elementary Assist <span>v${ELEMENTARY_VERSION}</span></h1>
+        </div>
+        <span class="elementary-current-mode">${title}</span>
       </div>
       <nav aria-label="Elementary menu">
         ${navButton("score", "採点")}
-        ${navButton("judging", "判定")}
+        ${navButton("judging", "判定写真")}
         ${navButton("course", "コース")}
         ${navButton("rules", "ルール")}
-        ${navButton("links", "リンク")}
-        ${navButton("result", "結果")}
+        ${navButton("links", "リンク・大会情報")}
         ${navButton("login", account ? "ログイン中" : "ログイン")}
         ${adminMode ? navButton("admin", "管理") : ""}
       </nav>
@@ -177,6 +180,20 @@ function render() {
 
 function navButton(target: Mode, label: string) {
   return `<button type="button" class="${mode === target ? "active" : ""}" data-mode="${target}">${label}</button>`;
+}
+
+function modeTitle(target: Mode) {
+  const labels: Record<Mode, string> = {
+    score: "採点",
+    judging: "判定写真",
+    course: "コース",
+    rules: "ルール",
+    links: "リンク・大会情報",
+    result: "結果",
+    login: "アカウント",
+    admin: "管理",
+  };
+  return labels[target] ?? "採点";
 }
 
 function scoreView() {
@@ -386,15 +403,18 @@ function judgingPhotosHtml(group: ReturnType<typeof elementaryJudgeGroups>[Eleme
 }
 
 function judgingView() {
-  const groups = Object.values(elementaryJudgeGroups());
+  const entries = Object.entries(elementaryJudgeGroups()) as [ElementaryJudgeGroupId, ReturnType<typeof elementaryJudgeGroups>[ElementaryJudgeGroupId]][];
   return `<section class="elementary-page">
-    <p class="eyebrow">JUDGING RULES</p><h2>判定ルール</h2>
-    <div class="elementary-judge-grid">${groups.map((group) => `
-      <article class="card elementary-judge-card">
-        <h3>${escapeHtml(group.title)}</h3><p>${escapeHtml(group.text)}</p>
-        <section class="judging-rules"><h3>判定ルール</h3>${judgingRulesHtml(group)}</section>
-        <details class="elementary-judge-photos" open><summary>判定写真を見る</summary>${judgingPhotosHtml(group)}</details>
-      </article>`).join("")}</div>
+    <section class="elementary-page-intro">
+      <p class="eyebrow">公式ルール掲載例</p>
+      <h2>判定写真</h2>
+      <p>見たいミッションを選んでください。判定ルールと写真を一覧で確認できます。</p>
+    </section>
+    <div class="elementary-gallery-grid">${entries.map(([id, group]) => `
+      <button type="button" class="elementary-gallery-card card" data-judge-modal="${id}">
+        <img src="${JUDGING_IMAGE_BASE}${group.images[0][0]}" alt="" loading="lazy" decoding="async" />
+        <span><strong>${escapeHtml(group.title)}</strong><small>${group.images.length}枚の判定例</small></span>
+      </button>`).join("")}</div>
   </section>`;
 }
 
@@ -432,7 +452,8 @@ function rulesView() {
 
 function linksView() {
   return `<section class="elementary-page elementary-links">
-    <p class="eyebrow">RELATED LINKS</p><h2>リンク</h2>
+    <p class="eyebrow">EVENT / RELATED LINKS</p><h2>リンク・大会情報</h2>
+    <p class="elementary-page-lead">ログインなしで確認できる公開リンク、QRコード、クレジットを表示しています。</p>
     <div class="card elementary-link-section">
       <h3>WRO ホームページ</h3>
       <div class="elementary-link-grid">
@@ -450,7 +471,6 @@ function linksView() {
     <div class="card elementary-link-section">
       <h3>ライセンス / クレジット</h3>
       <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Elementaryの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
-      <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
     </div>
   </section>`;
 }
@@ -517,7 +537,7 @@ function loginView() {
     <div class="card elementary-login">
       <div class="elementary-login-icon">鍵</div>
       <p class="eyebrow">OPTIONAL LOGIN</p>
-      <h2>${account ? "ログイン中" : "ログイン"}</h2>
+      <h1>${account ? "ログイン中" : "ログイン"}</h1>
       ${account ? `<p><strong>${escapeHtml(account.accountName || account.account)}</strong> としてログインしています。</p><p>結果・メモ・ストップウォッチ時間・録画をこのアカウントに保存できます。</p><button type="button" class="secondary" data-action="logout">ログアウト</button>` : `
         <p>ログインしなくても採点とストップウォッチは使えます。結果保存と録画を使う場合だけログインしてください。</p>
         <label>APIキー<input id="elementary-api-key" type="password" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" placeholder="APIキー" /></label>

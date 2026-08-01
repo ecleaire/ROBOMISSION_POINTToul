@@ -42,7 +42,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .junior-account-bar { max-width: 1600px; min-height: 42px; margin: 0 auto 6px; padding: 7px 12px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid #c8ddeb; border-radius: 9px; color: #526d80; background: white; font-size: .95rem; font-weight: 850; text-align: center; }
 .junior-account-bar.logged-in { color: var(--green); background: #eefaf4; }
 .junior-account-bar div { display: flex; align-items: center; justify-content: center; gap: 8px; }
-.junior-account-bar button { min-height: 34px; padding: 5px 12px; border: 1px solid #9fc4df; border-radius: 8px; color: var(--blue); background: white; font-weight: 950; }
+.junior-account-bar button { min-width: 88px; min-height: 34px; padding: 5px 14px; border: 1px solid #9fc4df; border-radius: 8px; color: var(--blue); background: white; font-weight: 950; }
 .admin-badge { margin-left: auto; padding: 7px 11px; border-radius: 99px; background: #efe5ff; color: #5a348b; font-size: .78rem; font-weight: 900; }
 .eyebrow { color: #4f718d; font-weight: 800; font-size: .72rem; letter-spacing: .11em; text-transform: uppercase; margin: 0 0 2px; }
 .brand-mark { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 14px; background: var(--blue); color: white; font-weight: 900; }
@@ -681,8 +681,9 @@ body.board-editor-mode { overflow: hidden; }
 code { overflow-wrap: anywhere; }
 @media (max-width: 1200px) and (min-width: 641px) {
   .app-header { grid-template-columns: 1fr; }
-  .mode-nav { justify-content: stretch; }
-  .mode-nav button { flex: 1 1 92px; white-space: normal; line-height: 1.2; overflow-wrap: break-word; }
+  .mode-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); justify-content: stretch; }
+  .mode-nav button { width: 100%; padding-inline: 10px; white-space: nowrap; line-height: 1.2; overflow-wrap: normal; }
+  .current-mode { white-space: nowrap; }
 }
 @media (max-width: 900px) and (min-width: 641px) {
   .news-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -835,9 +836,9 @@ code { overflow-wrap: anywhere; }
   .bottom-space { height: calc(108px + env(safe-area-inset-bottom)); }
   .bottom-bar { grid-template-columns: minmax(104px, .85fr) minmax(0, 1.65fr); gap: 8px; padding-inline: 10px; }
   .bottom-bar .primary { padding-inline: 10px; }
-  .bottom-bar .primary { flex-direction: column; justify-content: center; gap: 2px; white-space: normal; }
+  .bottom-bar .primary { display: grid; grid-template-columns: auto minmax(0, auto); justify-content: center; align-items: center; gap: 8px; white-space: nowrap; }
   .bottom-bar .primary > span { font-size: .9rem; }
-  .bottom-bar .primary > strong { font-size: clamp(1rem, 4.2vw, 1.22rem); white-space: nowrap; }
+  .bottom-bar .primary > strong { font-size: clamp(.95rem, 3.6vw, 1.18rem); white-space: nowrap; }
 }
 @media (min-width: 760px) {
   body:has(.score-sheet) main { max-width: 1600px; padding: 4px 12px 60px; }
