@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.9";
+const ELEMENTARY_VERSION = "0.4.10";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -248,26 +248,22 @@ function stopwatchContents() {
   const elapsed = currentElapsedMs();
   const isRunning = stopwatch.status === "running";
   const hasTime = elapsed > 0;
-  const startLabel = stopwatch.status === "paused" || stopwatch.status === "finished" ? "▶ 再開" : "▶ スタート";
+  const startText = stopwatch.status === "paused" || stopwatch.status === "finished" ? "再開" : "スタート";
   return `
     <div><span>STOPWATCH</span><strong>${formatStopwatch(elapsed)}</strong></div>
     <div>
-      <button type="button" data-timer="lap" ${isRunning ? "" : "disabled"}>⚑ ラップ</button>
-      <button type="button" class="primary ${isRunning ? "timer-pause" : "timer-start"}" data-timer="${isRunning ? "pause" : "start"}">${isRunning ? "Ⅱ 停止" : startLabel}</button>
-      ${stopwatch.status === "paused" ? `<button type="button" class="timer-finish" data-timer="finish">■ 終了</button>` : ""}
-      ${hasTime && !isRunning ? `<button type="button" class="timer-reset" data-timer="reset">↺ リセット</button>` : ""}
-      <button type="button" class="timer-expand" data-timer="expand">⛶ 全画面</button>
-      <button type="button" class="timer-collapse" data-timer="collapse">× 全画面解除</button>
+      <button type="button" class="timer-lap" data-timer="lap" ${isRunning ? "" : "disabled"}>⚑ <span>ラップ</span></button>
+      <button type="button" class="${isRunning ? "timer-pause" : "timer-start"}" data-timer="${isRunning ? "pause" : "start"}">${isRunning ? "Ⅱ <span>停止</span>" : `◀ <span>${startText}</span>`}</button>
+      ${stopwatch.status === "paused" ? `<button type="button" class="timer-finish" data-timer="finish">■ <span>タイマー終了</span></button>` : ""}
+      ${hasTime && !isRunning ? `<button type="button" class="timer-reset" data-timer="reset">↺ <span>リセット</span></button>` : ""}
+      <button type="button" class="timer-expand" data-timer="expand" aria-label="ストップウォッチを全画面表示">⛶ <span>全画面</span></button>
+      <button type="button" class="timer-collapse" data-timer="collapse">× <span>全画面解除</span></button>
     </div>
   `;
 }
 
 function videoRecorderView() {
-  if (!account) return `<section class="elementary-recorder locked" aria-label="動画録画">
-    <div class="elementary-recorder-lock">ログイン限定</div>
-    <div><strong>動画録画</strong><span>録画機能はログインユーザー限定です。採点とストップウォッチはログインなしで使えます。</span></div>
-    <button type="button" data-mode="login">ログイン</button>
-  </section>`;
+  if (!account) return "";
   const recordingTime = recordingStatus === "recording" ? formatStopwatch(recordingElapsedMs || Date.now() - recordingStartedAt) : "";
   return `<section class="elementary-recorder ${recordingStatus === "recording" ? "recording" : ""}">
     <div><strong>動画録画</strong><span>${recordedVideo ? `${escapeHtml(recordedVideo.name)} / ${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB` : recordingStatus === "recording" ? `録画中 ${recordingTime}` : "ログイン中のみ録画できます。保存時に得点と一緒に送信します。"}</span></div>
@@ -573,9 +569,9 @@ function getScore(row: MissionRow): ScoreValue {
 
 function setScore(key: MissionRow["key"], index: number | undefined, value: ScoreValue) {
   if (key === "microphone" || key === "bonusClef" || key === "bonusAmplifier") {
-    state[key] = state[key] === value ? 0 : value;
+    state[key] = value;
   } else {
-    state[key][index ?? 0] = state[key][index ?? 0] === value ? 0 : value;
+    state[key][index ?? 0] = value;
   }
   state.updatedAt = new Date().toISOString();
   saveState();

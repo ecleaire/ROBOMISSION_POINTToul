@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.10", updatedAt: "2026.08.02", title: "採点共通UIと未ログイン表示を統一", description: "JuniorとElementaryの採点表、写真ボタン、ストップウォッチ操作、下部合計バーの見た目と操作感を揃えました。未ログイン時は動画録画欄を表示しないようにしました。" },
   { version: "1.7.9", updatedAt: "2026.08.01", title: "ログインと共通UIを再統一", description: "a0などの共通アカウントでログインできるよう修正し、JuniorとElementaryのログイン、リンク、採点、コース表示の文字サイズ・太さ・位置・角丸を揃えました。" },
   { version: "1.7.8", updatedAt: "2026.08.01", title: "画面ごとの相違点を統一", description: "JuniorとElementaryで、採点、判定写真、リンク、ログイン画面の余白・幅・カード配置を揃えました。" },
   { version: "1.7.7", updatedAt: "2026.08.01", title: "タイトルとメニュー文字を統一", description: "JuniorとElementaryで、メインタイトル、現在モード名、モードボタンの文字サイズ・太さ・フォント指定を揃えました。" },
@@ -571,7 +572,7 @@ function scoringView() {
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
       ${stopwatchView()}
       ${cameraRecorderView()}
-      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認　<span>チェックなしは0点・同じ□をもう一度押すと解除</span></div>
+      <div class="score-sheet-guide">① ロボットの結果を見る　② 当てはまる□にチェック　③ 合計点を確認</div>
       <div class="sheet-row sheet-columns">
         <strong>ミッション／対象</strong><strong>高得点</strong><strong>部分点</strong><strong>得点</strong><strong>最大得点</strong>
       </div>
@@ -618,11 +619,7 @@ function stopwatchView() {
 
 function cameraRecorderView() {
   if (!activeAccount || !activeApiKey) {
-    return `<section class="camera-recorder camera-locked" aria-label="動画録画">
-      <div class="camera-preview-wrap"><span class="camera-placeholder">ログイン限定</span></div>
-      <div class="camera-recorder-info"><strong>動画録画</strong><small>録画機能はログインユーザー限定です。採点とストップウォッチはログインなしで使えます。</small></div>
-      <div class="camera-recorder-actions"><button type="button" data-nav="account">ログイン</button></div>
-    </section>`;
+    return "";
   }
   const isRecording = videoRecordingStatus === "recording";
   const isBusy = videoRecordingStatus === "starting" || videoRecordingStatus === "processing";
@@ -2423,10 +2420,7 @@ function toggleScore(button: HTMLButtonElement) {
   const section = button.dataset.scoreSection!;
   const index = Number(button.dataset.scoreIndex);
   const selectedScore = Number(button.dataset.scoreValue);
-  const currentScore = section === "artifacts"
-    ? state.artifacts[index].score
-    : (state[section as keyof Pick<ScoreState, "visitors" | "redTowers" | "yellowTowers" | "dirt" | "bonus">] as Score[])[index];
-  updateScore(section, index, currentScore === selectedScore ? 0 : selectedScore as Score);
+  updateScore(section, index, selectedScore as Score);
 }
 
 function updateScore(section: string, index: number, score: Score) {

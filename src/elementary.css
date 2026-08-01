@@ -264,10 +264,13 @@ body:has(.elementary-score-card) .elementary-main {
 }
 
 .elementary-score-card {
+  width: 100%;
   overflow: hidden;
   border: 1px solid #9fb7cb;
   border-radius: 4px;
   background: white;
+  box-shadow: none;
+  font-size: 1.08rem;
 }
 
 .elementary-title-bar {
@@ -290,7 +293,7 @@ body:has(.elementary-score-card) .elementary-main {
   background: #eef7fd;
 }
 
-.elementary-stopwatch span {
+.elementary-stopwatch > div:first-child span {
   display: block;
   color: #55738b;
   font-size: .62rem;
@@ -322,6 +325,11 @@ body:has(.elementary-score-card) .elementary-main {
   background: white;
   font-size: 1.15rem;
   font-weight: 900;
+}
+
+.elementary-stopwatch button span {
+  margin-left: 4px;
+  font-size: .78rem;
 }
 
 .elementary-stopwatch button:disabled {
@@ -389,9 +397,9 @@ body.elementary-stopwatch-mode {
   text-align: center;
 }
 
-.elementary-stopwatch.elementary-stopwatch-expanded span,
-.elementary-stopwatch:fullscreen span,
-.elementary-stopwatch:-webkit-full-screen span {
+.elementary-stopwatch.elementary-stopwatch-expanded > div:first-child span,
+.elementary-stopwatch:fullscreen > div:first-child span,
+.elementary-stopwatch:-webkit-full-screen > div:first-child span {
   display: none;
 }
 
@@ -425,7 +433,15 @@ body.elementary-stopwatch-mode {
   color: #bbb;
   background: #171717;
   border-color: #393939;
-  font-size: clamp(1rem, 3vw, 1.65rem);
+  font-size: clamp(1.25rem, 4vw, 2rem);
+}
+
+.elementary-stopwatch.elementary-stopwatch-expanded button span,
+.elementary-stopwatch:fullscreen button span,
+.elementary-stopwatch:-webkit-full-screen button span {
+  display: block;
+  margin: 4px 0 0;
+  font-size: clamp(.72rem, 2vw, 1rem);
 }
 
 .elementary-stopwatch.elementary-stopwatch-expanded .timer-start,
@@ -475,6 +491,14 @@ body.elementary-stopwatch-mode {
   font-size: 1rem;
 }
 
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-collapse span,
+.elementary-stopwatch:fullscreen .timer-collapse span,
+.elementary-stopwatch:-webkit-full-screen .timer-collapse span {
+  display: inline;
+  margin: 0 0 0 4px;
+  font-size: .78rem;
+}
+
 .elementary-recorder {
   padding: 10px 14px;
   display: grid;
@@ -483,22 +507,6 @@ body.elementary-stopwatch-mode {
   gap: 8px 14px;
   border-bottom: 1px solid #cbd8e3;
   background: #eef7fd;
-}
-
-.elementary-recorder.locked {
-  grid-template-columns: 144px minmax(0, 1fr) auto;
-  background: #fffaf0;
-}
-
-.elementary-recorder-lock {
-  min-height: 82px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  color: #8a5600;
-  background: #fff2c8;
-  font-size: .86rem;
-  font-weight: 950;
 }
 
 .elementary-recorder.recording {
@@ -531,10 +539,6 @@ body.elementary-stopwatch-mode {
   object-fit: cover;
 }
 
-.elementary-recorder.locked video {
-  display: none;
-}
-
 .elementary-recorder-actions {
   display: flex;
   flex-wrap: wrap;
@@ -553,14 +557,6 @@ body.elementary-stopwatch-mode {
   font-weight: 900;
 }
 
-.elementary-recorder.locked > button {
-  min-width: 140px;
-  border: 2px solid #333;
-  color: #102a43;
-  font-size: 1.05rem;
-  font-weight: 950;
-}
-
 .elementary-recorder button.danger {
   border-color: #d9554f;
   color: #a52a25;
@@ -568,17 +564,17 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-guide {
-  padding: 7px 10px;
+  padding: 6px 8px;
   border-bottom: 1px solid #cbd8e3;
   color: #12344f;
   background: #eaf3fb;
-  font-size: 1rem;
-  font-weight: 900;
+  font-size: .98rem;
+  font-weight: 800;
   text-align: center;
 }
 
 .elementary-sheet {
-  --elementary-columns: 30% 22% 22% 13% 13%;
+  --elementary-columns: 30% 21% 21% 15% 13%;
   width: 100%;
 }
 
@@ -589,8 +585,8 @@ body.elementary-stopwatch-mode {
 
 .elementary-row > * {
   min-width: 0;
-  min-height: 48px;
-  padding: 5px 8px;
+  min-height: 46px;
+  padding: 4px 8px;
   display: flex;
   align-items: center;
   border-right: 1px solid #d4dee6;
@@ -608,45 +604,50 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-columns > * {
+  min-height: 48px;
   justify-content: center;
-  font-size: 1.14rem;
+  font-size: 1.12rem;
   font-weight: 950;
 }
 
 .elementary-columns > *:first-child {
   color: white;
   background: #2b6095;
+  font-size: 1.18rem;
 }
 
 .elementary-section {
-  min-height: 48px;
-  padding: 5px 9px;
+  min-height: 46px;
+  padding: 4px 9px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   border-bottom: 1px solid #cbd8e3;
   background: #f7fbfe;
 }
 
 .elementary-section strong {
-  font-size: 1.22rem;
+  font-size: 1.3rem;
 }
 
 .elementary-section button {
-  min-height: 38px;
-  padding: 6px 12px;
-  border: 1px solid #9fc4df;
-  border-radius: 7px;
+  min-height: 42px;
+  min-width: 76px;
+  padding: 7px 12px;
+  border: 2px solid #9fc4df;
+  border-radius: 9px;
   color: #1261a6;
   background: white;
-  font-weight: 900;
+  font-size: .88rem;
+  font-weight: 950;
+  white-space: nowrap;
 }
 
 .elementary-target {
   justify-content: flex-start;
   color: #082b46;
-  font-size: 1.24rem;
+  font-size: 1.36rem;
   line-height: 1.25;
 }
 
@@ -741,7 +742,7 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-subtotal strong:first-child {
-  font-size: 1.2rem;
+  font-size: 1.24rem;
 }
 
 .elementary-subtotal strong:nth-child(4) {
@@ -1663,8 +1664,7 @@ body.elementary-stopwatch-mode {
     justify-content: stretch;
   }
 
-  .elementary-recorder-actions button,
-  .elementary-recorder.locked button {
+  .elementary-recorder-actions button {
     flex: 1;
   }
 
@@ -1841,19 +1841,47 @@ body.elementary-stopwatch-mode {
   }
 
   .elementary-bottom .primary {
-    flex-direction: column;
-    gap: 2px;
-    white-space: normal;
+    display: grid;
+    grid-template-columns: auto minmax(0, auto);
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
+
+  .elementary-bottom .primary > span {
+    font-size: .9rem;
   }
 
   .elementary-bottom .primary strong {
-    font-size: clamp(.98rem, 3.8vw, 1.14rem);
+    font-size: clamp(.95rem, 3.6vw, 1.18rem);
     white-space: nowrap;
   }
 
   .elementary-page h2 {
     font-size: 2rem;
+}
+
+@media (min-width: 760px) {
+  body:has(.elementary-score-card) .elementary-main {
+    max-width: 1600px;
+    padding: 4px 12px 60px;
   }
+
+  .elementary-sheet {
+    --elementary-columns: 28% 24% 24% 13% 11%;
+    font-size: 1.18rem;
+  }
+
+  .elementary-target {
+    font-size: 1.36rem;
+  }
+
+  .elementary-section strong {
+    font-size: 1.3rem;
+  }
+}
 
   .elementary-gallery-grid {
     grid-template-columns: repeat(auto-fit, minmax(min(330px, 100%), 1fr));
