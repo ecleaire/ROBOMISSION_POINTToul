@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.17", updatedAt: "2026.08.02", title: "ストップウォッチ仕様を統一", description: "JuniorとElementaryで、スタート・停止・再開・終了・リセット・別画面中の継続表示を同じ仕様とUIに揃えました。" },
   { version: "1.7.16", updatedAt: "2026.08.02", title: "PDFキャッシュを自動整理", description: "古いPDF保存キャッシュが端末に残り続けないよう、PDFキャッシュの世代を更新して自動整理するようにしました。" },
   { version: "1.7.15", updatedAt: "2026.08.02", title: "PDF読み込みを軽量化", description: "ElementaryルールPDFの初回先読みをやめ、PDFは開いた時だけ端末に保存する方式へ変更しました。更新時の待ち時間とキャッシュ負荷を減らしています。" },
   { version: "1.7.14", updatedAt: "2026.08.02", title: "QRコード表示をJunior基準に統一", description: "リンク画面の公開URL QRコードカードを、Junior側の余白・枠線・背景・文字間隔に合わせて統一しました。" },
@@ -447,7 +448,7 @@ function render() {
               ? linksView()
             : scoringView();
 
-  app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
+  app.innerHTML = `${content}${floatingStopwatchView(route)}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
   bindEvents();
   attachRulesFrame();
   renderCourtBoardPreviews();
@@ -651,7 +652,7 @@ function cameraRecorderView() {
 
 function stopwatchContents() {
   const timerControls = stopwatchStatus === "idle"
-    ? `<button class="timer-lap" type="button" disabled>⚑ <span>ラップ</span></button><button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>`
+    ? `<button class="timer-lap" type="button" disabled>⚑ <span>ラップ</span></button><button class="timer-start" data-action="timer-start">◀ <span>スタート</span></button>${stopwatchElapsedMs > 0 ? `<button class="timer-reset" data-action="timer-reset">↺ <span>リセット</span></button>` : ""}`
     : stopwatchStatus === "running"
       ? `<button class="timer-lap" data-action="timer-lap">⚑ <span>ラップ</span></button><button class="timer-pause" data-action="timer-pause">Ⅱ <span>停止</span></button>`
       : `<button class="timer-finish" data-action="timer-finish">■ <span>タイマー終了</span></button><button class="timer-resume" data-action="timer-resume">◀ <span>再開</span></button>`;
@@ -679,6 +680,24 @@ function cameraStopwatchContents() {
     <small class="camera-stopwatch-state">${stopwatchState}・録画時間とは別に計測</small>
     <div class="camera-stopwatch-controls">${controls}</div>
     ${latestLap === undefined ? "" : `<small class="camera-latest-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
+}
+
+function floatingStopwatchView(route: string) {
+  if (route === "score" || stopwatchStatus === "idle") return "";
+  const actionButton = stopwatchStatus === "running"
+    ? `<button type="button" data-action="timer-pause">Ⅱ 停止</button>`
+    : `<button type="button" data-action="timer-resume">▶ 再開</button>`;
+  return `<aside class="floating-stopwatch" aria-label="継続中のストップウォッチ">
+    <button type="button" class="floating-stopwatch-time" data-nav="score">
+      <span>${stopwatchStatus === "running" ? "計測中" : "一時停止"}</span>
+      <strong data-floating-stopwatch-display>${formatStopwatch(currentStopwatchElapsed())}</strong>
+    </button>
+    <div>
+      ${stopwatchStatus === "running" ? `<button type="button" data-action="timer-lap">⚑ ラップ</button>` : ""}
+      ${actionButton}
+      <button type="button" data-nav="score">採点へ</button>
+    </div>
+  </aside>`;
 }
 
 function sheetSection(id: string, title: string, action = "") {
@@ -2489,6 +2508,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "timer-pause") pauseStopwatch();
   if (action === "timer-resume") startStopwatch(false, !element.closest(".camera-preview-wrap"));
   if (action === "timer-finish") finishStopwatch();
+  if (action === "timer-reset") { resetStopwatch(); state.timeSeconds = null; saveState(); render(); }
   if (action === "timer-expand") enterStopwatchFullscreen();
   if (action === "timer-collapse") exitStopwatchFullscreen();
   if (action === "pdf-expand") enterPdfFullscreen();
@@ -2533,6 +2553,7 @@ function currentStopwatchElapsed() {
 }
 
 function startStopwatch(reset: boolean, expand = true) {
+  const hasStopwatchView = Boolean(document.querySelector(".stopwatch"));
   if (reset) {
     stopwatchElapsedMs = 0;
     stopwatchLaps = [];
@@ -2541,6 +2562,7 @@ function startStopwatch(reset: boolean, expand = true) {
   stopwatchStatus = "running";
   if (expand) enterStopwatchFullscreen();
   else refreshStopwatch();
+  if (!hasStopwatchView) render();
   startStopwatchUpdates();
 }
 
@@ -2568,7 +2590,8 @@ function pauseStopwatch() {
   stopwatchElapsedMs = currentStopwatchElapsed();
   stopwatchStatus = "paused";
   stopStopwatchUpdates();
-  refreshStopwatch();
+  if (document.querySelector(".stopwatch")) refreshStopwatch();
+  else render();
 }
 
 function addStopwatchLap() {
@@ -2631,7 +2654,7 @@ function startStopwatchUpdates() {
   stopStopwatchUpdates();
   stopwatchTimer = window.setInterval(() => {
     const formatted = formatStopwatch(currentStopwatchElapsed());
-    document.querySelectorAll<HTMLElement>("[data-stopwatch-display], [data-camera-stopwatch-display]").forEach((display) => {
+    document.querySelectorAll<HTMLElement>("[data-stopwatch-display], [data-camera-stopwatch-display], [data-floating-stopwatch-display]").forEach((display) => {
       display.textContent = formatted;
     });
   }, 31);

@@ -402,7 +402,8 @@ body:has(.elementary-score-card) .elementary-main {
   cursor: default;
 }
 
-.elementary-stopwatch .timer-start {
+.elementary-stopwatch .timer-start,
+.elementary-stopwatch .timer-resume {
   border-color: var(--blue);
   color: white;
   background: var(--blue);
@@ -510,11 +511,79 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-stopwatch.elementary-stopwatch-expanded .timer-start,
+.elementary-stopwatch.elementary-stopwatch-expanded .timer-resume,
 .elementary-stopwatch:fullscreen .timer-start,
-.elementary-stopwatch:-webkit-full-screen .timer-start {
+.elementary-stopwatch:fullscreen .timer-resume,
+.elementary-stopwatch:-webkit-full-screen .timer-start,
+.elementary-stopwatch:-webkit-full-screen .timer-resume {
   color: #5be36d;
   background: #0d2511;
   border-color: #1d5a27;
+}
+
+.floating-stopwatch {
+  position: fixed;
+  z-index: 80;
+  left: 50%;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  width: min(94vw, 620px);
+  min-height: 64px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  border: 1px solid #79b7df;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 10px 30px rgba(17, 72, 115, .22);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.floating-stopwatch button {
+  min-height: 46px;
+  border: 1px solid #9fc9e5;
+  border-radius: 12px;
+  color: var(--blue-dark);
+  background: white;
+  font-size: .86rem;
+  font-weight: 950;
+}
+
+.floating-stopwatch-time {
+  min-width: 0;
+  padding: 5px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+}
+
+.floating-stopwatch-time span {
+  color: var(--green);
+  font-size: .72rem;
+  letter-spacing: .08em;
+}
+
+.floating-stopwatch-time strong {
+  font: 900 1.55rem/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.05em;
+  white-space: nowrap;
+}
+
+.floating-stopwatch > div {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.floating-stopwatch > div button {
+  padding: 6px 12px;
 }
 
 .elementary-stopwatch.elementary-stopwatch-expanded .timer-pause,
@@ -1777,6 +1846,25 @@ body.elementary-stopwatch-mode {
 }
 
 @media (max-width: 640px) {
+  .floating-stopwatch {
+    grid-template-columns: 1fr;
+    width: min(96vw, 620px);
+  }
+
+  .floating-stopwatch-time {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .floating-stopwatch > div {
+    justify-content: stretch;
+  }
+
+  .floating-stopwatch > div button {
+    flex: 1 1 0;
+    padding-inline: 8px;
+  }
+
   :root {
     font-size: 16px;
   }

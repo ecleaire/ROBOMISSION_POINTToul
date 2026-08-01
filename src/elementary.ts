@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.16";
+const ELEMENTARY_VERSION = "0.4.17";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -80,12 +80,13 @@ let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
 let judgeModal: ElementaryJudgeGroupId | null = null;
 let elementaryOnline = navigator.onLine;
-let stopwatch: { status: "idle" | "running" | "paused" | "finished"; startedAt: number; elapsedMs: number } = {
-  status: state.timeSeconds ? "finished" : "idle",
+let stopwatch: { status: "idle" | "running" | "paused"; startedAt: number; elapsedMs: number } = {
+  status: "idle",
   startedAt: 0,
   elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000),
 };
 let timerId = 0;
+let stopwatchLaps: number[] = [];
 let nativeFullscreenTarget: "stopwatch" | null = null;
 let mediaStream: MediaStream | null = null;
 let mediaRecorder: MediaRecorder | null = null;
@@ -176,6 +177,7 @@ function render() {
     <main class="elementary-main">
       ${mode === "score" ? scoreView() : mode === "judging" ? judgingView() : mode === "course" ? courseView() : mode === "rules" ? rulesView() : mode === "links" ? linksView() : mode === "login" ? loginView() : mode === "admin" ? adminView() : resultView()}
     </main>
+    ${floatingStopwatchView()}
     ${judgeModal ? judgeModalView(judgeModal) : ""}
   `;
   bindEvents();
@@ -249,20 +251,38 @@ function stopwatchView() {
 
 function stopwatchContents() {
   const elapsed = currentElapsedMs();
-  const isRunning = stopwatch.status === "running";
-  const hasTime = elapsed > 0;
-  const startText = stopwatch.status === "paused" || stopwatch.status === "finished" ? "再開" : "スタート";
+  const timerControls = stopwatch.status === "idle"
+    ? `<button type="button" class="timer-lap" disabled>⚑ <span>ラップ</span></button><button type="button" class="timer-start" data-timer="start">◀ <span>スタート</span></button>${elapsed > 0 ? `<button type="button" class="timer-reset" data-timer="reset">↺ <span>リセット</span></button>` : ""}`
+    : stopwatch.status === "running"
+      ? `<button type="button" class="timer-lap" data-timer="lap">⚑ <span>ラップ</span></button><button type="button" class="timer-pause" data-timer="pause">Ⅱ <span>停止</span></button>`
+      : `<button type="button" class="timer-finish" data-timer="finish">■ <span>タイマー終了</span></button><button type="button" class="timer-resume" data-timer="resume">◀ <span>再開</span></button>`;
   return `
-    <div><span>STOPWATCH</span><strong>${formatStopwatch(elapsed)}</strong></div>
-    <div>
-      <button type="button" class="timer-lap" data-timer="lap" ${isRunning ? "" : "disabled"}>⚑ <span>ラップ</span></button>
-      <button type="button" class="${isRunning ? "timer-pause" : "timer-start"}" data-timer="${isRunning ? "pause" : "start"}">${isRunning ? "Ⅱ <span>停止</span>" : `◀ <span>${startText}</span>`}</button>
-      ${stopwatch.status === "paused" ? `<button type="button" class="timer-finish" data-timer="finish">■ <span>タイマー終了</span></button>` : ""}
-      ${hasTime && !isRunning ? `<button type="button" class="timer-reset" data-timer="reset">↺ <span>リセット</span></button>` : ""}
+    <div class="stopwatch-time"><span>STOPWATCH</span><strong data-elementary-stopwatch-display>${formatStopwatch(elapsed)}</strong></div>
+    <div class="stopwatch-controls">
+      ${timerControls}
       <button type="button" class="timer-expand" data-timer="expand" aria-label="ストップウォッチを全画面表示">⛶ <span>全画面</span></button>
       <button type="button" class="timer-collapse" data-timer="collapse">× <span>全画面解除</span></button>
     </div>
+    ${stopwatchLaps.length ? `<ol class="stopwatch-laps" aria-label="ラップ記録">${stopwatchLaps.map((lap, index) => `<li><span>ラップ ${index + 1}</span><strong>${formatStopwatch(lap)}</strong></li>`).join("")}</ol>` : ""}
   `;
+}
+
+function floatingStopwatchView() {
+  if (mode === "score" || stopwatch.status === "idle") return "";
+  const actionButton = stopwatch.status === "running"
+    ? `<button type="button" data-timer="pause">Ⅱ 停止</button>`
+    : `<button type="button" data-timer="resume">▶ 再開</button>`;
+  return `<aside class="floating-stopwatch" aria-label="継続中のストップウォッチ">
+    <button type="button" class="floating-stopwatch-time" data-mode="score">
+      <span>${stopwatch.status === "running" ? "計測中" : "一時停止"}</span>
+      <strong data-floating-stopwatch-display>${formatStopwatch(currentElapsedMs())}</strong>
+    </button>
+    <div>
+      ${stopwatch.status === "running" ? `<button type="button" data-timer="lap">⚑ ラップ</button>` : ""}
+      ${actionButton}
+      <button type="button" data-mode="score">採点へ</button>
+    </div>
+  </aside>`;
 }
 
 function videoRecorderView() {
@@ -648,10 +668,25 @@ function bindEvents() {
 
 function timerAction(action: string) {
   if (action === "start") {
+    const hasStopwatchView = Boolean(app.querySelector(".elementary-stopwatch"));
+    if (stopwatch.status === "idle") {
+      stopwatch.elapsedMs = 0;
+      stopwatchLaps = [];
+    }
     stopwatch.status = "running";
     stopwatch.startedAt = Date.now();
     refreshStopwatch();
     enterStopwatchFullscreen();
+    if (!hasStopwatchView) render();
+    startTicker();
+    return;
+  } else if (action === "resume") {
+    if (stopwatch.status !== "paused") return;
+    const hasStopwatchView = Boolean(app.querySelector(".elementary-stopwatch"));
+    stopwatch.status = "running";
+    stopwatch.startedAt = Date.now();
+    refreshStopwatch();
+    if (!hasStopwatchView) render();
     startTicker();
     return;
   } else if (action === "pause") {
@@ -659,14 +694,16 @@ function timerAction(action: string) {
     stopwatch.status = "paused";
     state.timeSeconds = secondsFromStopwatch(stopwatch.elapsedMs);
     saveState();
-    refreshStopwatch();
+    if (app.querySelector(".elementary-stopwatch")) refreshStopwatch();
+    else render();
     return;
   } else if (action === "finish") {
     if (stopwatch.status !== "paused") return;
     stopwatch.elapsedMs = currentElapsedMs();
-    stopwatch.status = "finished";
+    stopwatch.status = "idle";
     state.timeSeconds = secondsFromStopwatch(stopwatch.elapsedMs);
     saveState();
+    window.clearInterval(timerId);
     exitStopwatchFullscreen();
     render();
     return;
@@ -685,6 +722,7 @@ function timerAction(action: string) {
     return;
   } else if (action === "lap") {
     if (stopwatch.status !== "running") return;
+    stopwatchLaps.push(currentElapsedMs());
     state.timeSeconds = secondsFromStopwatch(currentElapsedMs());
     saveState();
     refreshStopwatch();
@@ -700,8 +738,10 @@ function startTicker() {
   window.clearInterval(timerId);
   timerId = window.setInterval(() => {
     if (stopwatch.status !== "running") return;
-    const el = app.querySelector<HTMLElement>(".elementary-stopwatch strong");
-    if (el) el.textContent = formatStopwatch(currentElapsedMs());
+    const formatted = formatStopwatch(currentElapsedMs());
+    app.querySelectorAll<HTMLElement>("[data-elementary-stopwatch-display], [data-floating-stopwatch-display]").forEach((el) => {
+      el.textContent = formatted;
+    });
   }, 120);
 }
 
@@ -712,10 +752,14 @@ function refreshStopwatch() {
   element.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
     button.addEventListener("click", () => timerAction(button.dataset.timer!)),
   );
+  const laps = element.querySelector<HTMLOListElement>(".stopwatch-laps");
+  if (laps) laps.scrollTop = laps.scrollHeight;
 }
 
 function resetStopwatch() {
   stopwatch = { status: "idle", startedAt: 0, elapsedMs: 0 };
+  stopwatchLaps = [];
+  window.clearInterval(timerId);
   state.timeSeconds = null;
   exitStopwatchFullscreen();
 }
