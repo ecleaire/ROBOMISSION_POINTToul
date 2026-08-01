@@ -1409,7 +1409,9 @@ body.elementary-stopwatch-mode {
   padding: 12px;
   border: 1px solid #c8ddeb;
   border-radius: 14px;
+  color: #183b56;
   background: #f7fbfe;
+  text-decoration: none;
   box-shadow: none;
 }
 
@@ -1420,6 +1422,23 @@ body.elementary-stopwatch-mode {
   border-radius: 9px;
   background: white;
   image-rendering: pixelated;
+}
+
+.elementary-public-qr strong,
+.elementary-public-qr small {
+  display: block;
+}
+
+.elementary-public-qr strong {
+  margin-bottom: 0;
+  line-height: normal;
+}
+
+.elementary-public-qr small {
+  max-width: 420px;
+  margin-top: 6px;
+  color: #60798e;
+  overflow-wrap: anywhere;
 }
 
 .elementary-admin-head {
