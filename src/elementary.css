@@ -932,10 +932,23 @@ textarea {
   max-width: 620px;
   margin: 0 auto;
   padding: 28px;
+  text-align: center;
 }
 
 .elementary-login h2 {
   margin-bottom: 10px;
+}
+
+.elementary-login-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 18px;
+  border-radius: 20px;
+  color: var(--blue);
+  background: var(--pale-blue);
+  font-weight: 950;
 }
 
 .elementary-login p {

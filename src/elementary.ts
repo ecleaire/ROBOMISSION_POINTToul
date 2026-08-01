@@ -50,7 +50,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.0";
+const ELEMENTARY_VERSION = "0.4.1";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -419,7 +419,8 @@ function resultView() {
 function loginView() {
   return `<section class="elementary-page">
     <div class="card elementary-login">
-      <p class="eyebrow">ACCOUNT</p>
+      <div class="elementary-login-icon">鍵</div>
+      <p class="eyebrow">OPTIONAL LOGIN</p>
       <h2>${account ? "ログイン中" : "ログイン"}</h2>
       ${account ? `<p><strong>${escapeHtml(account.accountName || account.account)}</strong> としてログインしています。</p><p>結果・メモ・ストップウォッチ時間・録画をこのアカウントに保存できます。</p><button type="button" class="secondary" data-action="logout">ログアウト</button>` : `
         <p>ログインしなくても採点とストップウォッチは使えます。結果保存と録画を使う場合だけログインしてください。</p>
@@ -427,6 +428,7 @@ function loginView() {
         <label class="elementary-remember"><input id="elementary-remember" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
         ${loginError ? `<p class="warning" role="alert">${escapeHtml(loginError)}</p>` : ""}
         <button type="button" class="primary" data-action="login">ログイン</button>
+        <button type="button" class="secondary" data-mode="score">ログインせず採点する</button>
       `}
     </div>
   </section>`;

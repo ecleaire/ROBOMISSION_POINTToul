@@ -193,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.1", updatedAt: "2026.08.01", title: "JuniorとElementaryの基本UIを統一", description: "ログイン状態表示、ログイン画面、未ログイン時の案内、ヘッダー周りの見た目をElementary版と揃えました。" },
   { version: "1.7.0", updatedAt: "2026.08.01", title: "ログインなし採点に対応", description: "アプリ名をRoboMission Junior Assistへ変更し、採点・判定写真・ルールなどの基本機能をログインなしで使えるようにしました。記録保存・録画・練習記録・サーバーメモはログイン後に使えます。" },
   { version: "1.6.19", updatedAt: "2026.07.28", title: "全体表示の安定性を改善", description: "下部バー、通知、記録カード、分析表示、メモ写真カードなどで文字やボタンが重なりにくいよう、共通レイアウトと余白を調整しました。" },
   { version: "1.6.18", updatedAt: "2026.07.28", title: "全体の不自然な改行を抑制", description: "アプリ全体のボタン・見出し・短いラベルが1文字ずつ不自然に改行されないよう、共通の文字折り返し設定を見直しました。" },
@@ -457,6 +458,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
     ["news", "ニュース"],
     ["rules", "ルール"],
     ["links", "リンク・大会情報"],
+    ["account", activeAccount ? "ログイン中" : "ログイン"],
   ];
   if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
   return `
@@ -464,12 +466,14 @@ function shell(content: string, options: { back?: string; title?: string } = {})
       <div class="app-brand">
         <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Junior Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
         <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
-        ${activeAccount ? `<div class="account-switch ${activeAccount === "ADMIN" ? "admin-account-switch" : ""}"><span>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || "アカウント")}</span><button type="button" data-action="open-account-switch">切替</button></div>` : `<div class="account-switch guest-account-switch"><span>未ログイン</span><button type="button" data-nav="account">ログイン</button></div>`}
       </div>
       <nav class="mode-nav" aria-label="機能メニュー">
         ${modes.map(([target, label]) => `<button data-nav="${target}" class="${activeRoute === target ? "active" : ""}">${label}</button>`).join("")}
       </nav>
     </header>
+    <div class="junior-account-bar ${activeAccount ? "logged-in" : ""}">
+      ${activeAccount ? `<span>ログイン中：${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</span><div>${activeAccount === "ADMIN" ? `<button type="button" data-action="logout-admin">管理を終了</button>` : `<button type="button" data-action="open-account-switch">切替</button><button type="button" data-action="logout-account">ログアウト</button>`}</div>` : `<span>未ログイン：採点・ストップウォッチ・判定写真・ルール確認は使用できます。録画・記録保存はログイン後に使えます。</span><button type="button" data-nav="account">ログイン</button>`}
+    </div>
     <main>${content}</main>`;
 }
 
@@ -479,12 +483,14 @@ function accountView() {
       <div class="account-icon">鍵</div>
       <p class="eyebrow">OPTIONAL LOGIN</p>
       <h1>ログイン</h1>
-      <p>ログインしなくても採点・判定写真・ルール確認は使えます。記録保存、練習記録、サーバーメモ、録画を使う場合だけAPIキーを入力してください。管理者の場合は管理画面を開きます。</p>
+      ${activeAccount ? `<p><strong>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</strong> としてログインしています。</p><p>結果・メモ・ストップウォッチ時間・録画をこのアカウントに保存できます。</p><button class="secondary" data-action="${activeAccount === "ADMIN" ? "logout-admin" : "logout-account"}">${activeAccount === "ADMIN" ? "管理を終了" : "ログアウト"}</button>` : `
+      <p>ログインしなくても採点とストップウォッチは使えます。結果保存と録画を使う場合だけログインしてください。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
       <label class="remember-account"><input id="remember-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
       <button class="primary" data-action="login-account">ログイン</button>
       <button class="secondary" data-nav="score">ログインせず採点する</button>
+      `}
     </section>
   `, { title: "アカウント" });
 }
@@ -2406,6 +2412,7 @@ function handleAction(action: string, element: HTMLElement) {
   if (action === "switch-account") void loginAccount(true);
   if (action === "open-account-switch") { accountError = ""; accountSwitchDraft = ""; accountSwitchRemember = false; accountSwitchOpen = true; render(); }
   if (action === "close-account-switch") { accountSwitchOpen = false; accountSwitchDraft = ""; accountSwitchRemember = false; accountError = ""; render(); }
+  if (action === "logout-account") logoutAccount();
   if (action === "login-admin") void loginAdmin();
   if (action === "logout-admin") logoutAdmin();
   if (action === "load-accounts") void loadManagedAccounts();
@@ -2913,6 +2920,27 @@ async function loadManagedAccounts(shouldRender = true) {
     accountManagementStatus = `読み込めませんでした。${communicationError(error)}`;
   }
   if (shouldRender) render();
+}
+
+function logoutAccount() {
+  void clearRecordVideoCache();
+  localStorage.removeItem(ACCOUNT_KEY);
+  localStorage.removeItem(API_KEY_KEY);
+  activeAccount = null;
+  activeApiKey = null;
+  activeAccountName = "";
+  accountError = "";
+  accountSwitchOpen = false;
+  practiceRecords = [];
+  freeMemos = [];
+  newFreeMemoPhotos = [];
+  newFreeMemoBoard = emptyCourtBoard();
+  freeMemoStatus = "";
+  recordsStatus = "";
+  resetRecordFilters();
+  state = loadState();
+  location.hash = "#/score";
+  render();
 }
 
 function isRetryableCommunicationError(error: unknown) {
