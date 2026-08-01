@@ -193,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.2", updatedAt: "2026.08.01", title: "ニュース・リンクをログイン時のみ表示", description: "未ログイン時はニュースとリンク・大会情報を非表示にし、ログイン後だけメニューと内容を確認できるようにしました。" },
   { version: "1.7.1", updatedAt: "2026.08.01", title: "JuniorとElementaryの基本UIを統一", description: "ログイン状態表示、ログイン画面、未ログイン時の案内、ヘッダー周りの見た目をElementary版と揃えました。" },
   { version: "1.7.0", updatedAt: "2026.08.01", title: "ログインなし採点に対応", description: "アプリ名をRoboMission Junior Assistへ変更し、採点・判定写真・ルールなどの基本機能をログインなしで使えるようにしました。記録保存・録画・練習記録・サーバーメモはログイン後に使えます。" },
   { version: "1.6.19", updatedAt: "2026.07.28", title: "全体表示の安定性を改善", description: "下部バー、通知、記録カード、分析表示、メモ写真カードなどで文字やボタンが重なりにくいよう、共通レイアウトと余白を調整しました。" },
@@ -420,11 +421,11 @@ function render() {
         : route === "photos"
           ? photoGalleryView()
         : route === "news"
-          ? newsView()
+          ? activeAccount ? newsView() : loginRequiredView("ニュース", "ニュースと大会情報はログイン後に表示されます。採点・ストップウォッチ・判定写真・ルール確認はログインなしでも使えます。")
           : route === "rules"
             ? rulesView()
             : route === "links"
-              ? linksView()
+              ? activeAccount ? linksView() : loginRequiredView("リンク・大会情報", "リンク・大会情報はログイン後に表示されます。採点・ストップウォッチ・判定写真・ルール確認はログインなしでも使えます。")
             : scoringView();
 
   app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
@@ -455,11 +456,11 @@ function shell(content: string, options: { back?: string; title?: string } = {})
     ["photos", "判定写真"],
     ["records", "練習記録"],
     ["memo", "メモ"],
-    ["news", "ニュース"],
     ["rules", "ルール"],
-    ["links", "リンク・大会情報"],
     ["account", activeAccount ? "ログイン中" : "ログイン"],
   ];
+  if (activeAccount) modes.splice(4, 0, ["news", "ニュース"]);
+  if (activeAccount) modes.splice(modes.length - 1, 0, ["links", "リンク・大会情報"]);
   if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
   return `
     <header class="app-header">
