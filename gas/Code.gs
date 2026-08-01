@@ -19,6 +19,7 @@ const ACCOUNT_NAME_PROPERTIES = Object.freeze({
   C: "ACCOUNT_NAME_C"
 });
 const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
+const SHARED_ACCOUNT_WORDS = Object.freeze(["a0", "rmam", "システム動作確認", "テスト"]);
 const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
 const MEMO_PHOTO_FOLDER_PROPERTY = "MEMO_PHOTO_FOLDER_ID";
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -41,19 +42,20 @@ function doPost(event) {
     if (data.action === "news") return json_({ ok: true, news: getHyogoNews_() });
     const key = normalizeKey_(data.apiKey);
     if (!key) throw new Error("APIキーが無効です。");
+    if (!canUseApp_(key, data.app)) throw new Error("このアプリでは使用できないアカウントです。");
     if (data.action === "auth") return json_({ ok: true, account: key, accountName: accountName_(key) });
     if (data.action === "records") return json_({ ok: true, account: key, records: getRecordsForAccount_(key) });
     if (data.action === "freeMemos") return json_({ ok: true, account: key, memos: getFreeMemosForAccount_(key) });
     if (data.action === "video") return json_(getRecordVideo_(key, data));
     if (data.action === "memoPhoto") return json_(getMemoPhoto_(key, data));
     if (key === "ADMIN" && data.action === "accounts") {
-      return json_({ ok: true, accounts: publicAccountList_() });
+      return json_({ ok: true, accounts: publicAccountList_(data.app) });
     }
     if (key === "ADMIN" && data.action === "saveAccount") {
       const accountLock = LockService.getScriptLock();
       accountLock.waitLock(10000);
       try {
-        return json_({ ok: true, account: saveAccount_(data), accounts: publicAccountList_() });
+        return json_({ ok: true, account: saveAccount_(data), accounts: publicAccountList_(data.app) });
       } finally {
         accountLock.releaseLock();
       }
@@ -677,6 +679,7 @@ function accountConfigs_() {
       id: id,
       name: String(properties.getProperty(ACCOUNT_NAME_PROPERTIES[id]) || "アカウント " + id).slice(0, 50),
       apiKey: String(properties.getProperty(API_KEY_PROPERTIES[id]) || "").trim(),
+      app: accountApp_(id, String(properties.getProperty(ACCOUNT_NAME_PROPERTIES[id]) || "アカウント " + id), String(properties.getProperty(API_KEY_PROPERTIES[id]) || ""), "junior"),
       legacy: true
     };
   }).filter(function(account) { return Boolean(account.apiKey); });
@@ -693,6 +696,7 @@ function accountConfigs_() {
       id: String(account && account.id || "").toUpperCase(),
       name: String(account && account.name || "").trim().slice(0, 50),
       apiKey: String(account && account.apiKey || "").trim(),
+      app: normalizeAccountApp_(account && account.app, "junior"),
       legacy: false
     };
   })).filter(function(account) {
@@ -713,15 +717,29 @@ function accountName_(id) {
   return account ? account.name : "";
 }
 
-function publicAccountList_() {
-  return accountConfigs_().map(function(account) {
-    return { id: account.id, name: account.name, legacy: account.legacy, hasApiKey: Boolean(account.apiKey) };
+function canUseApp_(key, appFilter) {
+  if (key === "ADMIN") return true;
+  const requestedApp = normalizeAccountApp_(appFilter, "");
+  if (!requestedApp) return true;
+  const account = accountById_(key);
+  if (!account) return false;
+  return account.app === "shared" || account.app === requestedApp;
+}
+
+function publicAccountList_(appFilter) {
+  const requestedApp = normalizeAccountApp_(appFilter, "");
+  return accountConfigs_().filter(function(account) {
+    if (!requestedApp) return true;
+    return account.app === "shared" || account.app === requestedApp;
+  }).map(function(account) {
+    return { id: account.id, name: account.name, legacy: account.legacy, hasApiKey: Boolean(account.apiKey), app: account.app };
   });
 }
 
 function saveAccount_(data) {
   const name = String(data.name || "").trim().slice(0, 50);
   const newApiKey = String(data.newApiKey || "").trim();
+  const requestedApp = accountApp_(String(data.accountId || ""), name, newApiKey, data.app);
   if (!name) throw new Error("チーム名を入力してください。");
   const properties = PropertiesService.getScriptProperties();
   let requestedId = String(data.accountId || "").toUpperCase();
@@ -737,24 +755,39 @@ function saveAccount_(data) {
   if (existing && existing.legacy) {
     properties.setProperty(ACCOUNT_NAME_PROPERTIES[existing.id], name);
     if (newApiKey) properties.setProperty(API_KEY_PROPERTIES[existing.id], newApiKey);
-    return { id: existing.id, name: name, legacy: true, hasApiKey: true };
+    return { id: existing.id, name: name, legacy: true, hasApiKey: true, app: accountApp_(existing.id, name, newApiKey || existing.apiKey, data.app) };
   }
   let dynamic = accountConfigs_().filter(function(account) { return !account.legacy; });
   if (existing) {
     dynamic = dynamic.map(function(account) {
       return account.id === existing.id
-        ? { id: account.id, name: name, apiKey: newApiKey || account.apiKey }
-        : { id: account.id, name: account.name, apiKey: account.apiKey };
+        ? { id: account.id, name: name, apiKey: newApiKey || account.apiKey, app: requestedApp }
+        : { id: account.id, name: account.name, apiKey: account.apiKey, app: account.app || accountApp_(account.id, account.name, account.apiKey, "junior") };
     });
   } else {
     if (!newApiKey) throw new Error("新しいアカウントのAPIキーを入力してください。");
     const id = "ACC_" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
-    dynamic.push({ id: id, name: name, apiKey: newApiKey });
+    dynamic.push({ id: id, name: name, apiKey: newApiKey, app: requestedApp });
     requestedId = id;
   }
   properties.setProperty(DYNAMIC_ACCOUNTS_PROPERTY, JSON.stringify(dynamic));
   const savedId = existing ? existing.id : requestedId;
-  return { id: savedId, name: name, legacy: false, hasApiKey: true };
+  return { id: savedId, name: name, legacy: false, hasApiKey: true, app: requestedApp };
+}
+
+function normalizeAccountApp_(value, fallback) {
+  const app = String(value || "").toLocaleLowerCase();
+  if (app === "shared" || app === "junior" || app === "elementary") return app;
+  return fallback || "";
+}
+
+function accountApp_(id, name, apiKey, requestedApp) {
+  const values = [id, name, apiKey].map(function(value) { return String(value || "").trim().toLocaleLowerCase(); });
+  const shared = values.some(function(value) {
+    return SHARED_ACCOUNT_WORDS.some(function(word) { return value === word.toLocaleLowerCase(); });
+  });
+  if (shared) return "shared";
+  return normalizeAccountApp_(requestedApp, "junior");
 }
 
 function normalizeKey_(value) {

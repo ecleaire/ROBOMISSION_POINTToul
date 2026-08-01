@@ -1,8 +1,10 @@
-const CACHE = "robomission-junior-v63";
+const CACHE = "robomission-junior-v64";
 const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",
   "./assets/icons/icon-192.png",
+  "./assets/robomission-public-url-qr.png",
+  "./assets/robomission-elementary-public-url-qr.png",
   "./assets/elementary/memo/elementary-course.webp",
   "./assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf",
   "./assets/elementary/judging/bonus/0-amplifier-damaged.webp",

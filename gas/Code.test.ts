@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 
 type GasContext = {
   normalizeKey_: (value: string) => string;
-  publicAccountList_: () => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean }>;
-  saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string }) => { id: string; name: string };
+  publicAccountList_: (app?: string) => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean; app?: string }>;
+  saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string; app?: string }) => { id: string; name: string };
+  canUseApp_: (key: string, app?: string) => boolean;
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
   updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string, photos?: unknown[], account?: string) => void;
   safeBoard_: (value: string) => string;
@@ -18,6 +19,7 @@ type GasContext = {
 
 function loadGas() {
   const trashedFiles: string[] = [];
+  let uuidCounter = 0;
   const values: Record<string, string> = {
     API_KEY_A: "alpha-key",
     API_KEY_B: "bravo-key",
@@ -33,7 +35,11 @@ function loadGas() {
   const context = vm.createContext({
     PropertiesService: { getScriptProperties: () => propertyStore },
     Utilities: {
-      getUuid: () => "12345678-1234-1234-1234-123456789abc",
+      getUuid: () => {
+        uuidCounter += 1;
+        if (uuidCounter === 1) return "12345678-1234-1234-1234-123456789abc";
+        return `${uuidCounter}2345678-1234-1234-1234-123456789abc`;
+      },
       formatDate: (date: Date) => date.toISOString().slice(0, 10).replaceAll("-", "."),
     },
     DriveApp: {
@@ -57,7 +63,7 @@ describe("GAS account management", () => {
     const { gas, values } = loadGas();
     gas.saveAccount_({ accountId: "A", name: "Renamed Team" });
     expect(values.ACCOUNT_NAME_A).toBe("Renamed Team");
-    expect(gas.publicAccountList_()).toContainEqual({ id: "A", name: "Renamed Team", legacy: true, hasApiKey: true });
+    expect(gas.publicAccountList_()).toContainEqual({ id: "A", name: "Renamed Team", legacy: true, hasApiKey: true, app: "junior" });
     expect(JSON.stringify(gas.publicAccountList_())).not.toContain("alpha-key");
   });
 
@@ -116,6 +122,20 @@ describe("GAS account management", () => {
     };
     expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
     expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("メモが見つかりません");
+  });
+
+  it("separates junior and elementary managed accounts while keeping shared accounts visible", () => {
+    const { gas } = loadGas();
+    const elementary = gas.saveAccount_({ name: "Elementary Team", newApiKey: "elementary-key", app: "elementary" });
+    const shared = gas.saveAccount_({ name: "テスト", newApiKey: "test-key", app: "elementary" });
+    expect(gas.publicAccountList_("elementary").map((account) => account.id)).toEqual([elementary.id, shared.id]);
+    expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain("A");
+    expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain(shared.id);
+    expect(gas.publicAccountList_("junior").map((account) => account.id)).not.toContain(elementary.id);
+    expect(gas.canUseApp_(elementary.id, "elementary")).toBe(true);
+    expect(gas.canUseApp_(elementary.id, "junior")).toBe(false);
+    expect(gas.canUseApp_(shared.id, "elementary")).toBe(true);
+    expect(gas.canUseApp_(shared.id, "junior")).toBe(true);
   });
 
   it("accepts compact court board JSON and rejects invalid data", () => {

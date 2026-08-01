@@ -125,6 +125,7 @@ interface ManagedAccount {
   name: string;
   legacy: boolean;
   hasApiKey: boolean;
+  app?: "shared" | "junior" | "elementary";
 }
 
 interface StoredImage {
@@ -160,6 +161,7 @@ interface RulesPreferences {
 const RULES_PDF_URL = `${import.meta.env.BASE_URL}assets/rules/WRO-2026-Junior-Google-Translate-JA.pdf`;
 const RULES_DRIVE_PREVIEW_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/preview";
 const PUBLIC_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
+const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
 const GOOGLE_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1pDAgqy-Of24bbA4MeKslJ9SWUc-vH1zU/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/view?usp=sharing";
 const GENERAL_TRANSLATED_RULES_PREVIEW_URL = "https://drive.google.com/file/d/1ZCRLU9Hyz346ps0kLGW7k1T1-7njKPQL/preview";
@@ -193,6 +195,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.3", updatedAt: "2026.08.01", title: "共通リンクとコース表示を整理", description: "未ログイン時はメモ・練習記録を非表示にし、リンク・大会情報では公開リンク、QRコード、クレジットだけ確認できるようにしました。Juniorにもコース表示を追加しました。" },
   { version: "1.7.2", updatedAt: "2026.08.01", title: "ニュース・リンクをログイン時のみ表示", description: "未ログイン時はニュースとリンク・大会情報を非表示にし、ログイン後だけメニューと内容を確認できるようにしました。" },
   { version: "1.7.1", updatedAt: "2026.08.01", title: "JuniorとElementaryの基本UIを統一", description: "ログイン状態表示、ログイン画面、未ログイン時の案内、ヘッダー周りの見た目をElementary版と揃えました。" },
   { version: "1.7.0", updatedAt: "2026.08.01", title: "ログインなし採点に対応", description: "アプリ名をRoboMission Junior Assistへ変更し、採点・判定写真・ルールなどの基本機能をログインなしで使えるようにしました。記録保存・録画・練習記録・サーバーメモはログイン後に使えます。" },
@@ -420,12 +423,14 @@ function render() {
           ? memoView()
         : route === "photos"
           ? photoGalleryView()
+        : route === "course"
+          ? courseView()
         : route === "news"
           ? activeAccount ? newsView() : loginRequiredView("ニュース", "ニュースと大会情報はログイン後に表示されます。採点・ストップウォッチ・判定写真・ルール確認はログインなしでも使えます。")
           : route === "rules"
             ? rulesView()
             : route === "links"
-              ? activeAccount ? linksView() : loginRequiredView("リンク・大会情報", "リンク・大会情報はログイン後に表示されます。採点・ストップウォッチ・判定写真・ルール確認はログインなしでも使えます。")
+              ? linksView()
             : scoringView();
 
   app.innerHTML = `${content}${systemNoticeView()}${modal ? modalView() : ""}${accountSwitchOpen ? accountSwitchModal() : ""}${recordVideoModal ? recordVideoModalView() : ""}`;
@@ -454,13 +459,13 @@ function shell(content: string, options: { back?: string; title?: string } = {})
   const modes: string[][] = [
     ["score", "採点"],
     ["photos", "判定写真"],
-    ["records", "練習記録"],
-    ["memo", "メモ"],
+    ["course", "コース"],
     ["rules", "ルール"],
+    ["links", "リンク・大会情報"],
     ["account", activeAccount ? "ログイン中" : "ログイン"],
   ];
-  if (activeAccount) modes.splice(4, 0, ["news", "ニュース"]);
-  if (activeAccount) modes.splice(modes.length - 1, 0, ["links", "リンク・大会情報"]);
+  if (activeAccount) modes.splice(2, 0, ["records", "練習記録"], ["memo", "メモ"]);
+  if (activeAccount) modes.splice(5, 0, ["news", "ニュース"]);
   if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
   return `
     <header class="app-header">
@@ -533,6 +538,7 @@ function accountManagementView() {
         <div><strong>${escapeHtml(account.name)}</strong><small>ID: ${escapeHtml(account.id)}${account.legacy ? "・既存アカウント" : ""}</small></div>
         <label>チーム名<input data-managed-name="${account.id}" maxlength="50" value="${escapeHtml(account.name)}" /></label>
         <label>新しいAPIキー<input data-managed-key="${account.id}" type="password" maxlength="128" autocomplete="new-password" placeholder="変更しない場合は空欄" /></label>
+        <label>区分<select data-managed-app="${account.id}"><option value="junior" ${account.app === "junior" ? "selected" : ""}>Junior</option><option value="shared" ${account.app === "shared" ? "selected" : ""}>共通</option><option value="elementary" ${account.app === "elementary" ? "selected" : ""}>Elementary</option></select></label>
         <button class="primary" data-action="update-account" data-account-id="${account.id}">変更を保存</button>
       </article>`).join("") || `<p class="empty-account-list">アカウント情報を読み込んでいます…</p>`}
     </div>
@@ -540,6 +546,7 @@ function accountManagementView() {
       <h3>新しいアカウントを追加</h3>
       <label>チーム名<input id="new-account-name" maxlength="50" placeholder="チーム名" /></label>
       <label>APIキー<input id="new-account-key" type="password" maxlength="128" autocomplete="new-password" placeholder="APIキー" /></label>
+      <label>区分<select id="new-account-app"><option value="junior">Junior</option><option value="shared">共通</option><option value="elementary">Elementary</option></select></label>
       <button class="primary" data-action="create-account">アカウントを追加</button>
     </div>
   </section>`;
@@ -2070,42 +2077,49 @@ function nationalEventCard() {
 }
 
 function linksView() {
+  const loggedIn = Boolean(activeAccount);
   return shell(`
     <section class="page-intro links-intro">
       <p class="eyebrow">EVENT / RELATED LINKS</p>
       <h1>リンク・大会情報</h1>
-      <p>大会情報・ルール・関連動画をまとめています。</p>
+      <p>${loggedIn ? "大会情報・ルール・関連動画をまとめています。" : "ログインなしで確認できる公開リンク、QRコード、クレジットを表示しています。"}</p>
     </section>
     <section class="link-groups">
-      ${nationalEventCard()}
+      ${loggedIn ? nationalEventCard() : ""}
       ${linkGroup("WRO ホームページ", [
         ["WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026"],
         ["WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/"],
-        ["WRO兵庫", "兵庫地区の大会・予選会情報", "https://wro-hyogo.jp/"],
+        ...(loggedIn ? [["WRO兵庫", "兵庫地区の大会・予選会情報", "https://wro-hyogo.jp/"] as [string, string, string]] : []),
       ])}
-      ${linkGroup("ルール関連", [
+      ${loggedIn ? linkGroup("ルール関連", [
         ["Google翻訳", "RoboMission JuniorルールのGoogle翻訳版", GOOGLE_TRANSLATED_RULES_URL],
         ["Google翻訳版-General-Rules", "General RulesのGoogle翻訳版", GENERAL_TRANSLATED_RULES_URL],
         ["Japan決勝大会-General-Rules", "WRO 2026 Robo Mission Category - Japan決勝大会 General-Rules", JAPAN_FINAL_GENERAL_RULES_URL],
         ["世界大会ルール", "RoboMission Juniorの世界大会ルール", WORLD_RULES_URL],
         ["Q&A", "WRO国際サイトの質問・回答", "https://wro-association.org/competition/questions-answers/"],
-      ])}
-      ${linkGroup("その他", [
+      ]) : ""}
+      ${loggedIn ? linkGroup("その他", [
         ["YouTube関連動画", "RoboMission関連動画の再生リスト", "https://youtube.com/playlist?list=PL5-Hc8xo0J3ns_WHhwGI-AxDOyEL9-l2O&si=YglnMNN6SpMbn9AN"],
         ["GitHubリポジトリ", "アプリのソースコード", "https://github.com/ecleaire/ROBOMISSION_POINTToul.git"],
-      ])}
+      ]) : ""}
       <article class="link-section card qr-section">
         <h2>公開URL QRコード</h2>
-        <a class="public-qr" href="${PUBLIC_APP_URL}" target="_blank" rel="noopener noreferrer">
-          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Junior Assist 公開URL QRコード" loading="lazy" decoding="async" />
-          <span><strong>RoboMission Junior Assist</strong><small>${PUBLIC_APP_URL}</small></span>
-        </a>
+        <div class="public-qr-grid">
+          <a class="public-qr" href="${PUBLIC_APP_URL}" target="_blank" rel="noopener noreferrer">
+            <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Junior Assist 公開URL QRコード" loading="lazy" decoding="async" />
+            <span><strong>RoboMission Junior Assist</strong><small>${PUBLIC_APP_URL}</small></span>
+          </a>
+          <a class="public-qr" href="${ELEMENTARY_APP_URL}" target="_blank" rel="noopener noreferrer">
+            <img src="${import.meta.env.BASE_URL}assets/robomission-elementary-public-url-qr.png" alt="RoboMission Elementary Assist 公開URL QRコード" loading="lazy" decoding="async" />
+            <span><strong>RoboMission Elementary Assist</strong><small>${ELEMENTARY_APP_URL}</small></span>
+          </a>
+        </div>
       </article>
-      <article class="link-section card system-health">
+      ${loggedIn ? `<article class="link-section card system-health">
         <h2>アプリ動作情報</h2>
         <dl><div><dt>通信</dt><dd>${online ? "オンライン" : "オフライン"}</dd></div><div><dt>画面描画</dt><dd>${lastModeRenderMs.toFixed(1)}ms</dd></div><div><dt>端末保存領域</dt><dd>${escapeHtml(storageSummary)}</dd></div><div><dt>未送信</dt><dd>${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件</dd></div></dl>
         <button class="secondary" data-action="cleanup-runtime-cache">古い動画キャッシュを整理</button>
-      </article>
+      </article>` : ""}
       <article class="link-section card credits-section">
         <h2>ライセンス / クレジット</h2>
         <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Juniorの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
@@ -2124,6 +2138,19 @@ function linkGroup(title: string, links: [string, string, string][]) {
       </a>`).join("")}
     </div>
   </article>`;
+}
+
+function courseView() {
+  return shell(`
+    <section class="page-intro">
+      <p class="eyebrow">COURSE IMAGE</p>
+      <h1>コース</h1>
+      <p>Juniorのコース画像を確認できます。ログインなしでも使用できます。</p>
+    </section>
+    <section class="link-section card course-view-card">
+      <img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コース画像" loading="eager" decoding="async" />
+    </section>
+  `, { title: "コース" });
 }
 
 function modalView() {
@@ -2754,7 +2781,7 @@ async function loginAccount(fromSwitch = false) {
   accountError = "確認中…";
   render();
   try {
-    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key });
+    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "junior" });
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
     if (verifiedAccount === "ADMIN") {
@@ -2898,7 +2925,7 @@ async function refreshAccountIdentity() {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !activeApiKey || activeAccount === "ADMIN") return;
   try {
-    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string }>(endpoint, { action: "auth", apiKey: activeApiKey });
+    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string }>(endpoint, { action: "auth", apiKey: activeApiKey, app: "junior" });
     if (!result.ok || result.account !== activeAccount) return;
     activeAccountName = typeof result.accountName === "string" ? result.accountName.slice(0, 50) : "";
     render();
@@ -2913,7 +2940,7 @@ async function loadManagedAccounts(shouldRender = true) {
   accountManagementStatus = "アカウント情報を読み込み中…";
   if (shouldRender) render();
   try {
-    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: activeApiKey });
+    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: activeApiKey, app: "junior" });
     if (!result.ok) throw new Error(result.message || "アカウント情報を取得できませんでした");
     managedAccounts = sanitizeManagedAccounts(result.accounts);
     accountManagementStatus = `${managedAccounts.length}件のアカウントを管理中`;
@@ -3007,8 +3034,10 @@ async function saveManagedAccount(accountId?: string) {
   if (!endpoint || activeAccount !== "ADMIN" || !activeApiKey) return;
   const nameInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-name="${accountId}"]` : "#new-account-name");
   const keyInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-key="${accountId}"]` : "#new-account-key");
+  const appSelect = document.querySelector<HTMLSelectElement>(accountId ? `[data-managed-app="${accountId}"]` : "#new-account-app");
   const name = nameInput?.value.trim() ?? "";
   const newApiKey = keyInput?.value.trim() ?? "";
+  const appKind = appSelect?.value || "junior";
   if (!name || (!accountId && !newApiKey)) {
     accountManagementStatus = !name ? "チーム名を入力してください。" : "APIキーを入力してください。";
     render();
@@ -3018,7 +3047,7 @@ async function saveManagedAccount(accountId?: string) {
   render();
   try {
     const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, {
-      action: "saveAccount", apiKey: activeApiKey, accountId: accountId || "", name, newApiKey,
+      action: "saveAccount", apiKey: activeApiKey, accountId: accountId || "", name, newApiKey, app: appKind,
     });
     if (!result.ok) throw new Error(result.message || "アカウントを保存できませんでした");
     managedAccounts = sanitizeManagedAccounts(result.accounts);
@@ -3506,7 +3535,7 @@ function sanitizeManagedAccounts(value: unknown): ManagedAccount[] {
     return typeof candidate.id === "string" && isAccountKey(candidate.id) && candidate.id !== "ADMIN" &&
       typeof candidate.name === "string" && candidate.name.length > 0 && candidate.name.length <= 50 &&
       typeof candidate.legacy === "boolean" && typeof candidate.hasApiKey === "boolean";
-  });
+  }).map((account) => ({ ...account, app: account.app === "shared" || account.app === "elementary" || account.app === "junior" ? account.app : "junior" }));
 }
 
 function createRequestId() {

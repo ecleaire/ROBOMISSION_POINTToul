@@ -1,6 +1,6 @@
 # RoboMission Junior Assist
 
-現在のアプリバージョン：`v1.7.2`
+現在のアプリバージョン：`v1.7.3`
 
 WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webアプリです。ログインなしでも採点・判定写真・ルール確認を利用でき、ログインすると練習記録・メモ・録画保存を利用できます。スマートフォン、タブレット、PCで利用でき、PWAとしてインストールすると採点と全判定写真をオフラインでも利用できます。ルールPDFは必要になった時だけ読み込みます。
 
@@ -12,7 +12,7 @@ WRO 2026 RoboMission Juniorの、判定写真付き得点計算・記録Webア�
 WRO 2026 RoboMission Elementary向けの軽量な別アプリを追加しています。ジュニア版の採点アプリとは別ページです。
 
 - 公開URL：`https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/`
-- Elementaryアプリバージョン：`v0.4.2`
+- Elementaryアプリバージョン：`v0.4.3`
 - 最大得点：255点
 - ルールPDF：`public/assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`
 - コース画像：`public/assets/elementary/memo/elementary-course.webp`
@@ -22,6 +22,8 @@ WRO 2026 RoboMission Elementary向けの軽量な別アプリを追加してい�
 - 録画機能はログインユーザー限定
 - Junior版とログイン画面・基本UIの見た目を統一
 - ニュース・リンク・大会情報はログイン時のみ表示
+- Elementary版にもリンク画面と管理画面を追加
+- アプリアイコンはJuniorとElementaryで共通
 
 ## 主な機能
 
@@ -30,6 +32,9 @@ WRO 2026 RoboMission Elementary向けの軽量な別アプリを追加してい�
 - ログインするとスプレッドシート記録、練習記録、サーバーメモ、録画保存を使用可能
 - Junior / Elementary のログイン画面・基本UIを統一
 - ニュース・リンク・大会情報はログイン時のみ表示
+- 未ログイン時は練習記録・メモを非表示にし、リンク・大会情報はWRO公開リンク、公開URL QRコード、ライセンス / クレジットのみ表示
+- Junior / Elementaryの公開URL QRコードをリンク画面に並べて表示
+- アカウント管理ではJunior / Elementary / 共通の区分を保持し、`a0`、`rmam`、`システム動作確認`、`テスト` は共通扱い
 - チェックなしを0点として扱うスプレッドシート型の入力
 - 採点表の文字・数字を大きく表示し、PC・タブレットでも読みやすく調整
 - 採点画面下部の合計得点ボタンが不自然に改行されないよう調整

@@ -2,7 +2,7 @@ import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 
-type Mode = "score" | "judging" | "course" | "rules" | "result" | "login";
+type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
 type ElementaryJudgeGroupId = "cables" | "prepare" | "notes" | "bonus";
 
@@ -11,6 +11,14 @@ interface ElementaryAccount {
   account: string;
   accountName: string;
   remember: boolean;
+}
+
+interface ManagedAccount {
+  id: string;
+  name: string;
+  legacy?: boolean;
+  hasApiKey?: boolean;
+  app?: "shared" | "junior" | "elementary";
 }
 
 interface StoredVideo {
@@ -50,19 +58,24 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.2";
+const ELEMENTARY_VERSION = "0.4.3";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
 const RULE_PDF = `${import.meta.env.BASE_URL}assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`;
 const JUDGING_IMAGE_BASE = `${import.meta.env.BASE_URL}assets/elementary/judging/`;
+const JUNIOR_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
+const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
 const NOTE_LABELS = ["赤の音符", "青の音符", "緑の音符", "黄色の音符", "白の音符", "黒の音符"];
 
 let mode: Mode = "score";
 let state = loadState();
 let account = loadAccount();
 let loginError = "";
+let adminMode = account?.account === "ADMIN";
+let adminStatus = "";
+let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
 let judgeModal: ElementaryJudgeGroupId | null = null;
 let stopwatch = { running: false, startedAt: 0, elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000) };
@@ -140,15 +153,17 @@ function render() {
         ${navButton("judging", "判定")}
         ${navButton("course", "コース")}
         ${navButton("rules", "ルール")}
+        ${navButton("links", "リンク")}
         ${navButton("result", "結果")}
         ${navButton("login", account ? "ログイン中" : "ログイン")}
+        ${adminMode ? navButton("admin", "管理") : ""}
       </nav>
     </header>
     <div class="elementary-account-bar ${account ? "logged-in" : ""}">
       ${account ? `<span>ログイン中：${escapeHtml(account.accountName || account.account)}</span><button type="button" data-action="logout">ログアウト</button>` : `<span>未ログイン：採点とストップウォッチは使用できます。録画・保存はログイン後に使えます。</span><button type="button" data-mode="login">ログイン</button>`}
     </div>
     <main class="elementary-main">
-      ${mode === "score" ? scoreView() : mode === "judging" ? judgingView() : mode === "course" ? courseView() : mode === "rules" ? rulesView() : mode === "login" ? loginView() : resultView()}
+      ${mode === "score" ? scoreView() : mode === "judging" ? judgingView() : mode === "course" ? courseView() : mode === "rules" ? rulesView() : mode === "links" ? linksView() : mode === "login" ? loginView() : mode === "admin" ? adminView() : resultView()}
     </main>
     ${judgeModal ? judgeModalView(judgeModal) : ""}
   `;
@@ -394,6 +409,66 @@ function rulesView() {
   </section>`;
 }
 
+function linksView() {
+  return `<section class="elementary-page elementary-links">
+    <p class="eyebrow">RELATED LINKS</p><h2>リンク</h2>
+    <div class="card elementary-link-section">
+      <h3>WRO ホームページ</h3>
+      <div class="elementary-link-grid">
+        ${elementaryLink("WRO Japan", "2026年シーズンの国内情報", "https://www.wroj.org/action/2026")}
+        ${elementaryLink("WRO 国際", "World Robot Olympiad公式サイト", "https://wro-association.org/")}
+      </div>
+    </div>
+    <div class="card elementary-link-section">
+      <h3>公開URL QRコード</h3>
+      <div class="elementary-qr-grid">
+        ${publicQr("RoboMission Junior Assist", JUNIOR_APP_URL, `${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png`)}
+        ${publicQr("RoboMission Elementary Assist", ELEMENTARY_APP_URL, `${import.meta.env.BASE_URL}assets/robomission-elementary-public-url-qr.png`)}
+      </div>
+    </div>
+    <div class="card elementary-link-section">
+      <h3>ライセンス / クレジット</h3>
+      <p>採点条件・ルール・判定写真は、World Robot Olympiad Association Ltd.が公開するWRO 2026 RoboMission Elementaryの資料を参照しています。ルール本文と画像の権利は各権利者に帰属します。</p>
+      <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
+    </div>
+  </section>`;
+}
+
+function elementaryLink(label: string, description: string, href: string) {
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer"><span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></span><b>↗</b></a>`;
+}
+
+function publicQr(label: string, href: string, image: string) {
+  return `<a class="elementary-public-qr" href="${href}" target="_blank" rel="noopener noreferrer"><img src="${image}" alt="${escapeHtml(label)} 公開URL QRコード" loading="lazy" decoding="async" /><span><strong>${escapeHtml(label)}</strong><small>${href}</small></span></a>`;
+}
+
+function adminView() {
+  if (account?.account !== "ADMIN") return loginView();
+  return `<section class="elementary-page elementary-admin">
+    <p class="eyebrow">PRIVATE ACCOUNT MANAGEMENT</p><h2>管理</h2>
+    <div class="card elementary-link-section">
+      <div class="elementary-admin-head"><p>Elementaryで使うアカウントを管理します。a0 / rmam / システム動作確認 / テストは共通アカウントとして扱います。</p><button type="button" class="secondary" data-action="load-accounts">↻ 更新</button></div>
+      ${adminStatus ? `<p class="warning">${escapeHtml(adminStatus)}</p>` : ""}
+      <div class="elementary-managed-list">
+        ${managedAccounts.map((item) => `<article class="elementary-managed-account" data-managed-account="${escapeHtml(item.id)}">
+          <div><strong>${escapeHtml(item.name)}</strong><small>ID: ${escapeHtml(item.id)}${item.app ? ` / ${item.app}` : ""}</small></div>
+          <label>チーム名<input data-managed-name="${escapeHtml(item.id)}" maxlength="50" value="${escapeHtml(item.name)}" /></label>
+          <label>APIキー<input data-managed-key="${escapeHtml(item.id)}" type="password" maxlength="128" autocomplete="new-password" placeholder="変更しない場合は空欄" /></label>
+          <label>区分<select data-managed-app="${escapeHtml(item.id)}"><option value="elementary" ${item.app === "elementary" ? "selected" : ""}>Elementary</option><option value="shared" ${item.app === "shared" ? "selected" : ""}>共通</option><option value="junior" ${item.app === "junior" ? "selected" : ""}>Junior</option></select></label>
+          <button type="button" class="primary" data-action="save-managed-account" data-account-id="${escapeHtml(item.id)}">変更を保存</button>
+        </article>`).join("") || `<p>アカウント情報を読み込んでいます…</p>`}
+      </div>
+      <div class="elementary-managed-account new">
+        <h3>新しいElementaryアカウントを追加</h3>
+        <label>チーム名<input id="elementary-new-account-name" maxlength="50" placeholder="チーム名" /></label>
+        <label>APIキー<input id="elementary-new-account-key" type="password" maxlength="128" autocomplete="new-password" placeholder="APIキー" /></label>
+        <label>区分<select id="elementary-new-account-app"><option value="elementary">Elementary</option><option value="shared">共通</option><option value="junior">Junior</option></select></label>
+        <button type="button" class="primary" data-action="save-managed-account">アカウントを追加</button>
+      </div>
+    </div>
+  </section>`;
+}
+
 function resultView() {
   const scores = sectionScores();
   return `<section class="elementary-page">
@@ -488,6 +563,10 @@ function bindEvents() {
   app.querySelector<HTMLButtonElement>('[data-action="login"]')?.addEventListener("click", () => void login());
   app.querySelector<HTMLInputElement>("#elementary-api-key")?.addEventListener("keydown", (event) => { if (event.key === "Enter") void login(); });
   app.querySelector<HTMLButtonElement>('[data-action="logout"]')?.addEventListener("click", logout);
+  app.querySelector<HTMLButtonElement>('[data-action="load-accounts"]')?.addEventListener("click", () => void loadManagedAccounts());
+  app.querySelectorAll<HTMLButtonElement>('[data-action="save-managed-account"]').forEach((button) => {
+    button.addEventListener("click", () => void saveManagedAccount(button.dataset.accountId || ""));
+  });
   app.querySelector<HTMLButtonElement>('[data-action="save-result"]')?.addEventListener("click", () => void saveResult());
   const preview = app.querySelector<HTMLVideoElement>("[data-recorder-preview]");
   if (preview && mediaStream && preview.srcObject !== mediaStream) preview.srcObject = mediaStream;
@@ -564,12 +643,14 @@ async function login() {
   loginError = "確認中…";
   render();
   try {
-    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key });
+    const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "elementary" });
     if (!result.ok || !result.account) throw new Error(result.message || "APIキーを確認できませんでした。");
     account = { apiKey: key, account: result.account, accountName: result.accountName || result.account, remember };
+    adminMode = result.account === "ADMIN";
     saveAccount();
     loginError = "";
-    mode = "score";
+    mode = adminMode ? "admin" : "score";
+    if (adminMode) void loadManagedAccounts(false);
   } catch (error) {
     loginError = error instanceof Error ? error.message : "ログインできませんでした。";
   }
@@ -579,10 +660,75 @@ async function login() {
 function logout() {
   stopRecording();
   account = null;
+  adminMode = false;
+  managedAccounts = [];
+  adminStatus = "";
   recordedVideo = null;
   localStorage.removeItem(ACCOUNT_KEY);
   saveStatus = "";
   mode = "score";
+  render();
+}
+
+function sharedAccountName(value: string) {
+  const normalized = value.trim().toLocaleLowerCase();
+  return normalized === "a0" || normalized === "rmam" || normalized === "システム動作確認" || normalized === "テスト";
+}
+
+function sanitizeManagedAccounts(accounts: unknown): ManagedAccount[] {
+  if (!Array.isArray(accounts)) return [];
+  return accounts.map((item) => {
+    const accountItem = item as Partial<ManagedAccount>;
+    const id = String(accountItem.id || "").slice(0, 32);
+    const name = String(accountItem.name || id).slice(0, 50);
+    const rawApp = accountItem.app === "junior" || accountItem.app === "elementary" || accountItem.app === "shared" ? accountItem.app : "";
+    const app = sharedAccountName(id) || sharedAccountName(name) ? "shared" : rawApp || "elementary";
+    return { id, name, legacy: Boolean(accountItem.legacy), hasApiKey: Boolean(accountItem.hasApiKey), app };
+  }).filter((item) => item.id && (item.app === "elementary" || item.app === "shared"));
+}
+
+async function loadManagedAccounts(shouldRender = true) {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint || account?.account !== "ADMIN") return;
+  adminStatus = "アカウント情報を読み込み中…";
+  if (shouldRender) render();
+  try {
+    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: account.apiKey, app: "elementary" });
+    if (!result.ok) throw new Error(result.message || "アカウント情報を取得できませんでした。");
+    managedAccounts = sanitizeManagedAccounts(result.accounts);
+    adminStatus = `${managedAccounts.length}件のアカウントを管理中`;
+  } catch (error) {
+    adminStatus = `読み込めませんでした。${error instanceof Error ? error.message : "通信エラー"}`;
+  }
+  if (shouldRender) render();
+}
+
+async function saveManagedAccount(accountId = "") {
+  const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
+  if (!endpoint || account?.account !== "ADMIN") return;
+  const nameInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-name="${CSS.escape(accountId)}"]` : "#elementary-new-account-name");
+  const keyInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-key="${CSS.escape(accountId)}"]` : "#elementary-new-account-key");
+  const appSelect = document.querySelector<HTMLSelectElement>(accountId ? `[data-managed-app="${CSS.escape(accountId)}"]` : "#elementary-new-account-app");
+  const name = nameInput?.value.trim() ?? "";
+  const newApiKey = keyInput?.value.trim() ?? "";
+  const appKind = sharedAccountName(accountId) || sharedAccountName(name) ? "shared" : (appSelect?.value || "elementary");
+  if (!name || (!accountId && !newApiKey)) {
+    adminStatus = !name ? "チーム名を入力してください。" : "APIキーを入力してください。";
+    render();
+    return;
+  }
+  adminStatus = accountId ? "変更を保存中…" : "アカウントを追加中…";
+  render();
+  try {
+    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, {
+      action: "saveAccount", apiKey: account.apiKey, accountId, name, newApiKey, app: appKind,
+    });
+    if (!result.ok) throw new Error(result.message || "アカウントを保存できませんでした。");
+    managedAccounts = sanitizeManagedAccounts(result.accounts);
+    adminStatus = accountId ? "アカウントを更新しました。" : "Elementaryアカウントを追加しました。";
+  } catch (error) {
+    adminStatus = `保存できませんでした。${error instanceof Error ? error.message : "通信エラー"}`;
+  }
   render();
 }
 
@@ -671,6 +817,7 @@ async function saveResult() {
     const video = recordedVideo ? await fileToStoredVideo(recordedVideo) : undefined;
     const payload = {
       action: "saveElementary",
+      app: "elementary",
       apiKey: account.apiKey,
       account: account.account,
       requestId: `elementary-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -744,4 +891,8 @@ function sum(values: number[]) {
   return values.reduce((total, value) => total + value, 0);
 }
 
+if (adminMode) {
+  mode = "admin";
+  void loadManagedAccounts(false);
+}
 render();

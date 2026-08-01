@@ -383,12 +383,15 @@ body.pdf-mode { overflow: hidden; }
 .resource-links small { margin-top: 4px; color: #60798e; font-size: .76rem; line-height: 1.45; }
 .resource-links b { width: 32px; height: 32px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: white; background: var(--blue); font-size: 1rem; }
 .qr-section { overflow: hidden; }
+.public-qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 12px; }
 .public-qr { width: fit-content; max-width: 100%; display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 20px; padding: 12px; border: 1px solid #c8ddeb; border-radius: 14px; color: #183b56; background: #f7fbfe; text-decoration: none; }
 .public-qr img { width: 150px; height: 150px; padding: 7px; border-radius: 9px; background: white; image-rendering: pixelated; }
 .public-qr strong, .public-qr small { display: block; }
 .public-qr small { max-width: 420px; margin-top: 6px; color: #60798e; overflow-wrap: anywhere; }
 .credits-section p { margin: 9px 0 0; color: #52677a; font-size: .84rem; line-height: 1.7; }
 .credits-section strong { color: #183b56; }
+.course-view-card { overflow: hidden; }
+.course-view-card img { width: 100%; display: block; border-radius: 12px; background: white; }
 .result-card { background: white; border-radius: 24px; padding: 32px; box-shadow: var(--shadow); }
 .result-card h1 { margin: 5px 0 8px; font-size: clamp(1.7rem, 5vw, 2.8rem); }
 .result-meta { display: flex; gap: 10px; flex-wrap: wrap; color: #52677a; }
@@ -430,13 +433,13 @@ body.pdf-mode { overflow: hidden; }
 .account-management h2, .account-management h3 { margin: 2px 0 8px; }
 .account-management > p:not(.eyebrow, .sheet-status) { color: #526b7e; line-height: 1.6; }
 .managed-account-list { display: grid; gap: 10px; margin: 14px 0; }
-.managed-account { display: grid; grid-template-columns: minmax(180px, 1.2fr) minmax(180px, 1.4fr) minmax(200px, 1.4fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #c9ddea; border-radius: 10px; background: #f8fbfd; }
+.managed-account { display: grid; grid-template-columns: minmax(160px, 1.1fr) minmax(170px, 1.2fr) minmax(190px, 1.2fr) minmax(120px, .75fr) auto; align-items: end; gap: 10px; padding: 12px; border: 1px solid #c9ddea; border-radius: 10px; background: #f8fbfd; }
 .managed-account > div { align-self: center; display: grid; gap: 3px; }
 .managed-account small { color: #6e8293; }
 .managed-account label, .new-managed-account label { display: grid; gap: 4px; color: #3f566b; font-size: .76rem; font-weight: 900; }
-.managed-account input, .new-managed-account input { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #adc4d6; border-radius: 8px; background: white; color: #102a43; font: inherit; }
+.managed-account input, .new-managed-account input, .managed-account select, .new-managed-account select { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #adc4d6; border-radius: 8px; background: white; color: #102a43; font: inherit; }
 .managed-account button { min-height: 44px; }
-.new-managed-account { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr) auto; align-items: end; gap: 10px; padding-top: 14px; border-top: 2px solid #dceaf3; }
+.new-managed-account { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(200px, 1fr) minmax(120px, .7fr) auto; align-items: end; gap: 10px; padding-top: 14px; border-top: 2px solid #dceaf3; }
 .new-managed-account h3 { grid-column: 1 / -1; }
 .new-managed-account button { min-height: 44px; }
 .account-switch-modal { width: min(520px, 100%); padding: 20px; }
@@ -824,6 +827,7 @@ code { overflow-wrap: anywhere; }
   .pdf-viewer iframe { height: 72vh; min-height: 460px; }
   .rules-frame-host { min-height: 460px; }
   .link-section { padding: 16px; }
+  .public-qr-grid { grid-template-columns: 1fr; }
   .public-qr { width: 100%; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
   .public-qr img { width: 112px; height: 112px; }
   .result-card { padding: 22px 18px; }
