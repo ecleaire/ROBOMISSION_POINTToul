@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.15", updatedAt: "2026.08.02", title: "PDF読み込みを軽量化", description: "ElementaryルールPDFの初回先読みをやめ、PDFは開いた時だけ端末に保存する方式へ変更しました。更新時の待ち時間とキャッシュ負荷を減らしています。" },
   { version: "1.7.14", updatedAt: "2026.08.02", title: "QRコード表示をJunior基準に統一", description: "リンク画面の公開URL QRコードカードを、Junior側の余白・枠線・背景・文字間隔に合わせて統一しました。" },
   { version: "1.7.13", updatedAt: "2026.08.02", title: "全デバイス向けUI安定化", description: "Junior/Elementaryの全モードを再確認し、Elementary側にもJuniorと同じスマホ操作、文字折り返し、はみ出し防止の共通CSSを追加しました。" },
   { version: "1.7.12", updatedAt: "2026.08.02", title: "Junior/Elementaryの共通UIを再統一", description: "ヘッダー、ログイン、リンク、採点、コース、判定写真まわりの文字サイズ・太さ・余白を見直し、iPad幅でも採点表が小さくならないよう調整しました。" },

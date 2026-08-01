@@ -58,12 +58,13 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.14";
+const ELEMENTARY_VERSION = "0.4.15";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
 const RULE_PDF = `${import.meta.env.BASE_URL}assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf`;
+const RULES_PDF_CACHE_NAME = "robomission-rules-pdf-v1";
 const JUDGING_IMAGE_BASE = `${import.meta.env.BASE_URL}assets/elementary/judging/`;
 const JUNIOR_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
@@ -93,6 +94,7 @@ let recordedVideo: File | null = null;
 let recordingStatus: "idle" | "starting" | "recording" | "processing" = "idle";
 let recordingStartedAt = 0;
 let recordingElapsedMs = 0;
+const rulesPdfCacheTasks = new Set<string>();
 
 const app = document.querySelector<HTMLDivElement>("#elementary-app")!;
 
@@ -177,6 +179,7 @@ function render() {
     ${judgeModal ? judgeModalView(judgeModal) : ""}
   `;
   bindEvents();
+  if (mode === "rules") void cacheElementaryRulesPdfForNextView();
 }
 
 function navButton(target: Mode, label: string) {
@@ -455,6 +458,23 @@ function rulesView() {
     <div class="elementary-rule-actions"><a class="primary" href="${RULE_PDF}" target="_blank" rel="noopener noreferrer">PDFを別タブで開く</a></div>
     <div class="card elementary-pdf"><iframe src="${RULE_PDF}#page=1&zoom=page-width" title="WRO 2026 RoboMission Elementary Game Rules"></iframe></div>
   </section>`;
+}
+
+async function cacheElementaryRulesPdfForNextView() {
+  if (!("caches" in window)) return;
+  const url = new URL(RULE_PDF, location.href).toString();
+  if (rulesPdfCacheTasks.has(url)) return;
+  rulesPdfCacheTasks.add(url);
+  try {
+    const cache = await caches.open(RULES_PDF_CACHE_NAME);
+    if (await cache.match(url)) return;
+    const response = await fetch(url, { cache: "reload" });
+    if (response.ok) await cache.put(url, response.clone());
+  } catch {
+    // PDFキャッシュに失敗しても、通常表示はそのまま続ける。
+  } finally {
+    rulesPdfCacheTasks.delete(url);
+  }
 }
 
 function linksView() {

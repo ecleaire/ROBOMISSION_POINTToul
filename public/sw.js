@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v70";
+const CACHE = "robomission-junior-v71";
 const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",
@@ -6,7 +6,6 @@ const PRECACHE = [
   "./assets/robomission-public-url-qr.png",
   "./assets/robomission-elementary-public-url-qr.png",
   "./assets/elementary/memo/elementary-course.webp",
-  "./assets/elementary/rules/WRO-2026-RoboMission-Elementary-Game-Rules.pdf",
   "./assets/elementary/judging/bonus/0-amplifier-damaged.webp",
   "./assets/elementary/judging/bonus/0-amplifier-moved.webp",
   "./assets/elementary/judging/bonus/0-speaker-damaged.webp",
@@ -108,6 +107,7 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith((async () => {
     const url = new URL(event.request.url);
+    if (url.pathname.endsWith(".pdf")) return cacheFirstPdf(event.request);
     const cacheFirst = url.pathname.includes("/assets/");
     if (cacheFirst) {
       const cached = await caches.match(event.request);
@@ -128,6 +128,19 @@ self.addEventListener("fetch", (event) => {
     }
   })());
 });
+
+async function cacheFirstPdf(request) {
+  const cache = await caches.open(RULES_PDF_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return Response.error();
+  }
+}
 
 async function rangeFromCachedPdf(request) {
   const range = request.headers.get("range") || "";
