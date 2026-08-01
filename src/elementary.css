@@ -503,8 +503,8 @@ textarea {
 
 .elementary-judge-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .elementary-judge-card {
@@ -522,12 +522,12 @@ textarea {
   line-height: 1.7;
 }
 
-.elementary-judge-card div {
+.elementary-rule-list {
   display: grid;
   gap: 8px;
 }
 
-.elementary-judge-card span {
+.elementary-rule-list span {
   min-height: 48px;
   padding: 9px 12px;
   display: flex;
@@ -539,17 +539,17 @@ textarea {
   font-weight: 850;
 }
 
-.elementary-judge-card span.partial {
+.elementary-rule-list span.partial {
   color: #8a5600;
   background: #fff1cf;
 }
 
-.elementary-judge-card span.zero {
+.elementary-rule-list span.zero {
   color: #91483d;
   background: #fff1ee;
 }
 
-.elementary-judge-card span strong {
+.elementary-rule-list span strong {
   flex: 0 0 auto;
   font-size: 1.1rem;
 }
@@ -569,8 +569,14 @@ textarea {
   cursor: pointer;
 }
 
+.elementary-judge-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 10px;
+}
+
 .elementary-judge-photos figure {
-  margin: 10px 0 0;
+  margin: 0;
   overflow: hidden;
   border: 1px solid #c8ddeb;
   border-radius: 12px;
@@ -579,14 +585,21 @@ textarea {
 
 .elementary-judge-photos img {
   width: 100%;
+  aspect-ratio: 4 / 3;
   display: block;
+  object-fit: contain;
+  background: white;
 }
 
 .elementary-judge-photos figcaption {
+  min-height: 48px;
   padding: 8px 10px;
-  color: #526d80;
-  font-size: .86rem;
+  display: flex;
+  align-items: center;
+  color: #173b57;
+  font-size: .95rem;
   font-weight: 900;
+  line-height: 1.35;
 }
 
 .elementary-course {

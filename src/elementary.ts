@@ -34,7 +34,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.2.0";
+const ELEMENTARY_VERSION = "0.3.0";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
@@ -233,25 +233,59 @@ function judgingView() {
       title: "アンプとスピーカーをつなぐ",
       text: "ケーブルは灰色エリアに置きます。完全に入るとは、対象物が対応エリアに触れ、マット上の他エリアに触れていない状態です。",
       rules: [["15点", "灰色エリア内に完全に入り、直立"], ["5点", "一部だけ入っている、または直立していない"], ["0点", "エリア外"]],
-      images: [["cables-1.webp", "ケーブル判定例 1"], ["cables-2-microphone-1.webp", "ケーブル判定例 2"]],
+      images: [
+        ["cables/15-full.webp", "15点：完全にエリア内・直立"],
+        ["cables/5-partly.webp", "5点：一部だけエリア内"],
+        ["cables/5-not-upright.webp", "5点：直立していない"],
+        ["cables/0-outside.webp", "0点：エリア外"],
+        ["cables/30-both.webp", "30点：2本とも成功"],
+      ],
     },
     {
       title: "ショーの準備",
       text: "マイクはステージ上の薄緑エリア、楽器は左下のピンク色バックステージへ運びます。",
       rules: [["20点", "マイクが対象エリア内・直立"], ["10点", "マイクが一部だけ、または直立していない"], ["15点", "楽器がバックステージ内"]],
-      images: [["cables-2-microphone-1.webp", "マイク判定例 1"], ["microphone-2-instruments.webp", "マイク・楽器判定例"], ["instruments-notes-1.webp", "楽器判定例"]],
+      images: [
+        ["microphone/20-full.webp", "マイク 20点：完全にエリア内・直立"],
+        ["microphone/10-partly.webp", "マイク 10点：一部だけエリア内"],
+        ["microphone/10-not-upright.webp", "マイク 10点：直立していない"],
+        ["microphone/0-outside.webp", "マイク 0点：エリア外"],
+        ["instruments/15-full-1.webp", "楽器 15点：バックステージ内"],
+        ["instruments/15-full-2.webp", "楽器 15点：バックステージ内"],
+        ["instruments/0-partial.webp", "楽器 0点：完全に入っていない"],
+        ["instruments/0-outside.webp", "楽器 0点：エリア外"],
+        ["instruments/45-all.webp", "楽器 45点：3つとも成功"],
+      ],
     },
     {
       title: "曲を演奏する",
       text: "6色の音符を対応する色の音符ターゲットエリアへ置きます。灰色のふちもターゲットエリアに含まれます。",
       rules: [["20点", "対応色エリア内に完全に入り、直立"], ["10点", "一部だけ、または直立していない"], ["0点", "エリア外、または色違い"]],
-      images: [["instruments-notes-1.webp", "音符判定例 1"], ["notes-2.webp", "音符判定例 2"]],
+      images: [
+        ["notes/20-full.webp", "20点：対応色エリア内・直立"],
+        ["notes/20-still-full.webp", "20点：完全に入っている例"],
+        ["notes/10-partly.webp", "10点：一部だけエリア内"],
+        ["notes/10-not-upright.webp", "10点：直立していない"],
+        ["notes/0-outside.webp", "0点：エリア外"],
+        ["notes/0-wrong-color-1.webp", "0点：色違い"],
+        ["notes/0-wrong-color-2.webp", "0点：色違い"],
+      ],
     },
     {
       title: "ボーナスポイント",
       text: "ト音記号・スピーカー・アンプが開始時の状態から移動または損傷していない場合に得点します。",
       rules: [["10点", "移動していない、損傷していない"], ["0点", "移動、転倒、損傷あり"]],
-      images: [["bonus.webp", "ボーナス判定例"]],
+      images: [
+        ["bonus/10-clef-ok.webp", "ト音記号 10点：移動・損傷なし"],
+        ["bonus/10-speaker-ok.webp", "スピーカー 10点：移動・損傷なし"],
+        ["bonus/0-speaker-moved.webp", "スピーカー 0点：移動あり"],
+        ["bonus/0-speaker-not-upright.webp", "スピーカー 0点：直立していない"],
+        ["bonus/0-speaker-damaged.webp", "スピーカー 0点：損傷あり"],
+        ["bonus/10-amplifier-ok-1.webp", "アンプ 10点：移動・損傷なし"],
+        ["bonus/0-amplifier-moved.webp", "アンプ 0点：移動あり"],
+        ["bonus/10-amplifier-ok-2.webp", "アンプ 10点：移動・損傷なし"],
+        ["bonus/0-amplifier-damaged.webp", "アンプ 0点：損傷あり"],
+      ],
     },
   ];
   return `<section class="elementary-page">
@@ -259,8 +293,8 @@ function judgingView() {
     <div class="elementary-judge-grid">${groups.map((group) => `
       <article class="card elementary-judge-card">
         <h3>${group.title}</h3><p>${group.text}</p>
-        <div>${group.rules.map(([score, desc]) => `<span class="${score === "0点" ? "zero" : score === "10点" || score === "5点" ? "partial" : "full"}"><strong>${score}</strong>${desc}</span>`).join("")}</div>
-        <details class="elementary-judge-photos"><summary>判定写真を見る</summary>${group.images.map(([src, alt]) => `<figure><img src="${JUDGING_IMAGE_BASE}${src}" alt="${alt}" loading="lazy" decoding="async" /><figcaption>${alt}</figcaption></figure>`).join("")}</details>
+        <div class="elementary-rule-list">${group.rules.map(([score, desc]) => `<span class="${score === "0点" ? "zero" : score === "5点" || (score === "10点" && group.title !== "ボーナスポイント") ? "partial" : "full"}"><strong>${score}</strong>${desc}</span>`).join("")}</div>
+        <details class="elementary-judge-photos" open><summary>判定写真を見る</summary><div class="elementary-judge-photo-grid">${group.images.map(([src, alt]) => `<figure><img src="${JUDGING_IMAGE_BASE}${src}" alt="${alt}" loading="lazy" decoding="async" /><figcaption>${alt}</figcaption></figure>`).join("")}</div></details>
       </article>`).join("")}</div>
   </section>`;
 }
