@@ -193,6 +193,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.0", updatedAt: "2026.08.01", title: "ログインなし採点に対応", description: "アプリ名をRoboMission Junior Assistへ変更し、採点・判定写真・ルールなどの基本機能をログインなしで使えるようにしました。記録保存・録画・練習記録・サーバーメモはログイン後に使えます。" },
   { version: "1.6.19", updatedAt: "2026.07.28", title: "全体表示の安定性を改善", description: "下部バー、通知、記録カード、分析表示、メモ写真カードなどで文字やボタンが重なりにくいよう、共通レイアウトと余白を調整しました。" },
   { version: "1.6.18", updatedAt: "2026.07.28", title: "全体の不自然な改行を抑制", description: "アプリ全体のボタン・見出し・短いラベルが1文字ずつ不自然に改行されないよう、共通の文字折り返し設定を見直しました。" },
   { version: "1.6.17", updatedAt: "2026.07.28", title: "下部の合計得点ボタンを修正", description: "採点画面下部の「結果を見る」「合計得点」が不自然に改行されないよう、ボタン幅と折り返しを調整しました。" },
@@ -405,7 +406,7 @@ function render() {
   const content =
     route === "admin" && adminModeUnlocked
       ? adminView()
-    : !activeAccount || route === "account"
+    : route === "account"
       ? accountView()
       : route === "score"
       ? scoringView()
@@ -461,9 +462,9 @@ function shell(content: string, options: { back?: string; title?: string } = {})
   return `
     <header class="app-header">
       <div class="app-brand">
-        <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
+        <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Junior Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
         <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
-        ${activeAccount ? `<div class="account-switch ${activeAccount === "ADMIN" ? "admin-account-switch" : ""}"><span>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || "アカウント")}</span><button type="button" data-action="open-account-switch">切替</button></div>` : ""}
+        ${activeAccount ? `<div class="account-switch ${activeAccount === "ADMIN" ? "admin-account-switch" : ""}"><span>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || "アカウント")}</span><button type="button" data-action="open-account-switch">切替</button></div>` : `<div class="account-switch guest-account-switch"><span>未ログイン</span><button type="button" data-nav="account">ログイン</button></div>`}
       </div>
       <nav class="mode-nav" aria-label="機能メニュー">
         ${modes.map(([target, label]) => `<button data-nav="${target}" class="${activeRoute === target ? "active" : ""}">${label}</button>`).join("")}
@@ -476,13 +477,14 @@ function accountView() {
   return shell(`
     <section class="account-login card">
       <div class="account-icon">鍵</div>
-      <p class="eyebrow">アカウントを選択</p>
-      <h1>APIキーを入力</h1>
-      <p>通常アカウントのAPIキー、または管理者パスワードを入力してください。管理者の場合は管理画面を開きます。</p>
+      <p class="eyebrow">OPTIONAL LOGIN</p>
+      <h1>ログイン</h1>
+      <p>ログインしなくても採点・判定写真・ルール確認は使えます。記録保存、練習記録、サーバーメモ、録画を使う場合だけAPIキーを入力してください。管理者の場合は管理画面を開きます。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
       <label class="remember-account"><input id="remember-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
       ${accountError ? `<p class="warning" role="alert">${escapeHtml(accountError)}</p>` : ""}
-      <button class="primary" data-action="login-account">このキーで始める</button>
+      <button class="primary" data-action="login-account">ログイン</button>
+      <button class="secondary" data-nav="score">ログインせず採点する</button>
     </section>
   `, { title: "アカウント" });
 }
@@ -593,6 +595,13 @@ function stopwatchView() {
 }
 
 function cameraRecorderView() {
+  if (!activeAccount || !activeApiKey) {
+    return `<section class="camera-recorder camera-locked" aria-label="動画録画">
+      <div class="camera-preview-wrap"><span class="camera-placeholder">ログイン限定</span></div>
+      <div class="camera-recorder-info"><strong>動画録画</strong><small>録画機能はログインユーザー限定です。採点とストップウォッチはログインなしで使えます。</small></div>
+      <div class="camera-recorder-actions"><button type="button" data-nav="account">ログイン</button></div>
+    </section>`;
+  }
   const isRecording = videoRecordingStatus === "recording";
   const isBusy = videoRecordingStatus === "starting" || videoRecordingStatus === "processing";
   return `<section class="camera-recorder ${cameraStream ? "camera-active" : ""} ${isRecording ? "recording" : ""}" aria-label="動画録画">
@@ -670,6 +679,12 @@ function timePicker(value: number | null) {
 }
 
 function videoPickerView() {
+  if (!activeAccount || !activeApiKey) {
+    return `<section class="video-card locked-video-card">
+      <div><strong>動画</strong><small>動画の追加・保存はログインユーザー限定です。</small></div>
+      <button type="button" class="secondary" data-nav="account">ログインして動画を使う</button>
+    </section>`;
+  }
   return `<section class="video-card">
     <div><strong>動画</strong><small>任意・45MB以下／本人と管理者だけが閲覧できます</small></div>
     <label class="video-select">動画を選択<input data-video-input type="file" accept="video/*" /></label>
@@ -704,6 +719,12 @@ function supportedRecordingMimeType() {
 }
 
 async function startCameraRecording() {
+  if (!activeAccount || !activeApiKey) {
+    videoSelectionError = "録画機能を使うにはログインしてください。";
+    location.hash = "#/account";
+    render();
+    return;
+  }
   if (videoRecordingStatus !== "idle") return;
   if (!navigator.mediaDevices?.getUserMedia || !("MediaRecorder" in window)) {
     videoSelectionError = "このブラウザはアプリ内録画に対応していません。下の「動画を選択」を使用してください。";
@@ -1007,8 +1028,10 @@ function resultView() {
     </section>
     <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
-      ${activeAccount === "ADMIN" ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`}
-      <button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : "このチームの記録として保存"}</button>
+      ${activeAccount
+        ? activeAccount === "ADMIN" ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`
+        : `<p>ログインすると、この採点結果・競技時間・メモをチームの記録として保存できます。</p>`}
+      ${activeAccount ? `<button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : "このチームの記録として保存"}</button>` : `<button class="primary" data-nav="account">ログインして保存する</button>`}
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
     </section>
     <button class="text-button new-score" data-action="new">＋ 新しい採点を始める</button>
@@ -1016,6 +1039,7 @@ function resultView() {
 }
 
 function recordsView() {
+  if (!activeAccount || !activeApiKey) return loginRequiredView("練習記録", "練習記録を見るにはログインが必要です。ログインなしでも採点とストップウォッチは使えます。");
   const filteredRecords = filteredPracticeRecords();
   const visibleRecords = filteredRecords.slice(0, recordVisibleCount);
   const isAdmin = activeAccount === "ADMIN";
@@ -1086,6 +1110,7 @@ function recordsView() {
 }
 
 function memoView() {
+  if (!activeAccount || !activeApiKey) return loginRequiredView("メモ", "サーバーへ保存するメモ・写真メモを使うにはログインが必要です。採点画面内のメモはログインなしでも端末内に保存されます。");
   const isAdmin = activeAccount === "ADMIN";
   const records = [...practiceRecords].sort((left, right) =>
     new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime(),
@@ -1143,6 +1168,19 @@ function memoView() {
         </article>`).join("") : `<div class="empty-state card"><strong>まだ記録がありません</strong><p>採点結果を保存すると、その回のメモをここで作れます。</p></div>`}
     </section>
   `, { back: "score", title: "メモ" });
+}
+
+function loginRequiredView(title: string, message: string) {
+  return shell(`
+    <section class="account-login card">
+      <div class="account-icon">鍵</div>
+      <p class="eyebrow">LOGIN REQUIRED</p>
+      <h1>${escapeHtml(title)}</h1>
+      <p>${escapeHtml(message)}</p>
+      <button class="primary" data-nav="account">ログイン</button>
+      <button class="secondary" data-nav="score">採点へ戻る</button>
+    </section>
+  `, { title });
 }
 
 function courtBoardView(kind: "free" | "record" | "score", memoId: string, account: string, rowNumber: number, recordedAt: string, board: CourtBoard) {
@@ -1997,7 +2035,7 @@ function newsView() {
   const appUpdates = showAllAppUpdates ? APP_UPDATES : APP_UPDATES.slice(0, 3);
   return shell(`
     <section class="page-intro news-intro">
-      <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>全国大会の大会情報と、RoboMission Assistの更新内容をまとめています。</p></div>
+      <div><p class="eyebrow">EVENT / APP UPDATES</p><h1>ニュース</h1><p>全国大会の大会情報と、RoboMission Junior Assistの更新内容をまとめています。</p></div>
     </section>
     <nav class="news-jump" aria-label="ニュース内メニュー"><button type="button" data-action="scroll-news-section" data-news-target="news-event">大会情報</button><button type="button" data-action="scroll-news-section" data-news-target="news-app-updates">アプリ更新内容</button></nav>
     <section class="news-section" id="news-event" aria-labelledby="news-event-title">
@@ -2052,8 +2090,8 @@ function linksView() {
       <article class="link-section card qr-section">
         <h2>公開URL QRコード</h2>
         <a class="public-qr" href="${PUBLIC_APP_URL}" target="_blank" rel="noopener noreferrer">
-          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Assist 公開URL QRコード" loading="lazy" decoding="async" />
-          <span><strong>RoboMission Assist</strong><small>${PUBLIC_APP_URL}</small></span>
+          <img src="${import.meta.env.BASE_URL}assets/robomission-public-url-qr.png" alt="RoboMission Junior Assist 公開URL QRコード" loading="lazy" decoding="async" />
+          <span><strong>RoboMission Junior Assist</strong><small>${PUBLIC_APP_URL}</small></span>
         </a>
       </article>
       <article class="link-section card system-health">
@@ -2697,6 +2735,7 @@ async function loginAccount(fromSwitch = false) {
   const input = document.querySelector<HTMLInputElement>(fromSwitch ? "#switch-account-key-input" : "#account-key-input");
   const remember = fromSwitch ? accountSwitchRemember : document.querySelector<HTMLInputElement>("#remember-account-input")?.checked ?? false;
   const key = input?.value.trim() ?? "";
+  const previousAccount = activeAccount;
   if (fromSwitch) accountSwitchDraft = key;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!key || !endpoint) {
@@ -2736,7 +2775,7 @@ async function loginAccount(fromSwitch = false) {
       freeMemoStatus = "";
       recordsStatus = "";
       resetRecordFilters();
-      resetStopwatch();
+      if (previousAccount) resetStopwatch();
       const routeChanged = location.hash !== "#/admin";
       location.hash = "#/admin";
       render();
@@ -2766,8 +2805,12 @@ async function loginAccount(fromSwitch = false) {
     newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "";
     recordsStatus = "";
-    resetStopwatch();
-    state = loadState();
+    if (previousAccount) {
+      resetStopwatch();
+      state = loadState();
+    } else {
+      saveState();
+    }
     location.hash = "#/score";
     render();
     void restorePendingVideoUpload();
@@ -2838,7 +2881,7 @@ function logoutAdmin() {
   adminError = "";
   resetRecordFilters();
   state = loadState();
-  location.hash = activeAccount ? "#/score" : "#/account";
+  location.hash = "#/score";
   render();
   if (activeAccount && activeApiKey) void refreshAccountIdentity();
 }
@@ -3270,7 +3313,6 @@ function base64ToBlob(base64: string, type: string) {
 }
 
 function saveState() {
-  if (!activeAccount) return;
   state.updatedAt = new Date().toISOString();
   pendingRequestId = createRequestId();
   localStorage.setItem(scoreStorageKey(), JSON.stringify(state));
@@ -3278,7 +3320,7 @@ function saveState() {
 
 function loadState(): ScoreState {
   try {
-    return sanitizeScoreState(JSON.parse(activeAccount ? localStorage.getItem(scoreStorageKey()) || "null" : "null"));
+    return sanitizeScoreState(JSON.parse(localStorage.getItem(scoreStorageKey()) || "null"));
   } catch { return makeInitialState(); }
 }
 
