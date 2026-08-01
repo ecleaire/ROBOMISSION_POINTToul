@@ -226,8 +226,14 @@ textarea {
 }
 
 .elementary-main {
-  max-width: 1600px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 18px 20px 70px;
+}
+
+body:has(.elementary-score-card) .elementary-main {
+  max-width: 1600px;
   padding: 4px 12px 70px;
 }
 
@@ -264,21 +270,21 @@ textarea {
 }
 
 .elementary-title-bar {
-  padding: 10px;
+  padding: 8px 10px;
   color: white;
   background: #174f86;
-  font-size: 1.45rem;
-  font-weight: 950;
+  font-size: 1.42rem;
+  font-weight: 900;
   text-align: center;
 }
 
 .elementary-stopwatch {
-  min-height: 104px;
-  padding: 12px 16px;
+  min-height: 92px;
+  padding: 10px 16px;
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px 18px;
+  gap: 6px 18px;
   border-bottom: 1px solid #9fb7cb;
   background: #eef7fd;
 }
@@ -286,14 +292,14 @@ textarea {
 .elementary-stopwatch span {
   display: block;
   color: #55738b;
-  font-size: .66rem;
-  font-weight: 950;
+  font-size: .62rem;
+  font-weight: 900;
   letter-spacing: .18em;
 }
 
 .elementary-stopwatch strong {
   color: #102a43;
-  font: 800 clamp(2.4rem, 5vw, 3.7rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font: 800 clamp(2.1rem, 5vw, 3.3rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.06em;
   white-space: nowrap;
@@ -306,15 +312,15 @@ textarea {
 }
 
 .elementary-stopwatch button {
-  min-width: 116px;
+  min-width: 124px;
   min-height: 52px;
   padding: 8px 14px;
   border: 1px solid #8dbad8;
   border-radius: 9px;
   color: #0c4a80;
   background: white;
-  font-size: 1rem;
-  font-weight: 950;
+  font-size: 1.15rem;
+  font-weight: 900;
 }
 
 .elementary-stopwatch button:disabled {
@@ -780,7 +786,7 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-bottom-space {
-  height: calc(104px + env(safe-area-inset-bottom));
+  height: calc(96px + env(safe-area-inset-bottom));
 }
 
 .elementary-bottom {
@@ -791,7 +797,7 @@ body.elementary-stopwatch-mode {
   right: 0;
   padding: 10px max(14px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
   display: grid;
-  grid-template-columns: minmax(190px, 280px) minmax(440px, 560px);
+  grid-template-columns: minmax(140px, 220px) minmax(360px, 520px);
   justify-content: center;
   gap: 12px;
   border-top: 1px solid #d5e1ec;
@@ -800,7 +806,7 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-bottom button {
-  min-height: 58px;
+  min-height: 56px;
   border-radius: 12px;
   font-weight: 950;
 }
@@ -846,7 +852,7 @@ body.elementary-stopwatch-mode {
 
 .elementary-gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(430px, 100%), 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
 }
 
@@ -855,13 +861,16 @@ body.elementary-stopwatch-mode {
   min-height: 150px;
   padding: 10px;
   display: grid;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: 42% minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   border: 1px solid #c8ddeb;
+  border-radius: 18px;
   color: #102a43;
   text-align: left;
   background: white;
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
 .elementary-gallery-card img {
@@ -880,14 +889,14 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-gallery-card strong {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   line-height: 1.35;
 }
 
 .elementary-gallery-card small {
   margin-top: 5px;
   color: #61798d;
-  font-size: .95rem;
+  font-size: .9rem;
   font-weight: 850;
 }
 
@@ -1526,6 +1535,7 @@ body.elementary-stopwatch-mode {
   margin: 16px 0 10px;
   color: #173b57;
   font-weight: 950;
+  text-align: left;
 }
 
 .elementary-login input[type="password"] {
@@ -1535,12 +1545,18 @@ body.elementary-stopwatch-mode {
   border-radius: 10px;
   background: white;
   font-size: 1.2rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-align: center;
 }
 
 .elementary-remember {
-  grid-template-columns: auto 1fr;
+  display: flex;
   align-items: center;
+  gap: 10px;
   font-size: .95rem;
+  text-align: left;
+  cursor: pointer;
 }
 
 .elementary-remember input {

@@ -1,4 +1,4 @@
-const CACHE = "robomission-junior-v68";
+const CACHE = "robomission-junior-v69";
 const RULES_PDF_CACHE = "robomission-rules-pdf-v1";
 const PRECACHE = [
   "./manifest.webmanifest",

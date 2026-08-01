@@ -195,6 +195,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.8", updatedAt: "2026.08.01", title: "画面ごとの相違点を統一", description: "JuniorとElementaryで、採点、判定写真、リンク、ログイン画面の余白・幅・カード配置を揃えました。" },
   { version: "1.7.7", updatedAt: "2026.08.01", title: "タイトルとメニュー文字を統一", description: "JuniorとElementaryで、メインタイトル、現在モード名、モードボタンの文字サイズ・太さ・フォント指定を揃えました。" },
   { version: "1.7.6", updatedAt: "2026.08.01", title: "未ログイン時の表示を統一", description: "JuniorとElementaryで、未ログイン時のリンク表記、ログイン案内、動画録画のログイン限定表示、タイトル上部表記を統一しました。" },
   { version: "1.7.5", updatedAt: "2026.08.01", title: "JuniorとElementaryのUI表記を統一", description: "メニュー名を判定写真・リンク・大会情報へ揃え、iPad幅でも不自然に改行しにくいヘッダー、下部ボタン、判定写真カード、リンクカードへ調整しました。" },
