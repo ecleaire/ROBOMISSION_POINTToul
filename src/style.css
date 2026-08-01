@@ -26,9 +26,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-header { position: relative; z-index: 40; max-width: 1600px; margin: 10px auto 6px; padding: 14px 18px; display: grid; grid-template-columns: minmax(280px, 1fr) auto; align-items: center; gap: 16px; color: #102a43; background: rgba(255,255,255,.97); border: 1px solid #c8ddeb; border-radius: 12px; box-shadow: var(--shadow); }
 .app-brand { min-width: 0; display: flex; align-items: center; gap: 14px; }
 .app-brand p { margin: 0 0 4px; color: var(--blue); font-size: .66rem; font-weight: 950; letter-spacing: .14em; }
-.app-brand strong { display: block; font-size: 1.35rem; line-height: 1.25; letter-spacing: -.02em; }
+.app-brand strong { display: block; font-size: 1.35rem; line-height: 1.25; font-weight: 950; letter-spacing: -.02em; }
 .version-badge { display: inline-block; margin-left: 5px; padding: 2px 6px; border-radius: 99px; color: #46657e; background: #e7f2fa; font-size: .62rem; font-weight: 900; letter-spacing: .02em; vertical-align: middle; }
-.current-mode { padding-left: 14px; border-left: 1px solid #c8ddeb; color: #60798e; font-size: .8rem; font-weight: 800; white-space: nowrap; }
+.current-mode { padding-left: 16px; border-left: 1px solid #d3e2ec; color: #526d80; font-size: .9rem; font-weight: 950; white-space: nowrap; }
 .account-switch { min-height: 34px; margin-left: auto; padding: 3px 5px 3px 9px; display: flex; align-items: center; gap: 5px; border: 1px solid #b7d5e9; border-radius: 8px; background: var(--pale-blue); color: var(--blue); font-size: .72rem; font-weight: 800; white-space: nowrap; }
 .account-switch span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .account-switch button { min-height: 30px; padding: 3px 9px; border: 1px solid #84b9db; border-radius: 6px; background: white; color: var(--blue); font-size: .72rem; font-weight: 900; }
@@ -709,7 +709,7 @@ code { overflow-wrap: anywhere; }
   .app-header { margin: 0; padding: 9px 8px 8px; grid-template-columns: 1fr; gap: 8px; border-width: 0 0 1px; border-radius: 0; }
   .app-brand { padding-inline: 3px; }
   .app-brand p { display: none; }
-  .app-brand strong { font-size: 1rem; }
+  .app-brand strong { font-size: 1.05rem; }
   .current-mode { display: none; }
   .account-switch { min-height: 44px; }
   .account-switch, .account-switch button { font-size: .75rem; }

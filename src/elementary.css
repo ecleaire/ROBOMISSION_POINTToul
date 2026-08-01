@@ -1,3 +1,8 @@
+:root {
+  font-size: 18px;
+  font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", "Segoe UI", sans-serif;
+}
+
 #elementary-app {
   --blue: #1261a6;
   --blue-dark: #0c4a80;
@@ -115,7 +120,7 @@ textarea {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 14px;
 }
 
 .elementary-brand > div {
@@ -127,7 +132,7 @@ textarea {
   padding-left: 16px;
   border-left: 1px solid #d3e2ec;
   color: #526d80;
-  font-size: .94rem;
+  font-size: .9rem;
   font-weight: 950;
   white-space: nowrap;
 }
@@ -144,7 +149,9 @@ textarea {
   margin: 0;
   color: #102a43;
   font-size: 1.35rem;
+  font-weight: 950;
   line-height: 1.25;
+  letter-spacing: -.02em;
 }
 
 .elementary-header h1 span {
@@ -172,6 +179,7 @@ textarea {
   border-radius: 10px;
   color: #46657e;
   background: #f7fbfe;
+  font-size: .84rem;
   font-weight: 950;
   white-space: nowrap;
 }
@@ -207,8 +215,9 @@ textarea {
 }
 
 .elementary-account-bar button {
+  min-width: 88px;
   min-height: 34px;
-  padding: 5px 12px;
+  padding: 5px 14px;
   border: 1px solid #9fc4df;
   border-radius: 8px;
   color: #1261a6;
@@ -220,6 +229,31 @@ textarea {
   max-width: 1600px;
   margin: 0 auto;
   padding: 4px 12px 70px;
+}
+
+.elementary-save-state-strip {
+  max-width: 1600px;
+  min-height: 38px;
+  margin: 0 auto 6px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  border: 1px solid #c8ddeb;
+  border-radius: 9px;
+  color: #526d80;
+  background: white;
+  font-size: .75rem;
+}
+
+.elementary-save-state-strip .online {
+  color: var(--green);
+}
+
+.elementary-save-state-strip .offline {
+  color: #a05043;
 }
 
 .elementary-score-card {
@@ -446,8 +480,19 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-recorder.locked {
-  grid-template-columns: minmax(180px, auto) 1fr auto;
+  grid-template-columns: 146px minmax(0, 1fr) auto;
   background: #fffaf0;
+}
+
+.elementary-recorder-lock {
+  min-height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #8a5600;
+  background: #fff2c8;
+  font-size: .86rem;
+  font-weight: 950;
 }
 
 .elementary-recorder.recording {
@@ -1525,13 +1570,13 @@ body.elementary-stopwatch-mode {
 
   .elementary-current-mode {
     padding-left: 10px;
-    font-size: .86rem;
+    font-size: .9rem;
   }
 
   .elementary-header nav {
     justify-content: stretch;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
   }
 
   .elementary-header nav button {
@@ -1604,6 +1649,16 @@ body.elementary-stopwatch-mode {
 }
 
 @media (max-width: 640px) {
+  :root {
+    font-size: 16px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
   .elementary-header {
     margin: 0;
     padding: 9px 8px;
@@ -1617,6 +1672,18 @@ body.elementary-stopwatch-mode {
 
   .elementary-current-mode {
     display: none;
+  }
+
+  .elementary-header nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .elementary-header nav button {
+    min-height: 44px;
+    padding: 6px 2px;
+    border-radius: 7px;
+    font-size: .75rem;
   }
 
   .elementary-account-bar {
@@ -1710,18 +1777,21 @@ body.elementary-stopwatch-mode {
   }
 
   .elementary-bottom {
-    grid-template-columns: minmax(150px, .9fr) minmax(0, 1.6fr);
+    grid-template-columns: minmax(126px, .78fr) minmax(0, 1.72fr);
     gap: 8px;
     padding-inline: 10px;
+    overflow: hidden;
   }
 
   .elementary-bottom .primary {
-    gap: 10px;
-    white-space: nowrap;
+    flex-direction: column;
+    gap: 2px;
+    white-space: normal;
   }
 
   .elementary-bottom .primary strong {
-    font-size: clamp(1.05rem, 3.2vw, 1.24rem);
+    font-size: clamp(.98rem, 3.8vw, 1.14rem);
+    white-space: nowrap;
   }
 
   .elementary-page h2 {
@@ -1733,11 +1803,11 @@ body.elementary-stopwatch-mode {
   }
 
   .elementary-gallery-card {
-    grid-template-columns: minmax(130px, 180px) minmax(0, 1fr);
+    grid-template-columns: minmax(118px, 165px) minmax(0, 1fr);
   }
 
   .elementary-gallery-card img {
-    height: 112px;
+    height: 104px;
   }
 
   .elementary-pdf iframe {

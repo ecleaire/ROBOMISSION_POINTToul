@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.5";
+const ELEMENTARY_VERSION = "0.4.7";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -78,6 +78,7 @@ let adminStatus = "";
 let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
 let judgeModal: ElementaryJudgeGroupId | null = null;
+let elementaryOnline = navigator.onLine;
 let stopwatch: { status: "idle" | "running" | "paused" | "finished"; startedAt: number; elapsedMs: number } = {
   status: state.timeSeconds ? "finished" : "idle",
   startedAt: 0,
@@ -152,7 +153,7 @@ function render() {
     <header class="elementary-header">
       <div class="elementary-brand">
         <div>
-          <p>WRO 2026 / ROBOMISSION ELEMENTARY</p>
+          <p>2026 / ROBOMISSION</p>
           <h1>RoboMission Elementary Assist <span>v${ELEMENTARY_VERSION}</span></h1>
         </div>
         <span class="elementary-current-mode">${title}</span>
@@ -162,13 +163,13 @@ function render() {
         ${navButton("judging", "判定写真")}
         ${navButton("course", "コース")}
         ${navButton("rules", "ルール")}
-        ${navButton("links", "リンク・大会情報")}
+        ${navButton("links", account ? "リンク・大会情報" : "リンク")}
         ${navButton("login", account ? "ログイン中" : "ログイン")}
         ${adminMode ? navButton("admin", "管理") : ""}
       </nav>
     </header>
     <div class="elementary-account-bar ${account ? "logged-in" : ""}">
-      ${account ? `<span>ログイン中：${escapeHtml(account.accountName || account.account)}</span><button type="button" data-action="logout">ログアウト</button>` : `<span>未ログイン：採点とストップウォッチは使用できます。録画・保存はログイン後に使えます。</span><button type="button" data-mode="login">ログイン</button>`}
+      ${account ? `<span>ログイン中：${escapeHtml(account.accountName || account.account)}</span><button type="button" data-action="logout">ログアウト</button>` : `<span>未ログイン：採点・ストップウォッチ・判定写真・ルール確認は使用できます。録画・記録保存はログイン後に使えます。</span><button type="button" data-mode="login">ログイン</button>`}
     </div>
     <main class="elementary-main">
       ${mode === "score" ? scoreView() : mode === "judging" ? judgingView() : mode === "course" ? courseView() : mode === "rules" ? rulesView() : mode === "links" ? linksView() : mode === "login" ? loginView() : mode === "admin" ? adminView() : resultView()}
@@ -188,7 +189,7 @@ function modeTitle(target: Mode) {
     judging: "判定写真",
     course: "コース",
     rules: "ルール",
-    links: "リンク・大会情報",
+    links: account ? "リンク・大会情報" : "リンク",
     result: "結果",
     login: "アカウント",
     admin: "管理",
@@ -200,6 +201,7 @@ function scoreView() {
   const scores = sectionScores();
   const total = totalScore();
   return `
+    <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>送信待ちなし</span></aside>
     <section class="elementary-score-card">
       <div class="elementary-title-bar">WRO 2026 RoboMission Elementary 得点チェック</div>
       ${stopwatchView()}
@@ -256,7 +258,11 @@ function stopwatchContents() {
 }
 
 function videoRecorderView() {
-  if (!account) return `<section class="elementary-recorder locked"><strong>動画録画</strong><span>ログインユーザー限定機能です。録画を保存したい場合はログインしてください。</span><button type="button" data-mode="login">ログイン</button></section>`;
+  if (!account) return `<section class="elementary-recorder locked" aria-label="動画録画">
+    <div class="elementary-recorder-lock">ログイン限定</div>
+    <div><strong>動画録画</strong><span>録画機能はログインユーザー限定です。採点とストップウォッチはログインなしで使えます。</span></div>
+    <button type="button" data-mode="login">ログイン</button>
+  </section>`;
   const recordingTime = recordingStatus === "recording" ? formatStopwatch(recordingElapsedMs || Date.now() - recordingStartedAt) : "";
   return `<section class="elementary-recorder ${recordingStatus === "recording" ? "recording" : ""}">
     <div><strong>動画録画</strong><span>${recordedVideo ? `${escapeHtml(recordedVideo.name)} / ${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB` : recordingStatus === "recording" ? `録画中 ${recordingTime}` : "ログイン中のみ録画できます。保存時に得点と一緒に送信します。"}</span></div>
@@ -451,9 +457,10 @@ function rulesView() {
 }
 
 function linksView() {
+  const loggedIn = Boolean(account);
   return `<section class="elementary-page elementary-links">
-    <p class="eyebrow">EVENT / RELATED LINKS</p><h2>リンク・大会情報</h2>
-    <p class="elementary-page-lead">ログインなしで確認できる公開リンク、QRコード、クレジットを表示しています。</p>
+    <p class="eyebrow">EVENT / RELATED LINKS</p><h2>${loggedIn ? "リンク・大会情報" : "リンク"}</h2>
+    <p class="elementary-page-lead">${loggedIn ? "大会情報・ルール・関連動画をまとめています。" : "ログインなしで確認できる公開リンク、QRコード、クレジットを表示しています。"}</p>
     <div class="card elementary-link-section">
       <h3>WRO ホームページ</h3>
       <div class="elementary-link-grid">
@@ -1024,6 +1031,8 @@ function handleFullscreenChange() {
 
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+window.addEventListener("online", () => { elementaryOnline = true; render(); });
+window.addEventListener("offline", () => { elementaryOnline = false; render(); });
 
 if (adminMode) {
   mode = "admin";

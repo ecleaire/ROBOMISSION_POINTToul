@@ -195,6 +195,8 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.7", updatedAt: "2026.08.01", title: "タイトルとメニュー文字を統一", description: "JuniorとElementaryで、メインタイトル、現在モード名、モードボタンの文字サイズ・太さ・フォント指定を揃えました。" },
+  { version: "1.7.6", updatedAt: "2026.08.01", title: "未ログイン時の表示を統一", description: "JuniorとElementaryで、未ログイン時のリンク表記、ログイン案内、動画録画のログイン限定表示、タイトル上部表記を統一しました。" },
   { version: "1.7.5", updatedAt: "2026.08.01", title: "JuniorとElementaryのUI表記を統一", description: "メニュー名を判定写真・リンク・大会情報へ揃え、iPad幅でも不自然に改行しにくいヘッダー、下部ボタン、判定写真カード、リンクカードへ調整しました。" },
   { version: "1.7.4", updatedAt: "2026.08.01", title: "Elementaryの操作感をJuniorに統一", description: "Elementaryのストップウォッチを開始時に全画面表示へ変更し、終了後リセットを追加しました。判定写真もJuniorと同じ判定ルール付き一覧表UIに揃えました。" },
   { version: "1.7.3", updatedAt: "2026.08.01", title: "共通リンクとコース表示を整理", description: "未ログイン時はメモ・練習記録を非表示にし、リンク・大会情報では公開リンク、QRコード、クレジットだけ確認できるようにしました。Juniorにもコース表示を追加しました。" },
@@ -458,12 +460,13 @@ function systemNoticeView() {
 function shell(content: string, options: { back?: string; title?: string } = {}) {
   const route = location.hash.replace(/^#\/?/, "") || "score";
   const activeRoute = route === "result" ? "score" : route;
+  const linkLabel = activeAccount ? "リンク・大会情報" : "リンク";
   const modes: string[][] = [
     ["score", "採点"],
     ["photos", "判定写真"],
     ["course", "コース"],
     ["rules", "ルール"],
-    ["links", "リンク・大会情報"],
+    ["links", linkLabel],
     ["account", activeAccount ? "ログイン中" : "ログイン"],
   ];
   if (activeAccount) modes.splice(2, 0, ["records", "練習記録"], ["memo", "メモ"]);
@@ -472,7 +475,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
   return `
     <header class="app-header">
       <div class="app-brand">
-        <div><p>WRO 2026 / ROBOMISSION</p><strong>RoboMission Junior Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
+        <div><p>2026 / ROBOMISSION</p><strong>RoboMission Junior Assist <small class="version-badge">v${APP_VERSION}</small></strong></div>
         <span class="current-mode">${options.title ?? "RoboMission Junior"}</span>
       </div>
       <nav class="mode-nav" aria-label="機能メニュー">
@@ -2080,10 +2083,11 @@ function nationalEventCard() {
 
 function linksView() {
   const loggedIn = Boolean(activeAccount);
+  const title = loggedIn ? "リンク・大会情報" : "リンク";
   return shell(`
     <section class="page-intro links-intro">
       <p class="eyebrow">EVENT / RELATED LINKS</p>
-      <h1>リンク・大会情報</h1>
+      <h1>${title}</h1>
       <p>${loggedIn ? "大会情報・ルール・関連動画をまとめています。" : "ログインなしで確認できる公開リンク、QRコード、クレジットを表示しています。"}</p>
     </section>
     <section class="link-groups">
@@ -2128,7 +2132,7 @@ function linksView() {
         <p><strong>開発支援：</strong>OpenAI ChatGPT / Codex</p>
       </article>
     </section>
-  `, { back: "score", title: "リンク・大会情報" });
+  `, { back: "score", title });
 }
 
 function linkGroup(title: string, links: [string, string, string][]) {
