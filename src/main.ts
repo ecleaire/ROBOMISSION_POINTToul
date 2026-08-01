@@ -4,6 +4,7 @@ import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
 import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
+import { isValidAccountId } from "./accountKey";
 import {
   boardPoint,
   boardElementBounds,
@@ -195,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.9", updatedAt: "2026.08.01", title: "ログインと共通UIを再統一", description: "a0などの共通アカウントでログインできるよう修正し、JuniorとElementaryのログイン、リンク、採点、コース表示の文字サイズ・太さ・位置・角丸を揃えました。" },
   { version: "1.7.8", updatedAt: "2026.08.01", title: "画面ごとの相違点を統一", description: "JuniorとElementaryで、採点、判定写真、リンク、ログイン画面の余白・幅・カード配置を揃えました。" },
   { version: "1.7.7", updatedAt: "2026.08.01", title: "タイトルとメニュー文字を統一", description: "JuniorとElementaryで、メインタイトル、現在モード名、モードボタンの文字サイズ・太さ・フォント指定を揃えました。" },
   { version: "1.7.6", updatedAt: "2026.08.01", title: "未ログイン時の表示を統一", description: "JuniorとElementaryで、未ログイン時のリンク表記、ログイン案内、動画録画のログイン限定表示、タイトル上部表記を統一しました。" },
@@ -2152,7 +2154,6 @@ function courseView() {
     <section class="page-intro">
       <p class="eyebrow">COURSE IMAGE</p>
       <h1>コース</h1>
-      <p>Juniorのコース画像を確認できます。ログインなしでも使用できます。</p>
     </section>
     <section class="link-section card course-view-card">
       <img src="${COURT_IMAGE_URL}" alt="WRO 2026 RoboMission Junior コース画像" loading="eager" decoding="async" />
@@ -3555,7 +3556,9 @@ function loadAccount(): AccountKey | null {
 }
 
 function loadApiKey() { return localStorage.getItem(API_KEY_KEY) || loadAccount(); }
-function isAccountKey(value: string | null): value is AccountKey { return typeof value === "string" && (value === "ADMIN" || /^[A-Z0-9_]{1,32}$/.test(value)); }
+function isAccountKey(value: string | null): value is AccountKey {
+  return isValidAccountId(value);
+}
 function scoreStorageKey() { return `${STORAGE_KEY}-${activeAccount ?? "none"}`; }
 function formatTime(seconds: number | null) {
   if (seconds === null) return "未入力";

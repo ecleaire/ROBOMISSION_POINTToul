@@ -20,6 +20,10 @@ const ACCOUNT_NAME_PROPERTIES = Object.freeze({
 });
 const DYNAMIC_ACCOUNTS_PROPERTY = "ACCOUNT_CONFIG_JSON";
 const SHARED_ACCOUNT_WORDS = Object.freeze(["a0", "rmam", "システム動作確認", "テスト"]);
+const BUILTIN_SHARED_ACCOUNTS = Object.freeze([
+  { id: "A0", name: "a0", apiKey: "a0" },
+  { id: "RMAM", name: "rmam", apiKey: "rmam" }
+]);
 const VIDEO_FOLDER_PROPERTY = "VIDEO_FOLDER_ID";
 const MEMO_PHOTO_FOLDER_PROPERTY = "MEMO_PHOTO_FOLDER_ID";
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -690,8 +694,7 @@ function accountConfigs_() {
   } catch (_error) {
     dynamic = [];
   }
-  const usedIds = {};
-  return legacy.concat(dynamic.map(function(account) {
+  const normalizedDynamic = dynamic.map(function(account) {
     return {
       id: String(account && account.id || "").toUpperCase(),
       name: String(account && account.name || "").trim().slice(0, 50),
@@ -699,7 +702,19 @@ function accountConfigs_() {
       app: normalizeAccountApp_(account && account.app, "junior"),
       legacy: false
     };
-  })).filter(function(account) {
+  });
+  const builtinShared = BUILTIN_SHARED_ACCOUNTS.map(function(account) {
+    return {
+      id: account.id,
+      name: String(properties.getProperty("ACCOUNT_NAME_" + account.id) || account.name).slice(0, 50),
+      apiKey: String(properties.getProperty("API_KEY_" + account.id) || account.apiKey).trim(),
+      app: "shared",
+      legacy: false,
+      builtin: true
+    };
+  });
+  const usedIds = {};
+  return legacy.concat(normalizedDynamic, builtinShared).filter(function(account) {
     if (!/^[A-Z0-9_]{1,32}$/.test(account.id) || !account.name || !account.apiKey || usedIds[account.id]) return false;
     usedIds[account.id] = true;
     return true;
@@ -759,11 +774,17 @@ function saveAccount_(data) {
   }
   let dynamic = accountConfigs_().filter(function(account) { return !account.legacy; });
   if (existing) {
+    let updatedExisting = false;
     dynamic = dynamic.map(function(account) {
+      if (account.builtin) return null;
+      if (account.id === existing.id) updatedExisting = true;
       return account.id === existing.id
         ? { id: account.id, name: name, apiKey: newApiKey || account.apiKey, app: requestedApp }
         : { id: account.id, name: account.name, apiKey: account.apiKey, app: account.app || accountApp_(account.id, account.name, account.apiKey, "junior") };
-    });
+    }).filter(function(account) { return Boolean(account); });
+    if (!updatedExisting) {
+      dynamic.push({ id: existing.id, name: name, apiKey: newApiKey || existing.apiKey, app: requestedApp });
+    }
   } else {
     if (!newApiKey) throw new Error("新しいアカウントのAPIキーを入力してください。");
     const id = "ACC_" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();

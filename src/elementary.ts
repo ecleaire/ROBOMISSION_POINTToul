@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.8";
+const ELEMENTARY_VERSION = "0.4.9";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -69,7 +69,7 @@ const JUNIOR_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
 const NOTE_LABELS = ["赤の音符", "青の音符", "緑の音符", "黄色の音符", "白の音符", "黒の音符"];
 
-let mode: Mode = "score";
+let mode: Mode = modeFromHash();
 let state = loadState();
 let account = loadAccount();
 let loginError = "";
@@ -195,6 +195,11 @@ function modeTitle(target: Mode) {
     admin: "管理",
   };
   return labels[target] ?? "採点";
+}
+
+function modeFromHash(): Mode {
+  const value = location.hash.replace(/^#\/?/, "") as Mode;
+  return ["score", "judging", "course", "rules", "links", "result", "login", "admin"].includes(value) ? value : "score";
 }
 
 function scoreView() {
@@ -443,7 +448,7 @@ function judgeModalView(groupId: ElementaryJudgeGroupId) {
 
 function courseView() {
   return `<section class="elementary-page">
-    <p class="eyebrow">COURSE IMAGE</p><h2>コース画像</h2>
+    <p class="eyebrow">COURSE IMAGE</p><h2>コース</h2>
     <div class="card elementary-course"><img src="${COURSE_IMAGE}" alt="WRO 2026 RoboMission Elementary コース画像" loading="eager" decoding="async" /></div>
   </section>`;
 }
@@ -579,8 +584,13 @@ function setScore(key: MissionRow["key"], index: number | undefined, value: Scor
 
 function bindEvents() {
   app.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
-    mode = button.dataset.mode as Mode;
-    render();
+    const nextMode = button.dataset.mode as Mode;
+    if (location.hash !== `#/${nextMode}`) {
+      location.hash = `#/${nextMode}`;
+    } else {
+      mode = nextMode;
+      render();
+    }
   }));
   app.querySelectorAll<HTMLButtonElement>("[data-score-key]").forEach((button) => button.addEventListener("click", () => {
     setScore(button.dataset.scoreKey as MissionRow["key"], button.dataset.scoreIndex ? Number(button.dataset.scoreIndex) : undefined, Number(button.dataset.scoreValue) as ScoreValue);
@@ -1033,6 +1043,11 @@ document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 window.addEventListener("online", () => { elementaryOnline = true; render(); });
 window.addEventListener("offline", () => { elementaryOnline = false; render(); });
+window.addEventListener("hashchange", () => {
+  mode = modeFromHash();
+  if (mode !== "admin") judgeModal = null;
+  render();
+});
 
 if (adminMode) {
   mode = "admin";

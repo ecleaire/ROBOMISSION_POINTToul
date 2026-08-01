@@ -80,8 +80,9 @@ button.secondary {
   margin: 0 0 2px;
   color: #4f718d;
   font-size: .72rem;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: .11em;
+  text-transform: uppercase;
 }
 
 textarea {
@@ -265,7 +266,7 @@ body:has(.elementary-score-card) .elementary-main {
 .elementary-score-card {
   overflow: hidden;
   border: 1px solid #9fb7cb;
-  border-radius: 8px;
+  border-radius: 4px;
   background: white;
 }
 
@@ -475,18 +476,17 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-recorder {
-  min-height: 96px;
   padding: 10px 14px;
   display: grid;
-  grid-template-columns: minmax(190px, 1fr) minmax(160px, 320px) auto;
+  grid-template-columns: minmax(190px, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px 14px;
   border-bottom: 1px solid #cbd8e3;
-  background: #f8fbfd;
+  background: #eef7fd;
 }
 
 .elementary-recorder.locked {
-  grid-template-columns: 146px minmax(0, 1fr) auto;
+  grid-template-columns: 144px minmax(0, 1fr) auto;
   background: #fffaf0;
 }
 
@@ -507,17 +507,17 @@ body.elementary-stopwatch-mode {
 
 .elementary-recorder strong {
   display: block;
-  color: #173b57;
-  font-size: 1.12rem;
-  font-weight: 950;
+  color: var(--blue-dark);
+  font-size: .96rem;
+  font-weight: 900;
 }
 
 .elementary-recorder span {
   display: block;
-  margin-top: 2px;
+  margin-top: 4px;
   color: #526d80;
-  font-size: .9rem;
-  font-weight: 850;
+  font-size: .72rem;
+  font-weight: 700;
   line-height: 1.45;
 }
 
@@ -543,12 +543,21 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-recorder button {
-  min-height: 46px;
-  padding: 8px 14px;
+  min-width: 126px;
+  min-height: 48px;
+  padding: 8px 12px;
   border: 1px solid #9fc4df;
   border-radius: 9px;
   color: #1261a6;
   background: white;
+  font-weight: 900;
+}
+
+.elementary-recorder.locked > button {
+  min-width: 140px;
+  border: 2px solid #333;
+  color: #102a43;
+  font-size: 1.05rem;
   font-weight: 950;
 }
 
@@ -819,7 +828,13 @@ body.elementary-stopwatch-mode {
   white-space: nowrap;
 }
 
-.elementary-bottom .primary strong {
+.elementary-bottom .primary > span {
+  flex: 0 0 auto;
+  font-size: 1.02rem;
+}
+
+.elementary-bottom .primary > strong {
+  flex: 0 0 auto;
   font-size: 1.42rem;
   white-space: nowrap;
 }
@@ -1231,7 +1246,7 @@ body.elementary-stopwatch-mode {
 .elementary-course img {
   width: 100%;
   display: block;
-  border-radius: 14px;
+  border-radius: 12px;
 }
 
 .elementary-link-section {
@@ -1253,10 +1268,15 @@ body.elementary-stopwatch-mode {
   line-height: 1.7;
 }
 
-.elementary-link-grid,
-.elementary-qr-grid {
+.elementary-link-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 12px;
+}
+
+.elementary-qr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -1314,13 +1334,22 @@ body.elementary-stopwatch-mode {
 }
 
 .elementary-public-qr {
+  width: fit-content;
+  max-width: 100%;
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 12px;
+  border: 1px solid #c8ddeb;
+  border-radius: 14px;
+  background: #f7fbfe;
+  box-shadow: none;
 }
 
 .elementary-public-qr img {
-  width: 132px;
-  height: 132px;
+  width: 150px;
+  height: 150px;
   padding: 7px;
   border-radius: 9px;
   background: white;
@@ -1550,19 +1579,31 @@ body.elementary-stopwatch-mode {
   text-align: center;
 }
 
-.elementary-remember {
+.elementary-login .elementary-remember {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: .95rem;
+  margin: 12px 0;
+  color: #3f566b;
+  font-size: .9rem;
+  font-weight: 800;
   text-align: left;
   cursor: pointer;
 }
 
 .elementary-remember input {
+  flex: 0 0 auto;
   width: 24px;
   height: 24px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
   accent-color: var(--blue);
+}
+
+.elementary-remember span {
+  min-width: 0;
+  font-weight: 800;
 }
 
 .elementary-login button {

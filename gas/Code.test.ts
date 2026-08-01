@@ -128,14 +128,40 @@ describe("GAS account management", () => {
     const { gas } = loadGas();
     const elementary = gas.saveAccount_({ name: "Elementary Team", newApiKey: "elementary-key", app: "elementary" });
     const shared = gas.saveAccount_({ name: "テスト", newApiKey: "test-key", app: "elementary" });
-    expect(gas.publicAccountList_("elementary").map((account) => account.id)).toEqual([elementary.id, shared.id]);
+    const elementaryIds = gas.publicAccountList_("elementary").map((account) => account.id);
+    expect(elementaryIds).toEqual(["A0", "RMAM", elementary.id, shared.id]);
     expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain("A");
+    expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain("A0");
+    expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain("RMAM");
     expect(gas.publicAccountList_("junior").map((account) => account.id)).toContain(shared.id);
     expect(gas.publicAccountList_("junior").map((account) => account.id)).not.toContain(elementary.id);
     expect(gas.canUseApp_(elementary.id, "elementary")).toBe(true);
     expect(gas.canUseApp_(elementary.id, "junior")).toBe(false);
     expect(gas.canUseApp_(shared.id, "elementary")).toBe(true);
     expect(gas.canUseApp_(shared.id, "junior")).toBe(true);
+  });
+
+  it("allows shared a0 and rmam logins on both junior and elementary", () => {
+    const { gas } = loadGas();
+    expect(gas.normalizeKey_("A0")).toBe("A0");
+    expect(gas.normalizeKey_("a0")).toBe("A0");
+    expect(gas.normalizeKey_("RMAM")).toBe("RMAM");
+    expect(gas.normalizeKey_("rmam")).toBe("RMAM");
+    expect(gas.canUseApp_("A0", "junior")).toBe(true);
+    expect(gas.canUseApp_("A0", "elementary")).toBe(true);
+    expect(gas.canUseApp_("RMAM", "junior")).toBe(true);
+    expect(gas.canUseApp_("RMAM", "elementary")).toBe(true);
+  });
+
+  it("allows builtin shared a0 and rmam accounts to be renamed from admin", () => {
+    const { gas } = loadGas();
+    const saved = gas.saveAccount_({ accountId: "A0", name: "共通テスト", newApiKey: "shared-test", app: "elementary" });
+    expect(saved.id).toBe("A0");
+    expect(saved.app).toBe("shared");
+    expect(gas.normalizeKey_("SHARED-TEST")).toBe("A0");
+    expect(gas.normalizeKey_("a0")).toBe("");
+    expect(gas.canUseApp_("A0", "junior")).toBe(true);
+    expect(gas.canUseApp_("A0", "elementary")).toBe(true);
   });
 
   it("accepts compact court board JSON and rejects invalid data", () => {
