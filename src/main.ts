@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.19", updatedAt: "2026.08.03", title: "チェック解除を復旧", description: "JuniorとElementaryで、選択済みのチェックをもう一度押すと外れて0点に戻るようにしました。" },
   { version: "1.7.18", updatedAt: "2026.08.02", title: "採点UIをさらに共通化", description: "JuniorとElementaryで、採点表の満点行、競技時間、メモ欄、下部合計バーの流れを揃え、石畳の汚れプルダウンも押しやすくしました。" },
   { version: "1.7.17", updatedAt: "2026.08.02", title: "ストップウォッチ仕様を統一", description: "JuniorとElementaryで、スタート・停止・再開・終了・リセット・別画面中の継続表示を同じ仕様とUIに揃えました。" },
   { version: "1.7.16", updatedAt: "2026.08.02", title: "PDFキャッシュを自動整理", description: "古いPDF保存キャッシュが端末に残り続けないよう、PDFキャッシュの世代を更新して自動整理するようにしました。" },
@@ -2446,7 +2447,10 @@ function toggleScore(button: HTMLButtonElement) {
   const section = button.dataset.scoreSection!;
   const index = Number(button.dataset.scoreIndex);
   const selectedScore = Number(button.dataset.scoreValue);
-  updateScore(section, index, selectedScore as Score);
+  const currentScore = section === "artifacts"
+    ? state.artifacts[index].score
+    : (state[section as keyof Pick<ScoreState, "visitors" | "redTowers" | "yellowTowers" | "dirt" | "bonus">] as Score[])[index];
+  updateScore(section, index, (currentScore === selectedScore ? 0 : selectedScore) as Score);
 }
 
 function updateScore(section: string, index: number, score: Score) {

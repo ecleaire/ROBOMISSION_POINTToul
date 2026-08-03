@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.18";
+const ELEMENTARY_VERSION = "0.4.19";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -630,10 +630,11 @@ function getScore(row: MissionRow): ScoreValue {
 }
 
 function setScore(key: MissionRow["key"], index: number | undefined, value: ScoreValue) {
+  const nextValue = getScore({ key, index } as MissionRow) === value ? 0 : value;
   if (key === "microphone" || key === "bonusClef" || key === "bonusAmplifier") {
-    state[key] = value;
+    state[key] = nextValue;
   } else {
-    state[key][index ?? 0] = value;
+    state[key][index ?? 0] = nextValue;
   }
   state.updatedAt = new Date().toISOString();
   saveState();
