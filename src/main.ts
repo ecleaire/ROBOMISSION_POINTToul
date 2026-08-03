@@ -607,10 +607,10 @@ function scoringView() {
       <div class="sheet-row sheet-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
       <div class="sheet-footer-tools">
         ${timePicker(state.timeSeconds)}
-        <section class="score-memo-card" aria-label="採点メモ">
+        ${activeAccount ? `<section class="score-memo-card" aria-label="採点メモ">
           <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
-          ${courtBoardView("score", "", "", 0, "", state.board)}
-        </section>
+          ${courtBoardView("score", "", activeAccount, 0, "", state.board)}
+        </section>` : ""}
         ${videoPickerView()}
       </div>
     </section>
@@ -1056,7 +1056,7 @@ function resultView() {
       <p class="eyebrow">スコア</p>
       <h1>採点結果</h1>
       <div class="result-meta"><span>競技時間 ${formatTime(state.timeSeconds)}</span></div>
-      ${state.notes ? `<p class="result-notes"><strong>メモ</strong>${escapeHtml(state.notes)}</p>` : ""}
+      ${activeAccount && state.notes ? `<p class="result-notes"><strong>メモ</strong>${escapeHtml(state.notes)}</p>` : ""}
       ${selectedVideoPreviewView()}
       <div class="final-score"><span>合計得点</span><strong>${totalScore(state)} <small>/ ${MAX_SCORE} 点</small></strong></div>
       <dl class="score-breakdown">
@@ -1076,7 +1076,7 @@ function resultView() {
       <h2>Googleスプレッドシートへ記録</h2>
       ${activeAccount
         ? activeAccount === "ADMIN" ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`
-        : `<p>ログインすると、この採点結果・競技時間・メモをチームの記録として保存できます。</p>`}
+        : `<p>ログインすると、この採点結果・競技時間をチームの記録として保存できます。</p>`}
       ${activeAccount ? `<button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : "このチームの記録として保存"}</button>` : `<button class="primary" data-nav="account">ログインして保存する</button>`}
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
     </section>
@@ -1156,7 +1156,7 @@ function recordsView() {
 }
 
 function memoView() {
-  if (!activeAccount || !activeApiKey) return loginRequiredView("メモ", "サーバーへ保存するメモ・写真メモを使うにはログインが必要です。採点画面内のメモはログインなしでも端末内に保存されます。");
+  if (!activeAccount || !activeApiKey) return loginRequiredView("メモ", "メモ・写真メモを使うにはログインが必要です。採点とストップウォッチはログインなしでも使えます。");
   const isAdmin = activeAccount === "ADMIN";
   const records = [...practiceRecords].sort((left, right) =>
     new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime(),

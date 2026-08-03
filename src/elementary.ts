@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.19";
+const ELEMENTARY_VERSION = "0.4.20";
 const MAX_SCORE = 255;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
@@ -235,9 +235,9 @@ function scoreView() {
         <div class="elementary-row elementary-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
         <div class="elementary-sheet-footer-tools">
           ${timePicker(state.timeSeconds)}
-          <section class="elementary-memo-card" aria-label="採点メモ">
+          ${account ? `<section class="elementary-memo-card" aria-label="採点メモ">
             <label class="elementary-notes-card">メモ<textarea data-memo rows="2" maxlength="800" placeholder="ミスした部分、練習で気づいたことなど">${escapeHtml(state.memo)}</textarea></label>
-          </section>
+          </section>` : ""}
         </div>
       </div>
     </section>
@@ -593,7 +593,7 @@ function resultView() {
         ${resultRow("ボーナス", scores.bonus, 40)}
       </dl>
       <p>競技時間：${state.timeSeconds === null ? "未入力" : formatStopwatch(Math.round(state.timeSeconds * 1000))}</p>
-      ${state.memo ? `<p class="elementary-result-memo">${escapeHtml(state.memo)}</p>` : ""}
+      ${account && state.memo ? `<p class="elementary-result-memo">${escapeHtml(state.memo)}</p>` : ""}
       ${recordedVideo ? `<p class="elementary-result-video">録画：${escapeHtml(recordedVideo.name)} / ${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB</p>` : ""}
       ${saveStatus ? `<p class="elementary-save-status">${escapeHtml(saveStatus)}</p>` : ""}
       ${account ? `<button type="button" class="primary" data-action="save-result">このアカウントに保存</button>` : `<button type="button" class="primary" data-mode="login">ログインして保存する</button>`}
