@@ -153,6 +153,16 @@ describe("GAS account management", () => {
     expect(gas.canUseApp_("RMAM", "elementary")).toBe(true);
   });
 
+  it("prioritizes the shared a0 login over a historical duplicate dynamic key", () => {
+    const { gas, values } = loadGas();
+    values.ACCOUNT_CONFIG_JSON = JSON.stringify([
+      { id: "ACC_OLDTEST", name: "Old Test", apiKey: "a0", app: "junior" },
+    ]);
+    expect(gas.normalizeKey_("a0")).toBe("A0");
+    expect(gas.canUseApp_(gas.normalizeKey_("a0"), "junior")).toBe(true);
+    expect(gas.canUseApp_(gas.normalizeKey_("a0"), "elementary")).toBe(true);
+  });
+
   it("allows builtin shared a0 and rmam accounts to be renamed from admin", () => {
     const { gas } = loadGas();
     const saved = gas.saveAccount_({ accountId: "A0", name: "共通テスト", newApiKey: "shared-test", app: "elementary" });

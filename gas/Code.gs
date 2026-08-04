@@ -714,7 +714,9 @@ function accountConfigs_() {
     };
   });
   const usedIds = {};
-  return legacy.concat(normalizedDynamic, builtinShared).filter(function(account) {
+  // a0 / rmam are shared recovery accounts. Keep them ahead of historical
+  // dynamic accounts so an old duplicate API key cannot shadow their login.
+  return builtinShared.concat(legacy, normalizedDynamic).filter(function(account) {
     if (!/^[A-Z0-9_]{1,32}$/.test(account.id) || !account.name || !account.apiKey || usedIds[account.id]) return false;
     usedIds[account.id] = true;
     return true;
@@ -771,6 +773,11 @@ function saveAccount_(data) {
     properties.setProperty(ACCOUNT_NAME_PROPERTIES[existing.id], name);
     if (newApiKey) properties.setProperty(API_KEY_PROPERTIES[existing.id], newApiKey);
     return { id: existing.id, name: name, legacy: true, hasApiKey: true, app: accountApp_(existing.id, name, newApiKey || existing.apiKey, data.app) };
+  }
+  if (existing && existing.builtin) {
+    properties.setProperty("ACCOUNT_NAME_" + existing.id, name);
+    if (newApiKey) properties.setProperty("API_KEY_" + existing.id, newApiKey);
+    return { id: existing.id, name: name, legacy: false, hasApiKey: true, app: "shared" };
   }
   let dynamic = accountConfigs_().filter(function(account) { return !account.legacy; });
   if (existing) {
