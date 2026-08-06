@@ -52,10 +52,10 @@ function doPost(event) {
     if (data.action === "freeMemos") return json_({ ok: true, account: key, memos: getFreeMemosForAccount_(key) });
     if (data.action === "video") return json_(getRecordVideo_(key, data));
     if (data.action === "memoPhoto") return json_(getMemoPhoto_(key, data));
-    if (key === "ADMIN" && data.action === "accounts") {
+    if (isManagementAccount_(key) && data.action === "accounts") {
       return json_({ ok: true, accounts: publicAccountList_(data.app) });
     }
-    if (key === "ADMIN" && data.action === "saveAccount") {
+    if (isManagementAccount_(key) && data.action === "saveAccount") {
       const accountLock = LockService.getScriptLock();
       accountLock.waitLock(10000);
       try {
@@ -741,6 +741,10 @@ function canUseApp_(key, appFilter) {
   const account = accountById_(key);
   if (!account) return false;
   return account.app === "shared" || account.app === requestedApp;
+}
+
+function isManagementAccount_(key) {
+  return key === "ADMIN" || key === "RMAM";
 }
 
 function publicAccountList_(appFilter) {

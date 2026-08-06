@@ -7,6 +7,7 @@ type GasContext = {
   publicAccountList_: (app?: string) => Array<{ id: string; name: string; legacy: boolean; hasApiKey: boolean; app?: string }>;
   saveAccount_: (data: { accountId?: string; name: string; newApiKey?: string; app?: string }) => { id: string; name: string };
   canUseApp_: (key: string, app?: string) => boolean;
+  isManagementAccount_: (key: string) => boolean;
   canAccessVideo_: (key: string, targetAccount: string) => boolean;
   updateRecordMemo_: (sheet: unknown, rowNumber: number, recordedAt: string, notes: string, board?: string, photos?: unknown[], account?: string) => void;
   safeBoard_: (value: string) => string;
@@ -122,6 +123,13 @@ describe("GAS account management", () => {
     };
     expect(gas.findFreeMemoRow_(sheet, "memo-b")).toBe(3);
     expect(() => gas.findFreeMemoRow_(sheet, "missing")).toThrow("メモが見つかりません");
+  });
+
+  it("allows both the master account and rmam to manage accounts", () => {
+    const { gas } = loadGas();
+    expect(gas.isManagementAccount_("ADMIN")).toBe(true);
+    expect(gas.isManagementAccount_("RMAM")).toBe(true);
+    expect(gas.isManagementAccount_("A0")).toBe(false);
   });
 
   it("separates junior and elementary managed accounts while keeping shared accounts visible", () => {

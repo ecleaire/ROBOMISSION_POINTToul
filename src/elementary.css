@@ -697,6 +697,103 @@ body.elementary-stopwatch-mode {
   background: #fff4f2;
 }
 
+/* Juniorと共通の録画UI・全画面挙動 */
+.camera-recorder {
+  min-height: 96px;
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #9fb7cb;
+  background: #f7fbfe;
+}
+
+.camera-preview-wrap {
+  position: relative;
+  width: 144px;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  color: #6b8092;
+  background: #17232c;
+}
+
+.camera-preview-wrap video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.camera-placeholder { position: relative; z-index: 1; color: #c6d1d9; font-size: .72rem; font-weight: 800; }
+.camera-active .camera-placeholder { display: none; }
+.recording-indicator { position: absolute; z-index: 2; left: 6px; bottom: 6px; padding: 4px 7px; border-radius: 99px; color: white; background: rgba(181, 33, 33, .88); font-size: .68rem; font-variant-numeric: tabular-nums; }
+.camera-recorder-info strong, .camera-recorder-info small { display: block; }
+.camera-recorder-info strong { color: var(--blue-dark); font-size: .96rem; }
+.camera-recorder-info small { margin-top: 4px; color: #60798e; font-size: .72rem; line-height: 1.45; }
+.camera-recorder button { min-width: 126px; min-height: 48px; padding: 8px 12px; border-radius: 9px; font-weight: 900; }
+.camera-recorder-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.camera-recorder-actions button { min-width: 142px; }
+.camera-main-expand { border: 2px solid #2f82bd; color: white; background: #1261a6; touch-action: manipulation; }
+.camera-start { border: 2px solid #b83f38; color: #9d2923; background: #fff1ee; }
+.camera-stop { border: 2px solid #8f1717; color: white; background: #b52121; }
+.camera-recorder.recording { background: #fff5f3; }
+.camera-expand, .camera-collapse, .camera-overlay-stop { position: absolute; z-index: 4; width: auto; min-width: 0; min-height: 40px; padding: 6px 10px; border-radius: 999px; color: white; font-size: .72rem; font-weight: 900; box-shadow: 0 4px 14px rgba(0, 0, 0, .38); }
+.camera-expand { z-index: 8; top: 6px; right: 6px; border: 1px solid rgba(255, 255, 255, .65); background: rgba(12, 48, 76, .9); touch-action: manipulation; pointer-events: auto; }
+.camera-collapse { display: none; z-index: 12; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); border: 2px solid #ffaaa3; background: #b72e27; font-size: 1rem; pointer-events: auto; touch-action: manipulation; }
+.camera-overlay-stop { display: none; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); border: 2px solid #ff8b82; background: #a91e1e; font-size: 1rem; }
+.camera-stopwatch-overlay { display: none; }
+html:has(body.camera-mode), body.camera-mode { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body.camera-mode { position: fixed; inset: 0; touch-action: none; }
+.camera-preview-wrap.camera-preview-expanded { position: fixed !important; z-index: 2147483647; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100svh !important; height: 100dvh !important; max-width: none !important; max-height: none !important; margin: 0 !important; aspect-ratio: auto; border-radius: 0; background: #000; touch-action: manipulation; }
+.camera-preview-wrap.camera-preview-expanded video { object-fit: contain; }
+.camera-preview-wrap.camera-preview-expanded .camera-expand { display: none; }
+.camera-preview-wrap.camera-preview-expanded .camera-collapse,
+.camera-preview-wrap.camera-preview-expanded .camera-overlay-stop { display: block; }
+.camera-preview-wrap.camera-preview-expanded .recording-indicator { left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); bottom: auto; padding: 8px 12px; font-size: 1rem; }
+.camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { position: absolute; z-index: 3; top: 50%; left: 50%; width: min(92vw, 680px); padding: clamp(14px, 3vw, 28px); display: flex; flex-direction: column; align-items: center; gap: clamp(7px, 1.5vh, 14px); transform: translate(-50%, -50%); border: 1px solid rgba(255, 255, 255, .3); border-radius: 22px; color: white; background: rgba(0, 0, 0, .52); box-shadow: 0 14px 40px rgba(0, 0, 0, .28); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+.camera-stopwatch-head { width: 100%; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 14px; }
+.camera-stopwatch-label { font-size: clamp(.8rem, 2.2vw, 1.1rem); font-weight: 900; letter-spacing: .12em; }
+.camera-recording-clock { padding: 5px 9px; border: 1px solid rgba(255, 125, 116, .66); border-radius: 999px; color: #ffd7d4; background: rgba(139, 20, 20, .62); font-size: clamp(.72rem, 1.8vw, .9rem); font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.camera-recording-clock strong { margin-left: 4px; color: white; font: inherit; }
+.camera-stopwatch-overlay > strong { font: 300 clamp(3.2rem, 13vw, 8.5rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.07em; text-shadow: 0 3px 14px #000; white-space: nowrap; }
+.camera-stopwatch-state { margin-top: -3px; color: rgba(255, 255, 255, .82); font-size: clamp(.68rem, 1.8vw, .88rem); font-weight: 800; }
+.camera-stopwatch-controls { width: min(420px, 100%); display: flex; justify-content: space-between; gap: 20px; }
+.camera-stopwatch-controls button { width: clamp(82px, 15vw, 112px); height: clamp(82px, 15vw, 112px); min-width: 0; min-height: 0; padding: 9px; display: grid; place-content: center; border: 2px solid rgba(255, 255, 255, .3); border-radius: 50%; color: white; background: rgba(20, 20, 20, .76); font-size: clamp(1.2rem, 4vw, 1.8rem); touch-action: manipulation; }
+.camera-stopwatch-controls button span { display: block; margin-top: 3px; font-size: clamp(.68rem, 2vw, .9rem); font-weight: 900; }
+.camera-stopwatch-controls .camera-timer-start, .camera-stopwatch-controls .camera-timer-resume { color: #67ef78; border-color: rgba(77, 221, 94, .6); background: rgba(8, 65, 17, .72); }
+.camera-stopwatch-controls .camera-timer-pause { color: #ffc45b; border-color: rgba(255, 178, 41, .6); background: rgba(76, 47, 4, .72); }
+.camera-stopwatch-controls .camera-timer-finish { color: #ff837e; border-color: rgba(255, 98, 93, .65); background: rgba(83, 16, 13, .76); }
+.camera-stopwatch-controls button:disabled { opacity: .42; }
+.camera-latest-lap { min-height: 1.4em; font-weight: 800; font-variant-numeric: tabular-nums; }
+.selected-video { grid-column: 1 / -1; display: grid; gap: 8px; padding: 10px; border: 1px solid #a9cee9; border-radius: 10px; background: white; }
+.selected-video-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.selected-video-head span { min-width: 0; overflow-wrap: anywhere; color: #52677a; font-size: .78rem; font-weight: 800; }
+.selected-video-head span strong { display: block; margin-bottom: 2px; color: var(--blue-dark); font-size: .95rem; }
+.selected-video-head button { min-height: 38px; flex: 0 0 auto; padding: 6px 10px; border: 1px solid #d8a49d; border-radius: 7px; color: #91483d; background: #fff5f3; font-weight: 800; }
+.selected-video > video { position: static; width: 100%; height: auto; max-height: min(52vh, 540px); border-radius: 8px; background: black; object-fit: contain; pointer-events: auto; }
+.selected-video > small { color: #52677a; font-size: .72rem; font-weight: 700; }
+.elementary-admin-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.elementary-admin-title h2 { margin: 0; }
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .camera-preview-wrap.camera-preview-expanded .camera-stopwatch-overlay { width: min(72vw, 620px); padding: 9px 16px; gap: 4px; border-radius: 16px; }
+  .camera-stopwatch-head { gap: 5px 10px; }
+  .camera-stopwatch-label { font-size: .72rem; }
+  .camera-recording-clock { padding: 3px 7px; font-size: .68rem; }
+  .camera-stopwatch-overlay > strong { font-size: clamp(2.8rem, 17vh, 5.4rem); }
+  .camera-stopwatch-state { font-size: .66rem; }
+  .camera-stopwatch-controls { width: min(330px, 100%); gap: 16px; }
+  .camera-stopwatch-controls button { width: clamp(62px, 17vh, 82px); height: clamp(62px, 17vh, 82px); font-size: 1.1rem; }
+  .camera-stopwatch-controls button span { font-size: .62rem; }
+  .camera-latest-lap { font-size: .7rem; }
+}
+
 .elementary-guide {
   padding: 6px 8px;
   border-bottom: 1px solid #cbd8e3;
@@ -1898,6 +1995,26 @@ body.elementary-stopwatch-mode {
 
   .elementary-recorder-actions button {
     flex: 1;
+  }
+
+  .camera-recorder {
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .camera-recorder-actions {
+    width: 100%;
+    grid-column: 1 / -1;
+  }
+
+  .camera-recorder-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .camera-recorder-info small {
+    font-size: .66rem;
   }
 
   .elementary-managed-account {

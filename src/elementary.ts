@@ -1,6 +1,6 @@
 import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
-import { formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -58,8 +58,11 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.20";
+const ELEMENTARY_VERSION = "0.4.21";
 const MAX_SCORE = 255;
+const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
+const MAX_RECORDING_MS = 3 * 60 * 1000;
+const VIDEO_RECORDING_BITRATE = 2_500_000;
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
@@ -74,7 +77,7 @@ let mode: Mode = modeFromHash();
 let state = loadState();
 let account = loadAccount();
 let loginError = "";
-let adminMode = account?.account === "ADMIN";
+let adminMode = isManagementAccount(account?.account);
 let adminStatus = "";
 let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
@@ -87,14 +90,21 @@ let stopwatch: { status: "idle" | "running" | "paused"; startedAt: number; elaps
 };
 let timerId = 0;
 let stopwatchLaps: number[] = [];
-let nativeFullscreenTarget: "stopwatch" | null = null;
+let nativeFullscreenTarget: "stopwatch" | "camera" | null = null;
 let mediaStream: MediaStream | null = null;
+let cameraPreviewPlaceholder: Comment | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let videoChunks: Blob[] = [];
+let videoRecordingBytes = 0;
 let recordedVideo: File | null = null;
+let recordedVideoPreviewUrl = "";
 let recordingStatus: "idle" | "starting" | "recording" | "processing" = "idle";
 let recordingStartedAt = 0;
 let recordingElapsedMs = 0;
+let recordingTimer: number | null = null;
+let recordingLimitTimer: number | null = null;
+let discardRecordedVideo = false;
+let screenWakeLock: { release: () => Promise<void> } | null = null;
 const rulesPdfCacheTasks = new Set<string>();
 
 const app = document.querySelector<HTMLDivElement>("#elementary-app")!;
@@ -291,15 +301,49 @@ function floatingStopwatchView() {
 
 function videoRecorderView() {
   if (!account) return "";
-  const recordingTime = recordingStatus === "recording" ? formatStopwatch(recordingElapsedMs || Date.now() - recordingStartedAt) : "";
-  return `<section class="elementary-recorder ${recordingStatus === "recording" ? "recording" : ""}">
-    <div><strong>動画録画</strong><span>${recordedVideo ? `${escapeHtml(recordedVideo.name)} / ${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB` : recordingStatus === "recording" ? `録画中 ${recordingTime}` : "ログイン中のみ録画できます。保存時に得点と一緒に送信します。"}</span></div>
-    <video data-recorder-preview autoplay muted playsinline></video>
-    <div class="elementary-recorder-actions">
-      ${recordingStatus === "recording" ? `<button type="button" class="danger" data-recording="stop">■ 停止</button>` : `<button type="button" class="primary" data-recording="start" ${recordingStatus !== "idle" ? "disabled" : ""}>● 録画開始</button>`}
-      ${recordedVideo ? `<button type="button" class="secondary" data-recording="clear">動画を削除</button>` : ""}
+  const isRecording = recordingStatus === "recording";
+  const isBusy = recordingStatus === "starting" || recordingStatus === "processing";
+  return `<section class="camera-recorder ${mediaStream ? "camera-active" : ""} ${isRecording ? "recording" : ""}" aria-label="動画録画">
+    <div class="camera-preview-wrap">
+      <video data-recorder-preview muted playsinline></video>
+      <span class="camera-placeholder">背面カメラ</span>
+      ${isRecording ? `<strong class="recording-indicator">● 録画中 <span data-recording-time>${currentRecordingTime()}</span></strong>` : ""}
+      ${mediaStream ? `<button type="button" class="camera-expand" data-recording="expand" aria-label="カメラ映像を全画面表示">⛶ 全画面</button>
+        <button type="button" class="camera-collapse" data-recording="collapse" aria-label="カメラ映像の全画面表示を解除">× 全画面解除</button>
+        ${isRecording ? `<div class="camera-stopwatch-overlay" data-camera-stopwatch-overlay>${cameraStopwatchContents()}</div>` : ""}
+        ${isRecording ? `<button type="button" class="camera-overlay-stop" data-recording="stop">■ 録画停止</button>` : ""}` : ""}
     </div>
+    <div class="camera-recorder-info"><strong>動画録画</strong><small>音声なし・高画質1080p優先・最長3分。録画中もストップウォッチを操作できます。</small></div>
+    <div class="camera-recorder-actions">
+      ${mediaStream && !isRecording ? `<button type="button" class="camera-main-expand" data-recording="expand">⛶ カメラを全画面</button>` : ""}
+      ${isRecording
+        ? `<button type="button" class="camera-stop" data-recording="stop">■ 録画停止</button>`
+        : `<button type="button" class="camera-start" data-recording="start" ${isBusy ? "disabled" : ""}>${recordingStatus === "starting" ? "カメラ準備中…" : recordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
+    </div>
+    ${recordedVideo && recordedVideoPreviewUrl ? `<div class="selected-video">
+      <div class="selected-video-head"><span><strong>保存前の動画を確認</strong>${escapeHtml(recordedVideo.name)}（${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB）</span><button type="button" data-recording="clear">取り消す</button></div>
+      <video src="${recordedVideoPreviewUrl}" controls playsinline preload="metadata"></video>
+      <small>再生ボタンを押して、撮影内容を確認してから保存できます。</small>
+    </div>` : ""}
   </section>`;
+}
+
+function cameraStopwatchContents() {
+  const controls = stopwatch.status === "idle"
+    ? `<button class="camera-timer-lap" type="button" disabled>⚑<span>ラップ</span></button><button class="camera-timer-start" data-timer="start">▶<span>競技開始</span></button>`
+    : stopwatch.status === "running"
+      ? `<button class="camera-timer-lap" data-timer="lap">⚑<span>ラップ</span></button><button class="camera-timer-pause" data-timer="pause">Ⅱ<span>停止</span></button>`
+      : `<button class="camera-timer-finish" data-timer="finish">■<span>競技終了</span></button><button class="camera-timer-resume" data-timer="resume">▶<span>再開</span></button>`;
+  const latestLap = stopwatchLaps.at(-1);
+  const stopwatchState = stopwatch.status === "running" ? "計測中" : stopwatch.status === "paused" ? "一時停止" : "未開始";
+  return `<div class="camera-stopwatch-head">
+      <span class="camera-stopwatch-label">競技ストップウォッチ</span>
+      <span class="camera-recording-clock">● 録画時間 <strong data-recording-time>${currentRecordingTime()}</strong></span>
+    </div>
+    <strong data-camera-stopwatch-display aria-label="競技時間 ${formatStopwatch(currentElapsedMs())}">${formatStopwatch(currentElapsedMs())}</strong>
+    <small class="camera-stopwatch-state">${stopwatchState}・録画時間とは別に計測</small>
+    <div class="camera-stopwatch-controls">${controls}</div>
+    ${latestLap === undefined ? "" : `<small class="camera-latest-lap">ラップ ${stopwatchLaps.length}　${formatStopwatch(latestLap)}</small>`}`;
 }
 
 function sectionHeader(label: string, groupId: ElementaryJudgeGroupId) {
@@ -554,9 +598,10 @@ function publicQr(label: string, href: string, image: string) {
 }
 
 function adminView() {
-  if (account?.account !== "ADMIN") return loginView();
+  if (!isManagementAccount(account?.account)) return loginView();
   return `<section class="elementary-page elementary-admin">
-    <p class="eyebrow">PRIVATE ACCOUNT MANAGEMENT</p><h2>管理</h2>
+    <p class="eyebrow">PRIVATE ACCOUNT MANAGEMENT</p>
+    <div class="elementary-admin-title"><h2>管理</h2><button type="button" class="secondary" data-action="logout">管理を終了</button></div>
     <div class="card elementary-link-section">
       <div class="elementary-admin-head"><p>Elementaryで使うアカウントを管理します。a0 / rmam / システム動作確認 / テストは共通アカウントとして扱います。</p><button type="button" class="secondary" data-action="load-accounts">↻ 更新</button></div>
       ${adminStatus ? `<p class="warning">${escapeHtml(adminStatus)}</p>` : ""}
@@ -565,7 +610,7 @@ function adminView() {
           <div><strong>${escapeHtml(item.name)}</strong><small>ID: ${escapeHtml(item.id)}${item.app ? ` / ${item.app}` : ""}</small></div>
           <label>チーム名<input data-managed-name="${escapeHtml(item.id)}" maxlength="50" value="${escapeHtml(item.name)}" /></label>
           <label>APIキー<input data-managed-key="${escapeHtml(item.id)}" type="password" maxlength="128" autocomplete="new-password" placeholder="変更しない場合は空欄" /></label>
-          <label>区分<select data-managed-app="${escapeHtml(item.id)}"><option value="elementary" ${item.app === "elementary" ? "selected" : ""}>Elementary</option><option value="shared" ${item.app === "shared" ? "selected" : ""}>共通</option><option value="junior" ${item.app === "junior" ? "selected" : ""}>Junior</option></select></label>
+          <label>区分<select data-managed-app="${escapeHtml(item.id)}"><option value="elementary" ${item.app === "elementary" ? "selected" : ""}>Elementary</option><option value="shared" ${item.app === "shared" ? "selected" : ""}>共通</option></select></label>
           <button type="button" class="primary" data-action="save-managed-account" data-account-id="${escapeHtml(item.id)}">変更を保存</button>
         </article>`).join("") || `<p>アカウント情報を読み込んでいます…</p>`}
       </div>
@@ -573,7 +618,7 @@ function adminView() {
         <h3>新しいElementaryアカウントを追加</h3>
         <label>チーム名<input id="elementary-new-account-name" maxlength="50" placeholder="チーム名" /></label>
         <label>APIキー<input id="elementary-new-account-key" type="password" maxlength="128" autocomplete="new-password" placeholder="APIキー" /></label>
-        <label>区分<select id="elementary-new-account-app"><option value="elementary">Elementary</option><option value="shared">共通</option><option value="junior">Junior</option></select></label>
+        <label>区分<select id="elementary-new-account-app"><option value="elementary">Elementary</option><option value="shared">共通</option></select></label>
         <button type="button" class="primary" data-action="save-managed-account">アカウントを追加</button>
       </div>
     </div>
@@ -689,7 +734,10 @@ function bindEvents() {
   });
   app.querySelector<HTMLButtonElement>('[data-action="save-result"]')?.addEventListener("click", () => void saveResult());
   const preview = app.querySelector<HTMLVideoElement>("[data-recorder-preview]");
-  if (preview && mediaStream && preview.srcObject !== mediaStream) preview.srcObject = mediaStream;
+  if (preview && mediaStream && preview.srcObject !== mediaStream) {
+    preview.srcObject = mediaStream;
+    void preview.play().catch(() => undefined);
+  }
 }
 
 function updateTime() {
@@ -774,21 +822,29 @@ function startTicker() {
   timerId = window.setInterval(() => {
     if (stopwatch.status !== "running") return;
     const formatted = formatStopwatch(currentElapsedMs());
-    app.querySelectorAll<HTMLElement>("[data-elementary-stopwatch-display], [data-floating-stopwatch-display]").forEach((el) => {
+    document.querySelectorAll<HTMLElement>("[data-elementary-stopwatch-display], [data-camera-stopwatch-display], [data-floating-stopwatch-display]").forEach((el) => {
       el.textContent = formatted;
     });
-  }, 120);
+  }, 31);
 }
 
 function refreshStopwatch() {
   const element = app.querySelector<HTMLElement>(".elementary-stopwatch");
-  if (!element) return;
-  element.innerHTML = stopwatchContents();
-  element.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
-    button.addEventListener("click", () => timerAction(button.dataset.timer!)),
-  );
-  const laps = element.querySelector<HTMLOListElement>(".stopwatch-laps");
-  if (laps) laps.scrollTop = laps.scrollHeight;
+  if (element) {
+    element.innerHTML = stopwatchContents();
+    element.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
+      button.addEventListener("click", () => timerAction(button.dataset.timer!)),
+    );
+    const laps = element.querySelector<HTMLOListElement>(".stopwatch-laps");
+    if (laps) laps.scrollTop = laps.scrollHeight;
+  }
+  const cameraStopwatch = document.querySelector<HTMLElement>("[data-camera-stopwatch-overlay]");
+  if (cameraStopwatch) {
+    cameraStopwatch.innerHTML = cameraStopwatchContents();
+    cameraStopwatch.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
+      button.addEventListener("click", () => timerAction(button.dataset.timer!)),
+    );
+  }
 }
 
 function resetStopwatch() {
@@ -807,12 +863,12 @@ function activeFullscreenElement() {
   return document.fullscreenElement ?? fullscreenDocument.webkitFullscreenElement ?? null;
 }
 
-function requestElementFullscreen(element: FullscreenCapableElement) {
+function requestElementFullscreen(element: FullscreenCapableElement, target: typeof nativeFullscreenTarget) {
   if (activeFullscreenElement()) return;
   try {
     const request = element.requestFullscreen?.bind(element) ?? element.webkitRequestFullscreen?.bind(element);
     if (!request) return;
-    nativeFullscreenTarget = "stopwatch";
+    nativeFullscreenTarget = target;
     const result = request();
     if (result instanceof Promise) void result.catch(() => { nativeFullscreenTarget = null; });
   } catch {
@@ -833,7 +889,7 @@ function enterStopwatchFullscreen() {
   if (!element) return;
   element.classList.add("elementary-stopwatch-expanded");
   document.body.classList.add("elementary-stopwatch-mode");
-  requestElementFullscreen(element);
+  requestElementFullscreen(element, "stopwatch");
 }
 
 function exitStopwatchFullscreen() {
@@ -841,6 +897,36 @@ function exitStopwatchFullscreen() {
   app.querySelector<HTMLElement>(".elementary-stopwatch")?.classList.remove("elementary-stopwatch-expanded");
   const result = exitNativeFullscreen();
   if (result instanceof Promise) void result.catch(() => undefined);
+}
+
+function enterCameraFullscreen(requestNativeFullscreen = true) {
+  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
+  if (!preview || !mediaStream) return;
+  if (!preview.classList.contains("camera-preview-expanded")) {
+    cameraPreviewPlaceholder = document.createComment("camera-preview-home");
+    preview.before(cameraPreviewPlaceholder);
+    document.body.appendChild(preview);
+  }
+  preview.classList.add("camera-preview-expanded");
+  document.body.classList.add("camera-mode");
+  if (requestNativeFullscreen) requestElementFullscreen(preview, "camera");
+}
+
+function collapseCameraFullscreen() {
+  document.body.classList.remove("camera-mode");
+  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
+  preview?.classList.remove("camera-preview-expanded");
+  if (preview && cameraPreviewPlaceholder?.parentNode) {
+    cameraPreviewPlaceholder.parentNode.insertBefore(preview, cameraPreviewPlaceholder);
+    cameraPreviewPlaceholder.remove();
+  }
+  cameraPreviewPlaceholder = null;
+}
+
+function exitCameraFullscreen() {
+  const result = document.body.classList.contains("camera-mode") ? exitNativeFullscreen() : null;
+  if (result instanceof Promise) void result.catch(() => undefined);
+  collapseCameraFullscreen();
 }
 
 function loadState() {
@@ -882,11 +968,16 @@ async function login() {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "elementary" });
     if (!result.ok || !result.account) throw new Error(result.message || "APIキーを確認できませんでした。");
     account = { apiKey: key, account: result.account, accountName: result.accountName || result.account, remember };
-    adminMode = result.account === "ADMIN";
+    adminMode = isManagementAccount(result.account);
     saveAccount();
     loginError = "";
     mode = adminMode ? "admin" : "score";
-    if (adminMode) void loadManagedAccounts(false);
+    if (adminMode) {
+      if (location.hash !== "#/admin") location.hash = "#/admin";
+      void loadManagedAccounts();
+    } else if (location.hash !== "#/score") {
+      location.hash = "#/score";
+    }
   } catch (error) {
     loginError = error instanceof Error ? error.message : "ログインできませんでした。";
   }
@@ -894,12 +985,12 @@ async function login() {
 }
 
 function logout() {
-  stopRecording();
+  discardRecordingNow();
   account = null;
   adminMode = false;
   managedAccounts = [];
   adminStatus = "";
-  recordedVideo = null;
+  setRecordedVideo(null);
   localStorage.removeItem(ACCOUNT_KEY);
   saveStatus = "";
   mode = "score";
@@ -909,6 +1000,11 @@ function logout() {
 function sharedAccountName(value: string) {
   const normalized = value.trim().toLocaleLowerCase();
   return normalized === "a0" || normalized === "rmam" || normalized === "システム動作確認" || normalized === "テスト";
+}
+
+function isManagementAccount(value?: string) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized === "ADMIN" || normalized === "RMAM";
 }
 
 function sanitizeManagedAccounts(accounts: unknown): ManagedAccount[] {
@@ -925,11 +1021,12 @@ function sanitizeManagedAccounts(accounts: unknown): ManagedAccount[] {
 
 async function loadManagedAccounts(shouldRender = true) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || account?.account !== "ADMIN") return;
+  const managementAccount = account;
+  if (!endpoint || !managementAccount || !isManagementAccount(managementAccount.account)) return;
   adminStatus = "アカウント情報を読み込み中…";
   if (shouldRender) render();
   try {
-    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: account.apiKey, app: "elementary" });
+    const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, { action: "accounts", apiKey: managementAccount.apiKey, app: "elementary" });
     if (!result.ok) throw new Error(result.message || "アカウント情報を取得できませんでした。");
     managedAccounts = sanitizeManagedAccounts(result.accounts);
     adminStatus = `${managedAccounts.length}件のアカウントを管理中`;
@@ -941,7 +1038,8 @@ async function loadManagedAccounts(shouldRender = true) {
 
 async function saveManagedAccount(accountId = "") {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || account?.account !== "ADMIN") return;
+  const managementAccount = account;
+  if (!endpoint || !managementAccount || !isManagementAccount(managementAccount.account)) return;
   const nameInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-name="${CSS.escape(accountId)}"]` : "#elementary-new-account-name");
   const keyInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-key="${CSS.escape(accountId)}"]` : "#elementary-new-account-key");
   const appSelect = document.querySelector<HTMLSelectElement>(accountId ? `[data-managed-app="${CSS.escape(accountId)}"]` : "#elementary-new-account-app");
@@ -957,7 +1055,7 @@ async function saveManagedAccount(accountId = "") {
   render();
   try {
     const result = await postJson<{ ok?: boolean; accounts?: ManagedAccount[]; message?: string }>(endpoint, {
-      action: "saveAccount", apiKey: account.apiKey, accountId, name, newApiKey, app: appKind,
+      action: "saveAccount", apiKey: managementAccount.apiKey, accountId, name, newApiKey, app: appKind,
     });
     if (!result.ok) throw new Error(result.message || "アカウントを保存できませんでした。");
     managedAccounts = sanitizeManagedAccounts(result.accounts);
@@ -972,75 +1070,181 @@ async function recordingAction(action: string) {
   if (!account) { mode = "login"; render(); return; }
   if (action === "start") await startRecording();
   if (action === "stop") stopRecording();
-  if (action === "clear") { recordedVideo = null; render(); }
+  if (action === "clear") { setRecordedVideo(null); saveStatus = ""; render(); }
+  if (action === "expand") enterCameraFullscreen();
+  if (action === "collapse") exitCameraFullscreen();
+}
+
+function supportedRecordingMimeType() {
+  if (!("MediaRecorder" in window)) return "";
+  return [
+    "video/mp4;codecs=avc1.42E01E",
+    "video/mp4",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ].find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
+}
+
+function setRecordedVideo(file: File | null) {
+  if (recordedVideoPreviewUrl) URL.revokeObjectURL(recordedVideoPreviewUrl);
+  recordedVideo = file;
+  recordedVideoPreviewUrl = file ? URL.createObjectURL(file) : "";
 }
 
 async function startRecording() {
-  if (recordingStatus !== "idle" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+  if (recordingStatus !== "idle") return;
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
     saveStatus = "この端末では録画を開始できません。";
     render();
     return;
   }
+  if (recordedVideo && !confirm("録画済みの動画を新しい録画へ置き換えますか？")) return;
+  setRecordedVideo(null);
+  saveStatus = "";
   recordingStatus = "starting";
   render();
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } }, audio: false });
-    const preview = app.querySelector<HTMLVideoElement>("[data-recorder-preview]");
-    if (preview) preview.srcObject = mediaStream;
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 60, max: 60 },
+      },
+      audio: false,
+    });
+    mediaStream.getVideoTracks()[0]?.addEventListener("ended", () => {
+      if (recordingStatus === "recording") stopRecording();
+    }, { once: true });
     videoChunks = [];
-    const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type)) || "";
-    mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType, videoBitsPerSecond: 4_500_000 } : undefined);
-    mediaRecorder.ondataavailable = (event) => { if (event.data.size) videoChunks.push(event.data); };
-    mediaRecorder.onstop = () => {
-      const type = mediaRecorder?.mimeType || "video/webm";
-      const blob = new Blob(videoChunks, { type });
-      recordedVideo = new File([blob], `elementary_${new Date().toISOString().replace(/[:.]/g, "-")}.webm`, { type });
-      mediaStream?.getTracks().forEach((track) => track.stop());
-      mediaStream = null;
-      mediaRecorder = null;
-      recordingStatus = "idle";
-      render();
-    };
+    videoRecordingBytes = 0;
+    discardRecordedVideo = false;
+    const mimeType = supportedRecordingMimeType();
+    const options: MediaRecorderOptions = { videoBitsPerSecond: VIDEO_RECORDING_BITRATE };
+    if (mimeType) options.mimeType = mimeType;
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(mediaStream, options);
+    } catch {
+      recorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
+    }
+    mediaRecorder = recorder;
+    recorder.addEventListener("dataavailable", (event) => {
+      if (!event.data.size) return;
+      videoChunks.push(event.data);
+      videoRecordingBytes += event.data.size;
+      if (videoRecordingBytes >= MAX_VIDEO_BYTES * 0.96 && recorder.state === "recording") stopRecording();
+    });
+    recorder.addEventListener("error", () => {
+      saveStatus = "録画中にエラーが発生しました。";
+      if (recorder.state !== "inactive") recorder.stop();
+    });
+    recorder.addEventListener("stop", () => finalizeRecording(recorder.mimeType));
+    recorder.start(1000);
     recordingStartedAt = Date.now();
     recordingElapsedMs = 0;
     recordingStatus = "recording";
+    recordingTimer = window.setInterval(updateRecordingTime, 250);
+    recordingLimitTimer = window.setTimeout(stopRecording, MAX_RECORDING_MS);
     render();
-    const livePreview = app.querySelector<HTMLVideoElement>("[data-recorder-preview]");
-    if (livePreview) livePreview.srcObject = mediaStream;
-    mediaRecorder.start(1000);
-    window.setTimeout(() => { if (recordingStatus === "recording") stopRecording(); }, 180000);
-    startRecordingTicker();
+    enterCameraFullscreen(false);
+    void requestScreenWakeLock();
   } catch (error) {
-    mediaStream?.getTracks().forEach((track) => track.stop());
-    mediaStream = null;
-    mediaRecorder = null;
+    stopCameraStream();
     recordingStatus = "idle";
-    saveStatus = `録画を開始できませんでした。${error instanceof Error ? error.message : ""}`;
+    saveStatus = error instanceof DOMException && error.name === "NotAllowedError"
+      ? "カメラの使用が許可されませんでした。ブラウザのカメラ権限を確認してください。"
+      : `録画を開始できませんでした。${error instanceof Error ? error.message : ""}`;
+    render();
   }
-  if (recordingStatus !== "recording") render();
 }
 
 function stopRecording() {
-  if (mediaRecorder && recordingStatus === "recording") {
-    recordingStatus = "processing";
+  if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+  exitCameraFullscreen();
+  recordingStatus = "processing";
+  clearRecordingTimers();
+  mediaRecorder.stop();
+  render();
+}
+
+function discardRecordingNow() {
+  discardRecordedVideo = true;
+  clearRecordingTimers();
+  exitCameraFullscreen();
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
     mediaRecorder.stop();
   } else {
-    mediaStream?.getTracks().forEach((track) => track.stop());
-    mediaStream = null;
     mediaRecorder = null;
+    stopCameraStream();
     recordingStatus = "idle";
   }
 }
 
-function startRecordingTicker() {
-  const tick = () => {
-    if (recordingStatus !== "recording") return;
-    recordingElapsedMs = Date.now() - recordingStartedAt;
-    const label = app.querySelector<HTMLElement>(".elementary-recorder span");
-    if (label) label.textContent = `録画中 ${formatStopwatch(recordingElapsedMs)}`;
-    window.setTimeout(tick, 250);
-  };
-  tick();
+function finalizeRecording(mimeType: string) {
+  const chunks = videoChunks;
+  videoChunks = [];
+  const shouldDiscard = discardRecordedVideo;
+  discardRecordedVideo = false;
+  mediaRecorder = null;
+  clearRecordingTimers();
+  stopCameraStream();
+  recordingStatus = "idle";
+  void releaseScreenWakeLock();
+  if (!shouldDiscard) {
+    const type = mimeType || chunks[0]?.type || "video/webm";
+    const blob = new Blob(chunks, { type });
+    if (!blob.size) {
+      saveStatus = "録画した動画を作成できませんでした。";
+    } else if (blob.size > MAX_VIDEO_BYTES) {
+      saveStatus = "録画した動画が45MBを超えました。録画時間を短くしてください。";
+    } else {
+      const extension = type.includes("mp4") ? "mp4" : "webm";
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      setRecordedVideo(new File([blob], `robomission_elementary_${stamp}.${extension}`, { type }));
+      saveStatus = "";
+    }
+  }
+  render();
+}
+
+function stopCameraStream() {
+  exitCameraFullscreen();
+  mediaStream?.getTracks().forEach((track) => track.stop());
+  mediaStream = null;
+  void releaseScreenWakeLock();
+}
+
+function clearRecordingTimers() {
+  if (recordingTimer !== null) window.clearInterval(recordingTimer);
+  if (recordingLimitTimer !== null) window.clearTimeout(recordingLimitTimer);
+  recordingTimer = null;
+  recordingLimitTimer = null;
+}
+
+function updateRecordingTime() {
+  if (recordingStatus !== "recording") return;
+  recordingElapsedMs = Date.now() - recordingStartedAt;
+  document.querySelectorAll<HTMLElement>("[data-recording-time]").forEach((label) => {
+    label.textContent = currentRecordingTime();
+  });
+}
+
+function currentRecordingTime() {
+  return formatRecordingTime(recordingStatus === "recording" ? Date.now() - recordingStartedAt : 0);
+}
+
+async function requestScreenWakeLock() {
+  try {
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+    if (wakeLock && !screenWakeLock) screenWakeLock = await wakeLock.request("screen");
+  } catch { /* iOSなど非対応端末では通常動作を継続 */ }
+}
+
+async function releaseScreenWakeLock() {
+  const lock = screenWakeLock;
+  screenWakeLock = null;
+  try { await lock?.release(); } catch { /* noop */ }
 }
 
 async function saveResult() {
@@ -1071,7 +1275,7 @@ async function saveResult() {
     const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, payload, new AbortController(), recordedVideo ? 90000 : 15000);
     if (!result.ok) throw new Error(result.message || "保存できませんでした。");
     saveStatus = "保存しました。";
-    recordedVideo = null;
+    setRecordedVideo(null);
     state = makeInitialState();
     resetStopwatch();
     saveState();
@@ -1128,14 +1332,34 @@ function sum(values: number[]) {
 }
 
 function handleFullscreenChange() {
-  if (activeFullscreenElement() || nativeFullscreenTarget !== "stopwatch") return;
+  const target = nativeFullscreenTarget;
+  if (activeFullscreenElement() || !target) return;
   nativeFullscreenTarget = null;
-  document.body.classList.remove("elementary-stopwatch-mode");
-  app.querySelector<HTMLElement>(".elementary-stopwatch")?.classList.remove("elementary-stopwatch-expanded");
+  if (target === "stopwatch") {
+    document.body.classList.remove("elementary-stopwatch-mode");
+    app.querySelector<HTMLElement>(".elementary-stopwatch")?.classList.remove("elementary-stopwatch-expanded");
+    refreshStopwatch();
+  }
+  if (target === "camera" && document.body.classList.contains("camera-mode")) collapseCameraFullscreen();
 }
 
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+document.addEventListener("pointerdown", (event) => {
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-recording="expand"]') : null;
+  if (!target) return;
+  event.preventDefault();
+  enterCameraFullscreen(true);
+}, { capture: true });
+document.addEventListener("pointerdown", (event) => {
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-recording="collapse"]') : null;
+  if (!target) return;
+  event.preventDefault();
+  exitCameraFullscreen();
+}, { capture: true });
+window.addEventListener("orientationchange", () => window.setTimeout(() => {
+  if (document.body.classList.contains("camera-mode")) refreshStopwatch();
+}, 180));
 window.addEventListener("online", () => { elementaryOnline = true; render(); });
 window.addEventListener("offline", () => { elementaryOnline = false; render(); });
 window.addEventListener("hashchange", () => {
@@ -1146,6 +1370,7 @@ window.addEventListener("hashchange", () => {
 
 if (adminMode) {
   mode = "admin";
-  void loadManagedAccounts(false);
+  if (location.hash !== "#/admin") location.hash = "#/admin";
+  void loadManagedAccounts();
 }
 render();
