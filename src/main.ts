@@ -197,6 +197,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.24", updatedAt: "2026.11.13", title: "採点の進み具合を一覧表示", description: "採点表のミッション移動バーに現在点／満点を表示し、得点済み・満点の項目を色で判別しながら目的のミッションへ移動できるようにしました。" },
   { version: "1.7.23", updatedAt: "2026.11.13", title: "公開前の品質検査を強化", description: "Pull Requestとmain更新の両方で、全テスト・型チェック・本番ビルドに合格しなければ公開されない品質ゲートを追加しました。" },
   { version: "1.7.22", updatedAt: "2026.11.13", title: "端末保存エラーから採点を保護", description: "端末の保存容量不足やストレージ制限が発生してもアプリ全体を停止させず、現在のタブで採点を続けられる退避処理を追加しました。" },
   { version: "1.7.21", updatedAt: "2026.11.13", title: "採点表の移動を使いやすく改善", description: "長い採点表で目的のミッションへすぐ移動できる固定ナビゲーションを追加しました。スマホ・iPadでは横にスクロールでき、動きを減らす端末設定にも対応しています。" },
@@ -585,8 +586,8 @@ function scoringView() {
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
     <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
     ${missionJumpView([
-      ["visitors", "訪問者"], ["redTowers", "赤い塔"], ["yellowTowers", "黄色い塔"],
-      ["artifacts", "遺物"], ["dirt", "汚れ"], ["bonus", "ボーナス"], ["score-details", "時間・メモ"],
+      ["visitors", "訪問者", scores.visitors, 40], ["redTowers", "赤い塔", scores.redTowers, 30], ["yellowTowers", "黄色い塔", scores.yellowTowers, 50],
+      ["artifacts", "遺物", scores.artifacts, 60], ["dirt", "汚れ", scores.dirt, 20], ["bonus", "ボーナス", scores.bonus, 30], ["score-details", "時間・メモ"],
     ])}
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
@@ -717,8 +718,14 @@ function sheetSection(id: string, title: string, action = "") {
   return `<div class="sheet-section" id="mission-${id}"><strong>${title}</strong><span>${action}<button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
 }
 
-function missionJumpView(items: [string, string][]) {
-  return `<nav class="mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label]) => `<button type="button" data-mission-jump="${id}">${label}</button>`).join("")}</nav>`;
+function missionJumpView(items: [string, string, number?, number?][]) {
+  return `<nav class="mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label, current, maximum]) => {
+    const hasScore = typeof current === "number" && typeof maximum === "number";
+    const progressClass = hasScore ? (current >= maximum ? "is-max" : current > 0 ? "has-score" : "") : "";
+    const progress = hasScore ? `<small aria-hidden="true">${current}/${maximum}</small>` : "";
+    const ariaLabel = hasScore ? ` aria-label="${label} ${current}/${maximum}点へ移動"` : "";
+    return `<button type="button" class="${progressClass}" data-mission-jump="${id}"${ariaLabel}><span>${label}</span>${progress}</button>`;
+  }).join("")}</nav>`;
 }
 
 function timePicker(value: number | null) {

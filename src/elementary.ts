@@ -59,7 +59,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.24";
+const ELEMENTARY_VERSION = "0.4.25";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -225,7 +225,8 @@ function scoreView() {
   return `
     <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>送信待ちなし</span></aside>
     ${elementaryMissionJumpView([
-      ["cables", "接続"], ["prepare", "準備"], ["notes", "演奏"], ["bonus", "ボーナス"], ["elementary-score-details", "時間・メモ"],
+      ["cables", "接続", scores.cables, 30], ["prepare", "準備", scores.prepare, 65], ["notes", "演奏", scores.notes, 120],
+      ["bonus", "ボーナス", scores.bonus, 40], ["elementary-score-details", "時間・メモ"],
     ])}
     <section class="elementary-score-card">
       <div class="elementary-title-bar">WRO 2026 RoboMission Elementary　得点チェック</div>
@@ -355,8 +356,14 @@ function sectionHeader(label: string, groupId: ElementaryJudgeGroupId) {
   return `<div class="elementary-section" id="elementary-mission-${groupId}"><strong>${label}</strong><button type="button" data-judge-modal="${groupId}">▧ 写真</button></div>`;
 }
 
-function elementaryMissionJumpView(items: [string, string][]) {
-  return `<nav class="elementary-mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label]) => `<button type="button" data-mission-jump="${id}">${label}</button>`).join("")}</nav>`;
+function elementaryMissionJumpView(items: [string, string, number?, number?][]) {
+  return `<nav class="elementary-mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label, current, maximum]) => {
+    const hasScore = typeof current === "number" && typeof maximum === "number";
+    const progressClass = hasScore ? (current >= maximum ? "is-max" : current > 0 ? "has-score" : "") : "";
+    const progress = hasScore ? `<small aria-hidden="true">${current}/${maximum}</small>` : "";
+    const ariaLabel = hasScore ? ` aria-label="${label} ${current}/${maximum}点へ移動"` : "";
+    return `<button type="button" class="${progressClass}" data-mission-jump="${id}"${ariaLabel}><span>${label}</span>${progress}</button>`;
+  }).join("")}</nav>`;
 }
 
 function timePicker(value: number | null) {

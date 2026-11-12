@@ -14,7 +14,12 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #f4f8fc; touc
 .save-state-strip .offline { color: #a05043; }
 .mission-jump { position: sticky; z-index: 35; top: 0; max-width: 1600px; min-height: 50px; margin: 0 auto 6px; padding: 6px 8px; display: flex; align-items: center; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid #b9d5e7; border-radius: 10px; background: rgba(246, 251, 255, .96); box-shadow: 0 5px 18px rgba(15, 72, 113, .12); scrollbar-width: thin; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .mission-jump > strong { position: sticky; left: 0; flex: 0 0 auto; padding: 8px 9px; color: #526d80; background: #f6fbff; font-size: .75rem; font-weight: 950; }
-.mission-jump button { min-width: max-content; min-height: 38px; flex: 1 0 auto; padding: 6px 13px; border: 1px solid #8fbfdd; border-radius: 8px; color: var(--blue-dark); background: white; font-size: .78rem; font-weight: 950; }
+.mission-jump button { min-width: max-content; min-height: 42px; flex: 1 0 auto; padding: 6px 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #8fbfdd; border-radius: 8px; color: var(--blue-dark); background: white; font-size: .78rem; font-weight: 950; }
+.mission-jump button small { min-width: 44px; padding: 2px 6px; border-radius: 99px; color: #42647c; background: #eaf3fb; font-size: .68rem; font-weight: 950; font-variant-numeric: tabular-nums; }
+.mission-jump button.has-score { border-color: #4b9aca; background: #f0f8fe; }
+.mission-jump button.has-score small { color: #0c5c95; background: #dceffc; }
+.mission-jump button.is-max { border-color: #53a77d; color: #12683f; background: #edf9f2; }
+.mission-jump button.is-max small { color: #12683f; background: #d6f1e2; }
 .mission-jump button:hover, .mission-jump button:focus-visible { border-color: var(--blue); background: #e9f5fc; }
 button, input, select, textarea { max-width: 100%; min-width: 0; font: inherit; touch-action: manipulation; }
 button { cursor: pointer; overflow-wrap: normal; white-space: nowrap; word-break: keep-all; }

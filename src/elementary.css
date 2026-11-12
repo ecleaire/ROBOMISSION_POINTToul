@@ -363,15 +363,51 @@ body:has(.elementary-score-card) .elementary-main {
 
 .elementary-mission-jump button {
   min-width: max-content;
-  min-height: 38px;
+  min-height: 42px;
   flex: 1 0 auto;
-  padding: 6px 13px;
+  padding: 6px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: 1px solid #8fbfdd;
   border-radius: 8px;
   color: var(--blue-dark);
   background: white;
   font-size: .78rem;
   font-weight: 950;
+}
+
+.elementary-mission-jump button small {
+  min-width: 44px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  color: #42647c;
+  background: #eaf3fb;
+  font-size: .68rem;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.elementary-mission-jump button.has-score {
+  border-color: #4b9aca;
+  background: #f0f8fe;
+}
+
+.elementary-mission-jump button.has-score small {
+  color: #0c5c95;
+  background: #dceffc;
+}
+
+.elementary-mission-jump button.is-max {
+  border-color: #53a77d;
+  color: #12683f;
+  background: #edf9f2;
+}
+
+.elementary-mission-jump button.is-max small {
+  color: #12683f;
+  background: #d6f1e2;
 }
 
 .elementary-mission-jump button:hover,
