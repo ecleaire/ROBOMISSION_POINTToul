@@ -193,7 +193,7 @@ Apps Scriptプロジェクト（スクリプトID `1dZLK_-vhhS-uTBt8huiPr34bBiMo
 
 ## GitHub Pages公開
 
-`.github/workflows/deploy.yml`を同梱しています。GitHubのリポジトリ設定で Pages のSourceを「GitHub Actions」に変更し、`main`へpushすると、テストとビルド後に自動公開されます。
+`.github/workflows/deploy.yml`を同梱しています。Pull Requestと`main`へのpushでテスト・型チェック・本番ビルドを実行し、すべて成功した`main`の成果物だけを自動公開します。GitHubのリポジトリ設定で Pages のSourceを「GitHub Actions」に変更してください。
 
 ## ルール・画像の出典と権利
 

@@ -197,6 +197,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.23", updatedAt: "2026.11.13", title: "公開前の品質検査を強化", description: "Pull Requestとmain更新の両方で、全テスト・型チェック・本番ビルドに合格しなければ公開されない品質ゲートを追加しました。" },
   { version: "1.7.22", updatedAt: "2026.11.13", title: "端末保存エラーから採点を保護", description: "端末の保存容量不足やストレージ制限が発生してもアプリ全体を停止させず、現在のタブで採点を続けられる退避処理を追加しました。" },
   { version: "1.7.21", updatedAt: "2026.11.13", title: "採点表の移動を使いやすく改善", description: "長い採点表で目的のミッションへすぐ移動できる固定ナビゲーションを追加しました。スマホ・iPadでは横にスクロールでき、動きを減らす端末設定にも対応しています。" },
   { version: "1.7.19", updatedAt: "2026.08.03", title: "チェック解除を復旧", description: "JuniorとElementaryで、選択済みのチェックをもう一度押すと外れて0点に戻るようにしました。" },
