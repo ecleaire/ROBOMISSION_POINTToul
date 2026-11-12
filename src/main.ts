@@ -4,6 +4,7 @@ import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
 import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
+import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isValidAccountId } from "./accountKey";
 import {
   boardPoint,
@@ -196,6 +197,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.22", updatedAt: "2026.11.13", title: "端末保存エラーから採点を保護", description: "端末の保存容量不足やストレージ制限が発生してもアプリ全体を停止させず、現在のタブで採点を続けられる退避処理を追加しました。" },
   { version: "1.7.21", updatedAt: "2026.11.13", title: "採点表の移動を使いやすく改善", description: "長い採点表で目的のミッションへすぐ移動できる固定ナビゲーションを追加しました。スマホ・iPadでは横にスクロールでき、動きを減らす端末設定にも対応しています。" },
   { version: "1.7.19", updatedAt: "2026.08.03", title: "チェック解除を復旧", description: "JuniorとElementaryで、選択済みのチェックをもう一度押すと外れて0点に戻るようにしました。" },
   { version: "1.7.18", updatedAt: "2026.08.02", title: "採点UIをさらに共通化", description: "JuniorとElementaryで、採点表の満点行、競技時間、メモ欄、下部合計バーの流れを揃え、石畳の汚れプルダウンも押しやすくしました。" },
@@ -230,6 +232,9 @@ const APP_UPDATES = [
   { version: "1.6.9", updatedAt: "2026.07.27", title: "全画面操作を安定化", description: "全画面ボタンが反応しない場合でもアプリ内全画面表示を維持し、ダブルタップによる意図しないズームを抑制しました。" },
   { version: "1.6.8", updatedAt: "2026.07.23", title: "分析範囲を安定化", description: "日付条件を実際の集計へ反映し、該当0件でも指定解除できるようにしました。" },
 ] as const;
+
+const localStorage = createResilientStorage(() => window.localStorage);
+const sessionStorage = createResilientStorage(() => window.sessionStorage);
 
 if (localStorage.getItem(ACCOUNT_STORAGE_MIGRATION_KEY) !== ACCOUNT_STORAGE_VERSION) {
   localStorage.removeItem(ACCOUNT_KEY);
@@ -577,7 +582,7 @@ function scoringView() {
   const scores = sectionScores(state);
   return shell(`
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
-    <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
+    <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
     ${missionJumpView([
       ["visitors", "訪問者"], ["redTowers", "赤い塔"], ["yellowTowers", "黄色い塔"],
       ["artifacts", "遺物"], ["dirt", "汚れ"], ["bonus", "ボーナス"], ["score-details", "時間・メモ"],
@@ -3516,7 +3521,7 @@ async function clearQueuedScoreVideo(id: string) {
 }
 
 function loadPendingScoreSubmissions(): PendingScoreSubmission[] {
-  const read = (storage: Storage) => {
+  const read = (storage: StorageLike) => {
     try {
       const value = JSON.parse(storage.getItem(PENDING_SCORE_KEY) || "[]");
       return Array.isArray(value) ? value.filter((item) => item && typeof item.id === "string" && item.payload && typeof item.payload === "object").slice(0, 10) : [];

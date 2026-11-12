@@ -1,6 +1,7 @@
 import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { createResilientStorage } from "./resilientStorage";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -58,7 +59,8 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.22";
+const ELEMENTARY_VERSION = "0.4.23";
+const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
@@ -221,7 +223,7 @@ function scoreView() {
   const scores = sectionScores();
   const total = totalScore();
   return `
-    <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>送信待ちなし</span></aside>
+    <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>送信待ちなし</span></aside>
     ${elementaryMissionJumpView([
       ["cables", "接続"], ["prepare", "準備"], ["notes", "演奏"], ["bonus", "ボーナス"], ["elementary-score-details", "時間・メモ"],
     ])}
