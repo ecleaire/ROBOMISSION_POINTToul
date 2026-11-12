@@ -299,6 +299,7 @@ body.stopwatch-mode { overflow: hidden; }
 .bottom-bar .primary > span { flex: 0 0 auto; font-size: 1.02rem; }
 .bottom-bar .primary > strong { flex: 0 0 auto; font-size: 1.42rem; white-space: nowrap; }
 .reset-button { border: 0; background: transparent; color: #8a4651; font-weight: 700; }
+.reset-button:disabled { color: #8ba0af; cursor: default; opacity: .58; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

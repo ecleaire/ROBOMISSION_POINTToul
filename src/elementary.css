@@ -1234,6 +1234,12 @@ body.camera-mode { position: fixed; inset: 0; touch-action: none; }
   font-weight: 950;
 }
 
+.elementary-bottom .secondary:disabled {
+  color: #8ba0af;
+  cursor: default;
+  opacity: .58;
+}
+
 .elementary-bottom .primary {
   display: flex;
   align-items: center;

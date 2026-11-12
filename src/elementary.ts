@@ -2,6 +2,7 @@ import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { createResilientStorage } from "./resilientStorage";
+import { hasScoreActivity } from "./scoreActivity";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -59,7 +60,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.25";
+const ELEMENTARY_VERSION = "0.4.26";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -222,6 +223,7 @@ function modeFromHash(): Mode {
 function scoreView() {
   const scores = sectionScores();
   const total = totalScore();
+  const hasActivity = currentScoreHasActivity();
   return `
     <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>送信待ちなし</span></aside>
     ${elementaryMissionJumpView([
@@ -259,7 +261,7 @@ function scoreView() {
     </section>
     <div class="elementary-bottom-space"></div>
     <nav class="elementary-bottom">
-      <button type="button" class="secondary" data-action="reset">採点をリセット</button>
+      <button type="button" class="secondary" data-action="reset" ${hasActivity ? "" : "disabled"} title="${hasActivity ? `現在の${total}点と入力内容をリセット` : "リセットする入力はありません"}">採点をリセット</button>
       <button type="button" class="primary" data-mode="result"><span>結果を見る</span><strong>合計得点 ${total} / ${MAX_SCORE}点</strong></button>
     </nav>
   `;
@@ -364,6 +366,23 @@ function elementaryMissionJumpView(items: [string, string, number?, number?][]) 
     const ariaLabel = hasScore ? ` aria-label="${label} ${current}/${maximum}点へ移動"` : "";
     return `<button type="button" class="${progressClass}" data-mission-jump="${id}"${ariaLabel}><span>${label}</span>${progress}</button>`;
   }).join("")}</nav>`;
+}
+
+function currentScoreHasActivity() {
+  return hasScoreActivity({
+    scores: [
+      ...state.cables,
+      state.microphone,
+      ...state.instruments,
+      ...state.notes,
+      state.bonusClef,
+      ...state.bonusSpeakers,
+      state.bonusAmplifier,
+    ],
+    timeSeconds: state.timeSeconds,
+    text: state.memo,
+    hasExtra: currentElapsedMs() > 0 || Boolean(recordedVideo),
+  });
 }
 
 function timePicker(value: number | null) {
@@ -740,7 +759,7 @@ function bindEvents() {
     select.addEventListener("change", updateTime);
   });
   app.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener("click", () => {
-    if (!confirm("Elementaryの採点をリセットしますか？")) return;
+    if (!currentScoreHasActivity() || !confirm(`現在の合計 ${totalScore()}点と入力内容をすべてリセットしますか？`)) return;
     state = makeInitialState();
     resetStopwatch();
     saveState();

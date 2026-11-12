@@ -6,6 +6,7 @@ import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./st
 import { APP_VERSION } from "./version";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isValidAccountId } from "./accountKey";
+import { hasScoreActivity } from "./scoreActivity";
 import {
   boardPoint,
   boardElementBounds,
@@ -197,6 +198,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.25", updatedAt: "2026.11.13", title: "採点リセットの誤操作を防止", description: "入力がない状態ではリセット操作を無効化し、リセット確認に現在の合計点を表示するようにしました。点数・時間・メモ・コート書き込み・動画を判定してJunior／Elementary共通で保護します。" },
   { version: "1.7.24", updatedAt: "2026.11.13", title: "採点の進み具合を一覧表示", description: "採点表のミッション移動バーに現在点／満点を表示し、得点済み・満点の項目を色で判別しながら目的のミッションへ移動できるようにしました。" },
   { version: "1.7.23", updatedAt: "2026.11.13", title: "公開前の品質検査を強化", description: "Pull Requestとmain更新の両方で、全テスト・型チェック・本番ビルドに合格しなければ公開されない品質ゲートを追加しました。" },
   { version: "1.7.22", updatedAt: "2026.11.13", title: "端末保存エラーから採点を保護", description: "端末の保存容量不足やストレージ制限が発生してもアプリ全体を停止させず、現在のタブで採点を続けられる退避処理を追加しました。" },
@@ -582,6 +584,7 @@ function scoringView() {
   const total = totalScore(state);
   const duplicates = duplicateArtifactColors(state);
   const scores = sectionScores(state);
+  const hasActivity = currentScoreHasActivity();
   return shell(`
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
     <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>${localStorage.isPersistent() ? "入力内容は端末に保存済み" : "入力内容はこのタブ内に一時保存"}</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
@@ -628,7 +631,7 @@ function scoringView() {
     </section>
     <div class="bottom-space"></div>
     <nav class="bottom-bar">
-      <button class="reset-button" data-action="reset">採点をリセット</button>
+      <button class="reset-button" data-action="reset" ${hasActivity ? "" : "disabled"} title="${hasActivity ? `現在の${total}点と入力内容をリセット` : "リセットする入力はありません"}">採点をリセット</button>
       <button class="primary" data-nav="result"><span>結果を見る</span><strong>合計得点 ${total} / ${MAX_SCORE}点</strong></button>
     </nav>
   `, { back: "score", title: "採点" });
@@ -726,6 +729,25 @@ function missionJumpView(items: [string, string, number?, number?][]) {
     const ariaLabel = hasScore ? ` aria-label="${label} ${current}/${maximum}点へ移動"` : "";
     return `<button type="button" class="${progressClass}" data-mission-jump="${id}"${ariaLabel}><span>${label}</span>${progress}</button>`;
   }).join("")}</nav>`;
+}
+
+function currentScoreHasActivity() {
+  return hasScoreActivity({
+    scores: [
+      ...state.visitors,
+      ...state.redTowers,
+      ...state.yellowTowers,
+      ...state.artifacts.map((artifact) => artifact.score),
+      ...state.dirt,
+      ...state.bonus,
+    ],
+    timeSeconds: state.timeSeconds,
+    text: state.notes,
+    hasExtra: state.board.elements.length > 0
+      || state.artifacts.some((artifact) => artifact.color !== "unused")
+      || currentStopwatchElapsed() > 0
+      || Boolean(selectedVideo),
+  });
 }
 
 function timePicker(value: number | null) {
@@ -2558,7 +2580,7 @@ function handleAction(action: string, element: HTMLElement) {
       render();
     }
   }
-  if (action === "reset" && confirm("入力した採点をすべてリセットしますか？")) { resetStopwatch(); discardVideoRecordingNow(); setSelectedVideo(null); videoSelectionError = ""; state = makeInitialState(); saveState(); render(); }
+  if (action === "reset" && currentScoreHasActivity() && confirm(`現在の合計 ${totalScore(state)}点と入力内容をすべてリセットしますか？`)) { resetStopwatch(); discardVideoRecordingNow(); setSelectedVideo(null); videoSelectionError = ""; state = makeInitialState(); saveState(); render(); }
   if (action === "new" && confirm("現在の採点を終了して、新しい採点を始めますか？")) { resetStopwatch(); discardVideoRecordingNow(); setSelectedVideo(null); videoSelectionError = ""; state = makeInitialState(); saveState(); location.hash = "#/score"; }
   if (action === "close-modal") { modal = null; render(); }
   if (action === "send-sheet") void sendToSheet();
