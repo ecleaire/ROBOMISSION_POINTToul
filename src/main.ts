@@ -196,6 +196,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.21", updatedAt: "2026.11.13", title: "採点表の移動を使いやすく改善", description: "長い採点表で目的のミッションへすぐ移動できる固定ナビゲーションを追加しました。スマホ・iPadでは横にスクロールでき、動きを減らす端末設定にも対応しています。" },
   { version: "1.7.19", updatedAt: "2026.08.03", title: "チェック解除を復旧", description: "JuniorとElementaryで、選択済みのチェックをもう一度押すと外れて0点に戻るようにしました。" },
   { version: "1.7.18", updatedAt: "2026.08.02", title: "採点UIをさらに共通化", description: "JuniorとElementaryで、採点表の満点行、競技時間、メモ欄、下部合計バーの流れを揃え、石畳の汚れプルダウンも押しやすくしました。" },
   { version: "1.7.17", updatedAt: "2026.08.02", title: "ストップウォッチ仕様を統一", description: "JuniorとElementaryで、スタート・停止・再開・終了・リセット・別画面中の継続表示を同じ仕様とUIに揃えました。" },
@@ -577,6 +578,10 @@ function scoringView() {
   return shell(`
     ${duplicates.length ? `<p class="warning sheet-warning">同じ色が重複しています：${duplicates.map(colorLabel).join("、")}</p>` : ""}
     <aside class="save-state-strip" aria-label="保存状況"><span class="${online ? "online" : "offline"}">${online ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>${pendingScoreSubmissions.length || pendingVideoUpload ? `未送信 ${pendingScoreSubmissions.length + (pendingVideoUpload ? 1 : 0)}件` : "送信待ちなし"}</span></aside>
+    ${missionJumpView([
+      ["visitors", "訪問者"], ["redTowers", "赤い塔"], ["yellowTowers", "黄色い塔"],
+      ["artifacts", "遺物"], ["dirt", "汚れ"], ["bonus", "ボーナス"], ["score-details", "時間・メモ"],
+    ])}
     <section class="score-sheet" aria-label="得点チェック表">
       <div class="score-sheet-title">WRO 2026 RoboMission Junior　得点チェック</div>
       ${stopwatchView()}
@@ -605,7 +610,7 @@ function scoringView() {
       ${sheetSubtotal(scores.bonus, 30)}
       <div class="sheet-row sheet-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
       <div class="sheet-row sheet-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
-      <div class="sheet-footer-tools">
+      <div class="sheet-footer-tools" id="score-details">
         ${timePicker(state.timeSeconds)}
         ${activeAccount ? `<section class="score-memo-card" aria-label="採点メモ">
           <label class="notes-card">メモ<textarea data-notes rows="2" maxlength="500" placeholder="ミスした部分や次回の注意点">${escapeHtml(state.notes)}</textarea></label>
@@ -703,7 +708,11 @@ function floatingStopwatchView(route: string) {
 }
 
 function sheetSection(id: string, title: string, action = "") {
-  return `<div class="sheet-section"><strong>${title}</strong><span>${action}<button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
+  return `<div class="sheet-section" id="mission-${id}"><strong>${title}</strong><span>${action}<button class="photo-button" data-photos="${id}" aria-label="${title}の判定写真を見る">▧ 写真</button></span></div>`;
+}
+
+function missionJumpView(items: [string, string][]) {
+  return `<nav class="mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label]) => `<button type="button" data-mission-jump="${id}">${label}</button>`).join("")}</nav>`;
 }
 
 function timePicker(value: number | null) {
@@ -2219,6 +2228,13 @@ function recordVideoModalView() {
 }
 
 function bindEvents() {
+  document.querySelectorAll<HTMLButtonElement>("[data-mission-jump]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const id = button.dataset.missionJump!;
+      const target = document.getElementById(id === "score-details" ? id : `mission-${id}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }),
+  );
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
     element.addEventListener("click", () => {
       const target = element.dataset.nav!;

@@ -328,6 +328,58 @@ body:has(.elementary-score-card) .elementary-main {
   color: #a05043;
 }
 
+.elementary-mission-jump {
+  position: sticky;
+  z-index: 35;
+  top: 0;
+  max-width: 1600px;
+  min-height: 50px;
+  margin: 0 auto 6px;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid #b9d5e7;
+  border-radius: 10px;
+  background: rgba(246, 251, 255, .96);
+  box-shadow: 0 5px 18px rgba(15, 72, 113, .12);
+  scrollbar-width: thin;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.elementary-mission-jump > strong {
+  position: sticky;
+  left: 0;
+  flex: 0 0 auto;
+  padding: 8px 9px;
+  color: #526d80;
+  background: #f6fbff;
+  font-size: .75rem;
+  font-weight: 950;
+}
+
+.elementary-mission-jump button {
+  min-width: max-content;
+  min-height: 38px;
+  flex: 1 0 auto;
+  padding: 6px 13px;
+  border: 1px solid #8fbfdd;
+  border-radius: 8px;
+  color: var(--blue-dark);
+  background: white;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.elementary-mission-jump button:hover,
+.elementary-mission-jump button:focus-visible {
+  border-color: var(--blue);
+  background: #e9f5fc;
+}
+
 .elementary-score-card {
   width: 100%;
   overflow: hidden;
@@ -856,6 +908,16 @@ body.camera-mode { position: fixed; inset: 0; touch-action: none; }
   gap: 6px;
   border-bottom: 1px solid #cbd8e3;
   background: #f7fbfe;
+}
+
+.elementary-section,
+#elementary-score-details {
+  scroll-margin-top: 62px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
 .elementary-section strong {

@@ -58,7 +58,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.21";
+const ELEMENTARY_VERSION = "0.4.22";
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
@@ -222,6 +222,9 @@ function scoreView() {
   const total = totalScore();
   return `
     <aside class="elementary-save-state-strip" aria-label="保存状況"><span class="${elementaryOnline ? "online" : "offline"}">${elementaryOnline ? "● オンライン" : "● オフライン"}</span><strong>入力内容は端末に保存済み</strong><span>送信待ちなし</span></aside>
+    ${elementaryMissionJumpView([
+      ["cables", "接続"], ["prepare", "準備"], ["notes", "演奏"], ["bonus", "ボーナス"], ["elementary-score-details", "時間・メモ"],
+    ])}
     <section class="elementary-score-card">
       <div class="elementary-title-bar">WRO 2026 RoboMission Elementary　得点チェック</div>
       ${stopwatchView()}
@@ -243,7 +246,7 @@ function scoreView() {
         ${subtotal(scores.bonus, 40)}
         <div class="elementary-row elementary-total"><strong>合計得点</strong><span></span><span></span><strong>${total}</strong><strong>${MAX_SCORE}</strong></div>
         <div class="elementary-row elementary-maximum"><strong>満点</strong><span></span><span></span><strong>${MAX_SCORE}</strong><strong>${MAX_SCORE}</strong></div>
-        <div class="elementary-sheet-footer-tools">
+        <div class="elementary-sheet-footer-tools" id="elementary-score-details">
           ${timePicker(state.timeSeconds)}
           ${account ? `<section class="elementary-memo-card" aria-label="採点メモ">
             <label class="elementary-notes-card">メモ<textarea data-memo rows="2" maxlength="800" placeholder="ミスした部分、練習で気づいたことなど">${escapeHtml(state.memo)}</textarea></label>
@@ -347,7 +350,11 @@ function cameraStopwatchContents() {
 }
 
 function sectionHeader(label: string, groupId: ElementaryJudgeGroupId) {
-  return `<div class="elementary-section"><strong>${label}</strong><button type="button" data-judge-modal="${groupId}">▧ 写真</button></div>`;
+  return `<div class="elementary-section" id="elementary-mission-${groupId}"><strong>${label}</strong><button type="button" data-judge-modal="${groupId}">▧ 写真</button></div>`;
+}
+
+function elementaryMissionJumpView(items: [string, string][]) {
+  return `<nav class="elementary-mission-jump" aria-label="採点表のミッションへ移動"><strong>移動</strong>${items.map(([id, label]) => `<button type="button" data-mission-jump="${id}">${label}</button>`).join("")}</nav>`;
 }
 
 function timePicker(value: number | null) {
@@ -687,6 +694,13 @@ function setScore(key: MissionRow["key"], index: number | undefined, value: Scor
 }
 
 function bindEvents() {
+  app.querySelectorAll<HTMLButtonElement>("[data-mission-jump]").forEach((button) =>
+    button.addEventListener("click", () => {
+      const id = button.dataset.missionJump!;
+      const target = document.getElementById(id === "elementary-score-details" ? id : `elementary-mission-${id}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }),
+  );
   app.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
     const nextMode = button.dataset.mode as Mode;
     if (location.hash !== `#/${nextMode}`) {
