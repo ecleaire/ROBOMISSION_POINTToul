@@ -4,7 +4,7 @@ import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
 import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, recordingProgressPercent, recordingRemainingMs, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
-import { boundedRecordingElapsedMs, canCommitCapturedMedia, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
+import { boundedRecordingElapsedMs, canCommitCapturedMedia, canUseResolvedCameraRequest, createCompatibleMediaRecorder, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera, shouldStopActiveRecording } from "./cameraLifecycle";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isManagementAccount, isValidAccountId } from "./accountKey";
 import { hasScoreActivity } from "./scoreActivity";
@@ -200,6 +200,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.36", updatedAt: "2026.11.14", title: "録画開始・停止と保存の多重実行を防止", description: "端末の動画形式が合わない場合も容量制限用のビットレートを維持するよう改善しました。録画開始失敗後の古い処理を破棄し、停止操作とElementaryの結果保存が重複しないようにしました。" },
   { version: "1.7.35", updatedAt: "2026.11.14", title: "3分録画と撮影エラー処理を安定化", description: "45MB以内で3分録画を完了しやすい画質設定へ調整しました。録画エラー時に不完全な動画を正常扱いしないよう修正し、閉じたメモ写真が後から追加される競合も防止しました。" },
   { version: "1.7.34", updatedAt: "2026.11.13", title: "カメラ準備・写真撮影・全画面解除を安定化", description: "カメラ準備中のキャンセルを追加し、メモ写真カメラを素早く開き直した際の競合を修正しました。録画停止後に遅れて全画面化が成功した場合も自動解除し、古いカメラ画面が残らないようにしました。" },
   { version: "1.7.33", updatedAt: "2026.11.13", title: "録画中の画面移動とカメラ待機を安定化", description: "カメラ許可待ち中のログアウトや画面移動後に録画が始まる競合を防止しました。録画・処理中は採点画面を維持し、保存前動画の離脱警告と画面復帰後のスリープ防止再取得も追加しました。" },
@@ -886,14 +887,7 @@ async function startCameraRecording() {
       if (videoRecordingStatus === "recording") stopCameraRecording();
     }, { once: true });
     const mimeType = supportedRecordingMimeType();
-    const options: MediaRecorderOptions = { videoBitsPerSecond: VIDEO_RECORDING_BITRATE };
-    if (mimeType) options.mimeType = mimeType;
-    let recorder: MediaRecorder;
-    try {
-      recorder = new MediaRecorder(cameraStream, options);
-    } catch {
-      recorder = new MediaRecorder(cameraStream, mimeType ? { mimeType } : undefined);
-    }
+    const recorder = createCompatibleMediaRecorder(cameraStream, mimeType, VIDEO_RECORDING_BITRATE);
     videoRecorder = recorder;
     videoChunks = [];
     videoRecordingBytes = 0;
@@ -922,6 +916,9 @@ async function startCameraRecording() {
     void requestScreenWakeLock();
   } catch (error) {
     if (!isCurrentMediaRequest(requestId, cameraRequestId)) return;
+    videoRecorder = null;
+    videoChunks = [];
+    videoRecordingBytes = 0;
     stopCameraStream();
     videoRecordingStatus = "idle";
     videoSelectionError = error instanceof DOMException && error.name === "NotAllowedError"
@@ -932,7 +929,7 @@ async function startCameraRecording() {
 }
 
 function stopCameraRecording() {
-  if (!videoRecorder || videoRecorder.state === "inactive") return;
+  if (!videoRecorder || !shouldStopActiveRecording(videoRecordingStatus, videoRecorder.state)) return;
   videoRecordingElapsedMs = boundedRecordingElapsedMs(videoRecordingStartedAt, videoRecordingElapsedMs, videoRecordingStatus, MAX_RECORDING_MS);
   videoRecordingStopwatchMs = currentStopwatchElapsed();
   exitCameraFullscreen();

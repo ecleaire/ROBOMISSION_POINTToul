@@ -61,3 +61,35 @@ export function recordingBitrateForByteLimit(
 export function canCommitCapturedMedia(requestId: number, currentRequestId: number, sourceConnected: boolean) {
   return sourceConnected && isCurrentMediaRequest(requestId, currentRequestId);
 }
+
+export function recordingOptionCandidates(mimeType: string, videoBitsPerSecond: number): MediaRecorderOptions[] {
+  const bitrate = Number.isFinite(videoBitsPerSecond) && videoBitsPerSecond > 0
+    ? Math.floor(videoBitsPerSecond)
+    : 0;
+  const candidates: MediaRecorderOptions[] = [];
+  if (mimeType && bitrate) candidates.push({ mimeType, videoBitsPerSecond: bitrate });
+  if (bitrate) candidates.push({ videoBitsPerSecond: bitrate });
+  if (mimeType) candidates.push({ mimeType });
+  candidates.push({});
+  return candidates;
+}
+
+export function createCompatibleMediaRecorder(
+  stream: MediaStream,
+  mimeType: string,
+  videoBitsPerSecond: number,
+) {
+  let lastError: unknown;
+  for (const options of recordingOptionCandidates(mimeType, videoBitsPerSecond)) {
+    try {
+      return new MediaRecorder(stream, options);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("MediaRecorderを作成できませんでした。");
+}
+
+export function shouldStopActiveRecording(status: CameraRecordingStatus, recorderState: RecordingState | null) {
+  return status === "recording" && recorderState === "recording";
+}

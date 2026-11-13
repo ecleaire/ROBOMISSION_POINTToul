@@ -3,12 +3,14 @@ import {
   boundedRecordingElapsedMs,
   canCommitCapturedMedia,
   canUseResolvedCameraRequest,
+  recordingOptionCandidates,
   hasUnsavedCameraWork,
   isCurrentMediaRequest,
   recordingBitrateForByteLimit,
   shouldBlockCameraNavigation,
   shouldExitLateFullscreen,
   shouldPreserveExpandedCamera,
+  shouldStopActiveRecording,
 } from "./cameraLifecycle";
 
 describe("camera lifecycle", () => {
@@ -103,5 +105,24 @@ describe("camera lifecycle", () => {
     [8, 8, false, false],
   ])("commits captured media only for a current connected source", (requestId, currentId, connected, expected) => {
     expect(canCommitCapturedMedia(requestId, currentId, connected)).toBe(expected);
+  });
+
+  it("keeps the byte-limit bitrate when the preferred mime type is unavailable", () => {
+    expect(recordingOptionCandidates("video/mp4", 1_887_436)).toEqual([
+      { mimeType: "video/mp4", videoBitsPerSecond: 1_887_436 },
+      { videoBitsPerSecond: 1_887_436 },
+      { mimeType: "video/mp4" },
+      {},
+    ]);
+  });
+
+  it.each([
+    ["recording", "recording", true],
+    ["processing", "recording", false],
+    ["starting", "recording", false],
+    ["recording", "inactive", false],
+    ["recording", null, false],
+  ] as const)("stops a recorder only once while actively recording", (status, recorderState, expected) => {
+    expect(shouldStopActiveRecording(status, recorderState)).toBe(expected);
   });
 });

@@ -5,7 +5,7 @@ import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
 import { isManagementAccount } from "./accountKey";
-import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
+import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, createCompatibleMediaRecorder, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera, shouldStopActiveRecording } from "./cameraLifecycle";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -63,7 +63,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.36";
+const ELEMENTARY_VERSION = "0.4.37";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -87,6 +87,7 @@ let adminMode = isManagementAccount(account?.account);
 let adminStatus = "";
 let managedAccounts: ManagedAccount[] = [];
 let saveStatus = "";
+let resultSaving = false;
 let judgeModal: ElementaryJudgeGroupId | null = null;
 let elementaryOnline = navigator.onLine;
 let stopwatch: { status: "idle" | "running" | "paused"; startedAt: number; elapsedMs: number } = {
@@ -693,7 +694,7 @@ function resultView() {
       ${account && state.memo ? `<p class="elementary-result-memo">${escapeHtml(state.memo)}</p>` : ""}
       ${recordedVideo ? `<p class="elementary-result-video">録画：${escapeHtml(recordedVideo.name)} / ${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB</p>` : ""}
       ${saveStatus ? `<p class="elementary-save-status">${escapeHtml(saveStatus)}</p>` : ""}
-      ${account ? `<button type="button" class="primary" data-action="save-result">このアカウントに保存</button>` : `<button type="button" class="primary" data-mode="login">ログインして保存する</button>`}
+      ${account ? `<button type="button" class="primary" data-action="save-result" ${resultSaving ? "disabled" : ""}>${resultSaving ? "保存中…" : "このアカウントに保存"}</button>` : `<button type="button" class="primary" data-mode="login">ログインして保存する</button>`}
       <button type="button" class="primary" data-mode="score">採点へ戻る</button>
     </div>
   </section>`;
@@ -1240,14 +1241,7 @@ async function startRecording() {
     videoRecordingBytes = 0;
     discardRecordedVideo = false;
     const mimeType = supportedRecordingMimeType();
-    const options: MediaRecorderOptions = { videoBitsPerSecond: VIDEO_RECORDING_BITRATE };
-    if (mimeType) options.mimeType = mimeType;
-    let recorder: MediaRecorder;
-    try {
-      recorder = new MediaRecorder(mediaStream, options);
-    } catch {
-      recorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
-    }
+    const recorder = createCompatibleMediaRecorder(mediaStream, mimeType, VIDEO_RECORDING_BITRATE);
     mediaRecorder = recorder;
     recorder.addEventListener("dataavailable", (event) => {
       if (!event.data.size) return;
@@ -1273,6 +1267,9 @@ async function startRecording() {
     void requestScreenWakeLock();
   } catch (error) {
     if (!isCurrentMediaRequest(requestId, cameraRequestId)) return;
+    mediaRecorder = null;
+    videoChunks = [];
+    videoRecordingBytes = 0;
     stopCameraStream();
     recordingStatus = "idle";
     saveStatus = error instanceof DOMException && error.name === "NotAllowedError"
@@ -1283,7 +1280,7 @@ async function startRecording() {
 }
 
 function stopRecording() {
-  if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+  if (!mediaRecorder || !shouldStopActiveRecording(recordingStatus, mediaRecorder.state)) return;
   recordingElapsedMs = boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS);
   recordingStopwatchMs = currentElapsedMs();
   exitCameraFullscreen();
@@ -1401,8 +1398,10 @@ async function releaseScreenWakeLock() {
 }
 
 async function saveResult() {
+  if (resultSaving) return;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !account) { mode = "login"; render(); return; }
+  resultSaving = true;
   saveStatus = "保存中…";
   render();
   try {
@@ -1435,6 +1434,8 @@ async function saveResult() {
     mode = "score";
   } catch (error) {
     saveStatus = `保存できませんでした。${error instanceof Error ? error.message : "通信エラー"}`;
+  } finally {
+    resultSaving = false;
   }
   render();
 }
