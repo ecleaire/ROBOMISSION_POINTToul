@@ -199,6 +199,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.33", updatedAt: "2026.11.13", title: "録画中の画面移動とカメラ待機を安定化", description: "カメラ許可待ち中のログアウトや画面移動後に録画が始まる競合を防止しました。録画・処理中は採点画面を維持し、保存前動画の離脱警告と画面復帰後のスリープ防止再取得も追加しました。" },
   { version: "1.7.32", updatedAt: "2026.11.13", title: "カメラ録画と競技時間表示を強化", description: "Junior／Elementaryの録画画面に3分上限までの残り時間と進行バー、残り30秒の警告を追加しました。撮影後の確認動画には録画時間と撮影終了時の競技ストップウォッチ時間を分けて表示します。" },
   { version: "1.7.31", updatedAt: "2026.11.13", title: "Elementaryの録画全画面と画面復帰を安定化", description: "録画画面内でストップウォッチを開始した際に二重の全画面モードが有効になる問題を修正しました。録画中・保存前動画がある状態での離脱警告と、管理終了後の画面遷移も追加しています。" },
   { version: "1.7.30", updatedAt: "2026.11.13", title: "rmamの管理権限を全機能で統一", description: "rmamでログインした場合も、管理画面、全アカウントの記録・メモ・動画・写真、保存先選択、アカウント管理、管理終了を管理者パスワードと同じ仕様で使えるよう修正しました。" },
@@ -313,6 +314,7 @@ let rulesFrameParking: HTMLDivElement | null = null;
 const rulesPdfCacheTasks = new Set<string>();
 let showAllAppUpdates = false;
 let cameraStream: MediaStream | null = null;
+let cameraRequestId = 0;
 let cameraPreviewPlaceholder: Comment | null = null;
 let videoRecorder: MediaRecorder | null = null;
 let videoChunks: Blob[] = [];
@@ -352,6 +354,13 @@ const artifactColors: { value: ArtifactColor; label: string }[] = [
 ];
 
 window.addEventListener("hashchange", () => {
+  const nextRoute = location.hash.replace(/^#\/?/, "") || "score";
+  if (videoRecordingStatus !== "idle" && nextRoute !== "score") {
+    videoSelectionError = "録画を停止して動画の処理が完了してから、別の画面へ移動してください。";
+    location.hash = "#/score";
+    render();
+    return;
+  }
   closeMemoPhotoCapture();
   window.scrollTo(0, 0);
   render();
@@ -361,6 +370,7 @@ window.addEventListener("hashchange", () => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
   if (!document.hidden) { void retryPendingSaves(); void checkStorageCapacity(); }
+  if (!document.hidden && videoRecordingStatus === "recording") void requestScreenWakeLock();
 });
 window.addEventListener("online", () => { online = true; systemNotice = "通信が戻りました。未送信データを再送します。"; render(); void retryPendingSaves(); });
 window.addEventListener("offline", () => { online = false; systemNotice = "オフラインです。採点は続けられ、未送信データは通信復帰後に再送します。"; render(); });
@@ -845,9 +855,10 @@ async function startCameraRecording() {
   setSelectedVideo(null);
   videoSelectionError = "";
   videoRecordingStatus = "starting";
+  const requestId = ++cameraRequestId;
   render();
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: "environment" },
         width: { ideal: 1920 },
@@ -856,6 +867,11 @@ async function startCameraRecording() {
       },
       audio: false,
     });
+    if (requestId !== cameraRequestId || videoRecordingStatus !== "starting") {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    cameraStream = stream;
     cameraStream.getVideoTracks()[0]?.addEventListener("ended", () => {
       if (videoRecordingStatus === "recording") stopCameraRecording();
     }, { once: true });
@@ -894,6 +910,7 @@ async function startCameraRecording() {
     enterCameraFullscreen(false);
     void requestScreenWakeLock();
   } catch (error) {
+    if (requestId !== cameraRequestId) return;
     stopCameraStream();
     videoRecordingStatus = "idle";
     videoSelectionError = error instanceof DOMException && error.name === "NotAllowedError"
@@ -949,6 +966,7 @@ function finalizeCameraRecording(mimeType: string) {
 }
 
 function discardVideoRecordingNow() {
+  cameraRequestId += 1;
   discardRecordedVideo = true;
   clearVideoRecordingTimers();
   if (videoRecorder && videoRecorder.state !== "inactive") {
@@ -969,8 +987,16 @@ function stopCameraStream() {
 
 async function requestScreenWakeLock() {
   try {
-    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
-    if (wakeLock && !screenWakeLock) screenWakeLock = await wakeLock.request("screen");
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: "screen") => Promise<{ release: () => Promise<void>; addEventListener?: (type: "release", listener: () => void, options?: { once?: boolean }) => void }> } }).wakeLock;
+    if (wakeLock && !screenWakeLock) {
+      const lock = await wakeLock.request("screen");
+      if (videoRecordingStatus !== "recording" || screenWakeLock) {
+        await lock.release();
+        return;
+      }
+      screenWakeLock = lock;
+      lock.addEventListener?.("release", () => { if (screenWakeLock === lock) screenWakeLock = null; }, { once: true });
+    }
   } catch { /* iOSなど非対応端末では通常動作を継続 */ }
 }
 
@@ -2313,12 +2339,12 @@ function bindEvents() {
   document.querySelectorAll<HTMLElement>("[data-nav]").forEach((element) =>
     element.addEventListener("click", () => {
       const target = element.dataset.nav!;
-      if (target === "rules") prepareRulesConnections();
-      if (target === "result" && videoRecordingStatus !== "idle") {
-        videoSelectionError = "録画を停止して動画の処理が完了してから、結果を開いてください。";
+      if (target !== "score" && videoRecordingStatus !== "idle") {
+        videoSelectionError = "録画を停止して動画の処理が完了してから、別の画面へ移動してください。";
         render();
         return;
       }
+      if (target === "rules") prepareRulesConnections();
       if ((target === "rules" || target === "links") && !adminModeUnlocked) {
         adminRevealPressCounts[target] += 1;
         if (adminRevealPressCounts[target] >= 10) {
@@ -3656,7 +3682,7 @@ function savePendingScoreSubmissions() {
 }
 
 function hasUnsavedTransfers() {
-  return sheetSending || videoRecordingStatus !== "idle" || Boolean(pendingVideoUpload) || pendingScoreSubmissions.length > 0;
+  return sheetSending || videoRecordingStatus !== "idle" || Boolean(selectedVideo) || Boolean(pendingVideoUpload) || pendingScoreSubmissions.length > 0;
 }
 
 async function checkStorageCapacity() {
