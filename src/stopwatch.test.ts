@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
 
 describe("stopwatch", () => {
   it("formats minutes, seconds and hundredths", () => {
@@ -9,6 +9,8 @@ describe("stopwatch", () => {
 
   it("converts the finished stopwatch value to competition seconds", () => {
     expect(secondsFromStopwatch(125_678)).toBe(125.67);
+    expect(millisecondsFromCompetitionSeconds(125.67)).toBe(125_670);
+    expect(millisecondsFromCompetitionSeconds(null)).toBe(0);
   });
 
   it("formats the independent camera recording time", () => {

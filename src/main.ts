@@ -2,7 +2,7 @@ import "./style.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
-import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isValidAccountId } from "./accountKey";
@@ -198,6 +198,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.27", updatedAt: "2026.11.13", title: "ログアウト時の時間・動画引継ぎを修正", description: "Junior版でログアウトやアカウント切替後に前利用者のストップウォッチ時間・選択動画が残る問題を修正しました。切替前の時間は元アカウントへ保存し、切替先の保存済み時間を正しく復元します。" },
   { version: "1.7.26", updatedAt: "2026.11.13", title: "Elementaryのアカウント間データ混在を修正", description: "Elementary版の採点・時間・メモをゲストと各アカウント別の端末保存へ分離しました。ログイン切替時に前の利用者の入力が残らず、それぞれの保存内容へ安全に切り替わります。" },
   { version: "1.7.25", updatedAt: "2026.11.13", title: "採点リセットの誤操作を防止", description: "入力がない状態ではリセット操作を無効化し、リセット確認に現在の合計点を表示するようにしました。点数・時間・メモ・コート書き込み・動画を判定してJunior／Elementary共通で保護します。" },
   { version: "1.7.24", updatedAt: "2026.11.13", title: "採点の進み具合を一覧表示", description: "採点表のミッション移動バーに現在点／満点を表示し、得点済み・満点の項目を色で判別しながら目的のミッションへ移動できるようにしました。" },
@@ -325,7 +326,7 @@ let systemNotice = "";
 if (!activeAccount) void clearRecordVideoCache();
 type StopwatchStatus = "idle" | "running" | "paused";
 let stopwatchStatus: StopwatchStatus = "idle";
-let stopwatchElapsedMs = 0;
+let stopwatchElapsedMs = millisecondsFromCompetitionSeconds(state.timeSeconds);
 let stopwatchStartedAt = 0;
 let stopwatchTimer: number | null = null;
 let stopwatchLaps: number[] = [];
@@ -2707,6 +2708,24 @@ function resetStopwatch() {
   if (result instanceof Promise) void result.catch(() => undefined);
 }
 
+function persistCurrentScoreContext() {
+  const elapsed = currentStopwatchElapsed();
+  if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
+  saveState();
+}
+
+function loadCurrentScoreContext() {
+  resetStopwatch();
+  state = loadState();
+  stopwatchElapsedMs = millisecondsFromCompetitionSeconds(state.timeSeconds);
+}
+
+function clearPrivateScoreMedia() {
+  discardVideoRecordingNow();
+  setSelectedVideo(null);
+  videoSelectionError = "";
+}
+
 function startStopwatchUpdates() {
   stopStopwatchUpdates();
   stopwatchTimer = window.setInterval(() => {
@@ -2873,6 +2892,9 @@ async function loginAccount(fromSwitch = false) {
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
     if (verifiedAccount === "ADMIN") {
+      const accountChanged = previousAccount !== "ADMIN";
+      if (accountChanged && previousAccount) persistCurrentScoreContext();
+      if (accountChanged) clearPrivateScoreMedia();
       if (activeAccount !== "ADMIN") void clearRecordVideoCache();
       if (remember) {
         localStorage.setItem(ACCOUNT_KEY, "ADMIN");
@@ -2898,7 +2920,12 @@ async function loginAccount(fromSwitch = false) {
       freeMemoStatus = "";
       recordsStatus = "";
       resetRecordFilters();
-      if (previousAccount) resetStopwatch();
+      if (accountChanged && previousAccount) loadCurrentScoreContext();
+      else if (!previousAccount) {
+        const elapsed = currentStopwatchElapsed();
+        if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
+        saveState();
+      }
       const routeChanged = location.hash !== "#/admin";
       location.hash = "#/admin";
       render();
@@ -2907,7 +2934,10 @@ async function loginAccount(fromSwitch = false) {
       if (!routeChanged) { void loadRecords(); void loadManagedAccounts(); }
       return;
     }
-    if (activeAccount !== verifiedAccount) void clearRecordVideoCache();
+    const accountChanged = previousAccount !== verifiedAccount;
+    if (accountChanged && previousAccount) persistCurrentScoreContext();
+    if (accountChanged) clearPrivateScoreMedia();
+    if (accountChanged) void clearRecordVideoCache();
     activeAccount = verifiedAccount;
     activeApiKey = key;
     activeAccountName = typeof result.accountName === "string" ? result.accountName.slice(0, 50) : "";
@@ -2928,10 +2958,11 @@ async function loginAccount(fromSwitch = false) {
     newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "";
     recordsStatus = "";
-    if (previousAccount) {
-      resetStopwatch();
-      state = loadState();
+    if (accountChanged && previousAccount) {
+      loadCurrentScoreContext();
     } else {
+      const elapsed = currentStopwatchElapsed();
+      if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
       saveState();
     }
     location.hash = "#/score";
@@ -2982,6 +3013,8 @@ async function loginAdmin() {
 
 function logoutAdmin() {
   void clearRecordVideoCache();
+  persistCurrentScoreContext();
+  clearPrivateScoreMedia();
   const storedAccount = loadAccount();
   if (storedAccount === "ADMIN") {
     localStorage.removeItem(ACCOUNT_KEY);
@@ -3003,7 +3036,7 @@ function logoutAdmin() {
   recordsStatus = "";
   adminError = "";
   resetRecordFilters();
-  state = loadState();
+  loadCurrentScoreContext();
   location.hash = "#/score";
   render();
   if (activeAccount && activeApiKey) void refreshAccountIdentity();
@@ -3040,6 +3073,8 @@ async function loadManagedAccounts(shouldRender = true) {
 
 function logoutAccount() {
   void clearRecordVideoCache();
+  persistCurrentScoreContext();
+  clearPrivateScoreMedia();
   localStorage.removeItem(ACCOUNT_KEY);
   localStorage.removeItem(API_KEY_KEY);
   activeAccount = null;
@@ -3054,7 +3089,7 @@ function logoutAccount() {
   freeMemoStatus = "";
   recordsStatus = "";
   resetRecordFilters();
-  state = loadState();
+  loadCurrentScoreContext();
   location.hash = "#/score";
   render();
 }

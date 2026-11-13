@@ -1,6 +1,6 @@
 import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
-import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey } from "./accountScopedStorage";
@@ -61,7 +61,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.27";
+const ELEMENTARY_VERSION = "0.4.28";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -90,7 +90,7 @@ let elementaryOnline = navigator.onLine;
 let stopwatch: { status: "idle" | "running" | "paused"; startedAt: number; elapsedMs: number } = {
   status: "idle",
   startedAt: 0,
-  elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000),
+  elapsedMs: millisecondsFromCompetitionSeconds(state.timeSeconds),
 };
 let timerId = 0;
 let stopwatchLaps: number[] = [];
@@ -995,7 +995,7 @@ function saveState() {
 
 function switchScoreContext(accountId?: string | null) {
   state = loadState(accountId);
-  stopwatch = { status: "idle", startedAt: 0, elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000) };
+  stopwatch = { status: "idle", startedAt: 0, elapsedMs: millisecondsFromCompetitionSeconds(state.timeSeconds) };
   stopwatchLaps = [];
   window.clearInterval(timerId);
   exitStopwatchFullscreen();
