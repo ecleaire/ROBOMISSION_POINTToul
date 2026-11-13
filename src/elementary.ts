@@ -1,6 +1,6 @@
 import "./elementary.css";
 import { DEFAULT_GAS_WEB_APP_URL } from "./config";
-import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
+import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, recordingProgressPercent, recordingRemainingMs, secondsFromStopwatch } from "./stopwatch";
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
@@ -62,7 +62,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.32";
+const ELEMENTARY_VERSION = "0.4.33";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -103,9 +103,12 @@ let videoChunks: Blob[] = [];
 let videoRecordingBytes = 0;
 let recordedVideo: File | null = null;
 let recordedVideoPreviewUrl = "";
+let recordedVideoDurationMs: number | null = null;
+let recordedVideoStopwatchMs: number | null = null;
 let recordingStatus: "idle" | "starting" | "recording" | "processing" = "idle";
 let recordingStartedAt = 0;
 let recordingElapsedMs = 0;
+let recordingStopwatchMs = 0;
 let recordingTimer: number | null = null;
 let recordingLimitTimer: number | null = null;
 let discardRecordedVideo = false;
@@ -332,8 +335,11 @@ function videoRecorderView() {
     </div>
     ${recordedVideo && recordedVideoPreviewUrl ? `<div class="selected-video">
       <div class="selected-video-head"><span><strong>保存前の動画を確認</strong>${escapeHtml(recordedVideo.name)}（${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB）</span><button type="button" data-recording="clear">取り消す</button></div>
-      <video src="${recordedVideoPreviewUrl}" controls playsinline preload="metadata"></video>
-      <small>再生ボタンを押して、撮影内容を確認してから保存できます。</small>
+      <div class="selected-video-player">
+        ${recordedVideoDurationMs !== null || recordedVideoStopwatchMs !== null ? `<span class="selected-video-timing">録画 ${formatRecordingTime(recordedVideoDurationMs ?? 0)}<strong>競技 ${formatStopwatch(recordedVideoStopwatchMs ?? 0)}</strong></span>` : ""}
+        <video src="${recordedVideoPreviewUrl}" controls playsinline preload="metadata"></video>
+      </div>
+      <small>${recordedVideoDurationMs !== null || recordedVideoStopwatchMs !== null ? "録画時間と競技時間は別々に計測されています。" : "再生ボタンを押して、撮影内容を確認してから保存できます。"}</small>
     </div>` : ""}
   </section>`;
 }
@@ -349,7 +355,9 @@ function cameraStopwatchContents() {
   return `<div class="camera-stopwatch-head">
       <span class="camera-stopwatch-label">競技ストップウォッチ</span>
       <span class="camera-recording-clock">● 録画時間 <strong data-recording-time>${currentRecordingTime()}</strong></span>
+      <span class="camera-recording-remaining">残り <strong data-recording-remaining>${formatRecordingTime(recordingRemainingMs(recordingElapsedMs, MAX_RECORDING_MS))}</strong></span>
     </div>
+    <div class="camera-recording-progress" aria-hidden="true"><span data-recording-progress style="width:${recordingProgressPercent(recordingElapsedMs, MAX_RECORDING_MS)}%"></span></div>
     <strong data-camera-stopwatch-display aria-label="競技時間 ${formatStopwatch(currentElapsedMs())}">${formatStopwatch(currentElapsedMs())}</strong>
     <small class="camera-stopwatch-state">${stopwatchState}・録画時間とは別に計測</small>
     <div class="camera-stopwatch-controls">${controls}</div>
@@ -1168,10 +1176,12 @@ function supportedRecordingMimeType() {
   ].find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
-function setRecordedVideo(file: File | null) {
+function setRecordedVideo(file: File | null, timing?: { recordingMs: number; stopwatchMs: number }) {
   if (recordedVideoPreviewUrl) URL.revokeObjectURL(recordedVideoPreviewUrl);
   recordedVideo = file;
   recordedVideoPreviewUrl = file ? URL.createObjectURL(file) : "";
+  recordedVideoDurationMs = file && timing ? timing.recordingMs : null;
+  recordedVideoStopwatchMs = file && timing ? timing.stopwatchMs : null;
 }
 
 async function startRecording() {
@@ -1226,6 +1236,7 @@ async function startRecording() {
     recorder.start(1000);
     recordingStartedAt = Date.now();
     recordingElapsedMs = 0;
+    recordingStopwatchMs = currentElapsedMs();
     recordingStatus = "recording";
     recordingTimer = window.setInterval(updateRecordingTime, 250);
     recordingLimitTimer = window.setTimeout(stopRecording, MAX_RECORDING_MS);
@@ -1244,6 +1255,8 @@ async function startRecording() {
 
 function stopRecording() {
   if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+  recordingElapsedMs = Math.min(MAX_RECORDING_MS, Math.max(recordingElapsedMs, Date.now() - recordingStartedAt));
+  recordingStopwatchMs = currentElapsedMs();
   exitCameraFullscreen();
   recordingStatus = "processing";
   clearRecordingTimers();
@@ -1268,6 +1281,10 @@ function finalizeRecording(mimeType: string) {
   const chunks = videoChunks;
   videoChunks = [];
   const shouldDiscard = discardRecordedVideo;
+  if (!shouldDiscard && recordingStatus === "recording") {
+    recordingElapsedMs = Math.min(MAX_RECORDING_MS, Math.max(recordingElapsedMs, Date.now() - recordingStartedAt));
+    recordingStopwatchMs = currentElapsedMs();
+  }
   discardRecordedVideo = false;
   mediaRecorder = null;
   clearRecordingTimers();
@@ -1284,7 +1301,10 @@ function finalizeRecording(mimeType: string) {
     } else {
       const extension = type.includes("mp4") ? "mp4" : "webm";
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-      setRecordedVideo(new File([blob], `robomission_elementary_${stamp}.${extension}`, { type }));
+      setRecordedVideo(new File([blob], `robomission_elementary_${stamp}.${extension}`, { type }), {
+        recordingMs: recordingElapsedMs,
+        stopwatchMs: recordingStopwatchMs,
+      });
       saveStatus = "";
     }
   }
@@ -1307,14 +1327,22 @@ function clearRecordingTimers() {
 
 function updateRecordingTime() {
   if (recordingStatus !== "recording") return;
-  recordingElapsedMs = Date.now() - recordingStartedAt;
+  recordingElapsedMs = Math.min(MAX_RECORDING_MS, Date.now() - recordingStartedAt);
   document.querySelectorAll<HTMLElement>("[data-recording-time]").forEach((label) => {
     label.textContent = currentRecordingTime();
   });
+  const remaining = recordingRemainingMs(recordingElapsedMs, MAX_RECORDING_MS);
+  document.querySelectorAll<HTMLElement>("[data-recording-remaining]").forEach((label) => {
+    label.textContent = formatRecordingTime(remaining);
+  });
+  document.querySelectorAll<HTMLElement>("[data-recording-progress]").forEach((bar) => {
+    bar.style.width = `${recordingProgressPercent(recordingElapsedMs, MAX_RECORDING_MS)}%`;
+  });
+  document.querySelector(".camera-preview-wrap")?.classList.toggle("recording-near-limit", remaining <= 30_000);
 }
 
 function currentRecordingTime() {
-  return formatRecordingTime(recordingStatus === "recording" ? Date.now() - recordingStartedAt : 0);
+  return formatRecordingTime(recordingStatus === "recording" ? Date.now() - recordingStartedAt : recordingElapsedMs);
 }
 
 async function requestScreenWakeLock() {

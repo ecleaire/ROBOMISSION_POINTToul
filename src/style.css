@@ -103,6 +103,10 @@ input, select { width: 100%; min-height: 46px; margin-top: 6px; padding: 10px 12
 .selected-video button { min-height: 38px; flex: 0 0 auto; padding: 6px 10px; border: 1px solid #d8a49d; border-radius: 7px; color: #91483d; background: #fff5f3; font-weight: 800; }
 .selected-video video { width: 100%; max-height: min(52vh, 540px); border-radius: 8px; background: black; }
 .selected-video > small { color: #52677a; font-size: .72rem; font-weight: 700; }
+.selected-video-player { position: relative; overflow: hidden; border-radius: 8px; background: black; }
+.selected-video-player video { display: block; }
+.selected-video-timing { position: absolute; z-index: 2; top: 10px; right: 10px; padding: 7px 10px; display: grid; gap: 2px; border: 1px solid rgba(255,255,255,.55); border-radius: 10px; color: rgba(255,255,255,.78) !important; background: rgba(0,0,0,.68); font-size: .72rem !important; font-variant-numeric: tabular-nums; pointer-events: none; }
+.selected-video-timing strong { margin: 0 !important; color: white !important; font-size: 1rem !important; }
 .video-error { grid-column: 1 / -1; margin: 0; color: #934f00; font-weight: 800; }
 .sheet-warning { margin: 0 0 8px; }
 .score-sheet { --sheet-columns: 30% 21% 21% 15% 13%; width: 100%; overflow: hidden; border: 1px solid #9fb7cb; border-radius: 4px; background: white; box-shadow: none; font-size: 1.08rem; }
@@ -163,6 +167,13 @@ body.camera-mode { position: fixed; inset: 0; touch-action: none; }
 .camera-stopwatch-label { font-size: clamp(.8rem, 2.2vw, 1.1rem); font-weight: 900; letter-spacing: .12em; }
 .camera-recording-clock { padding: 5px 9px; border: 1px solid rgba(255,125,116,.66); border-radius: 999px; color: #ffd7d4; background: rgba(139,20,20,.62); font-size: clamp(.72rem, 1.8vw, .9rem); font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .camera-recording-clock strong { margin-left: 4px; color: white; font: inherit; }
+.camera-recording-remaining { padding: 5px 9px; border: 1px solid rgba(255,255,255,.42); border-radius: 999px; color: rgba(255,255,255,.78); background: rgba(0,0,0,.42); font-size: clamp(.72rem, 1.8vw, .9rem); font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.camera-recording-remaining strong { margin-left: 4px; color: white; font: inherit; }
+.camera-recording-progress { width: min(440px, 88%); height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.22); }
+.camera-recording-progress span { display: block; height: 100%; border-radius: inherit; background: #ff675f; transition: width .2s linear, background .2s ease; }
+.camera-preview-wrap.recording-near-limit .camera-recording-remaining { color: #fff; border-color: #ff9a94; background: rgba(177,21,15,.82); animation: recording-warning-pulse 1s ease-in-out infinite; }
+.camera-preview-wrap.recording-near-limit .camera-recording-progress span { background: #ffcf4b; }
+@keyframes recording-warning-pulse { 50% { transform: scale(1.04); } }
 .camera-stopwatch-overlay > strong { font: 300 clamp(3.2rem, 13vw, 8.5rem)/1 ui-monospace, "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.07em; text-shadow: 0 3px 14px #000; white-space: nowrap; }
 .camera-stopwatch-state { margin-top: -3px; color: rgba(255,255,255,.82); font-size: clamp(.68rem, 1.8vw, .88rem); font-weight: 800; }
 .camera-stopwatch-controls { width: min(420px, 100%); display: flex; justify-content: space-between; gap: 20px; }
