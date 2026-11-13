@@ -5,7 +5,7 @@ import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
 import { isManagementAccount } from "./accountKey";
-import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
+import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -63,12 +63,12 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.35";
+const ELEMENTARY_VERSION = "0.4.36";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
-const VIDEO_RECORDING_BITRATE = 2_500_000;
+const VIDEO_RECORDING_BITRATE = recordingBitrateForByteLimit(MAX_VIDEO_BYTES, MAX_RECORDING_MS);
 const STORAGE_KEY = "robomission-elementary-score-v1";
 const ACCOUNT_KEY = "robomission-elementary-account-v1";
 const COURSE_IMAGE = `${import.meta.env.BASE_URL}assets/elementary/memo/elementary-course.webp`;
@@ -108,6 +108,7 @@ let recordedVideoPreviewUrl = "";
 let recordedVideoDurationMs: number | null = null;
 let recordedVideoStopwatchMs: number | null = null;
 let recordingStatus: "idle" | "starting" | "recording" | "processing" = "idle";
+let recordingFailure = "";
 let recordingStartedAt = 0;
 let recordingElapsedMs = 0;
 let recordingStopwatchMs = 0;
@@ -1214,6 +1215,7 @@ async function startRecording() {
   setRecordedVideo(null);
   saveStatus = "";
   recordingStatus = "starting";
+  recordingFailure = "";
   const requestId = ++cameraRequestId;
   render();
   try {
@@ -1254,7 +1256,8 @@ async function startRecording() {
       if (videoRecordingBytes >= MAX_VIDEO_BYTES * 0.96 && recorder.state === "recording") stopRecording();
     });
     recorder.addEventListener("error", () => {
-      saveStatus = "録画中にエラーが発生しました。";
+      recordingFailure = "録画中にエラーが発生しました。もう一度撮影してください。";
+      saveStatus = recordingFailure;
       if (recorder.state !== "inactive") recorder.stop();
     });
     recorder.addEventListener("stop", () => finalizeRecording(recorder.mimeType));
@@ -1308,6 +1311,8 @@ function finalizeRecording(mimeType: string) {
   const chunks = videoChunks;
   videoChunks = [];
   const shouldDiscard = discardRecordedVideo;
+  const failureMessage = recordingFailure;
+  recordingFailure = "";
   if (!shouldDiscard && recordingStatus === "recording") {
     recordingElapsedMs = boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS);
     recordingStopwatchMs = currentElapsedMs();
@@ -1318,7 +1323,9 @@ function finalizeRecording(mimeType: string) {
   stopCameraStream();
   recordingStatus = "idle";
   void releaseScreenWakeLock();
-  if (!shouldDiscard) {
+  if (!shouldDiscard && failureMessage) {
+    saveStatus = failureMessage;
+  } else if (!shouldDiscard) {
     const type = mimeType || chunks[0]?.type || "video/webm";
     const blob = new Blob(chunks, { type });
     if (!blob.size) {

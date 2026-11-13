@@ -4,7 +4,7 @@ import { isAppleTouchDevice } from "./device";
 import { judgingGroups } from "./judging";
 import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, recordingProgressPercent, recordingRemainingMs, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
-import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
+import { boundedRecordingElapsedMs, canCommitCapturedMedia, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isManagementAccount, isValidAccountId } from "./accountKey";
 import { hasScoreActivity } from "./scoreActivity";
@@ -182,7 +182,7 @@ const ACCOUNT_STORAGE_MIGRATION_KEY = "robomission-account-storage-version";
 const ACCOUNT_STORAGE_VERSION = "2026-07-15-optional-save-v1";
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
 const MAX_RECORDING_MS = 3 * 60 * 1000;
-const VIDEO_RECORDING_BITRATE = 2_500_000;
+const VIDEO_RECORDING_BITRATE = recordingBitrateForByteLimit(MAX_VIDEO_BYTES, MAX_RECORDING_MS);
 const RECORD_VIDEO_CACHE_NAME = "robomission-record-videos-v1";
 const PENDING_VIDEO_CACHE_NAME = "robomission-pending-video-v1";
 const PENDING_SCORE_KEY = "robomission-pending-scores-v1";
@@ -200,6 +200,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.35", updatedAt: "2026.11.14", title: "3分録画と撮影エラー処理を安定化", description: "45MB以内で3分録画を完了しやすい画質設定へ調整しました。録画エラー時に不完全な動画を正常扱いしないよう修正し、閉じたメモ写真が後から追加される競合も防止しました。" },
   { version: "1.7.34", updatedAt: "2026.11.13", title: "カメラ準備・写真撮影・全画面解除を安定化", description: "カメラ準備中のキャンセルを追加し、メモ写真カメラを素早く開き直した際の競合を修正しました。録画停止後に遅れて全画面化が成功した場合も自動解除し、古いカメラ画面が残らないようにしました。" },
   { version: "1.7.33", updatedAt: "2026.11.13", title: "録画中の画面移動とカメラ待機を安定化", description: "カメラ許可待ち中のログアウトや画面移動後に録画が始まる競合を防止しました。録画・処理中は採点画面を維持し、保存前動画の離脱警告と画面復帰後のスリープ防止再取得も追加しました。" },
   { version: "1.7.32", updatedAt: "2026.11.13", title: "カメラ録画と競技時間表示を強化", description: "Junior／Elementaryの録画画面に3分上限までの残り時間と進行バー、残り30秒の警告を追加しました。撮影後の確認動画には録画時間と撮影終了時の競技ストップウォッチ時間を分けて表示します。" },
@@ -326,6 +327,7 @@ let videoRecordingStartedAt = 0;
 let videoRecordingElapsedMs = 0;
 let videoRecordingStopwatchMs = 0;
 let videoRecordingStatus: "idle" | "starting" | "recording" | "processing" = "idle";
+let videoRecordingFailure = "";
 let videoRecordingTimer: number | null = null;
 let videoRecordingLimitTimer: number | null = null;
 let discardRecordedVideo = false;
@@ -862,6 +864,7 @@ async function startCameraRecording() {
   setSelectedVideo(null);
   videoSelectionError = "";
   videoRecordingStatus = "starting";
+  videoRecordingFailure = "";
   const requestId = ++cameraRequestId;
   render();
   try {
@@ -902,7 +905,8 @@ async function startCameraRecording() {
       if (videoRecordingBytes >= MAX_VIDEO_BYTES * 0.96 && recorder.state === "recording") stopCameraRecording();
     });
     recorder.addEventListener("error", () => {
-      videoSelectionError = "録画中にエラーが発生しました。";
+      videoRecordingFailure = "録画中にエラーが発生しました。もう一度撮影してください。";
+      videoSelectionError = videoRecordingFailure;
       if (recorder.state !== "inactive") recorder.stop();
     });
     recorder.addEventListener("stop", () => finalizeCameraRecording(recorder.mimeType));
@@ -942,6 +946,8 @@ function finalizeCameraRecording(mimeType: string) {
   const chunks = videoChunks;
   videoChunks = [];
   const shouldDiscard = discardRecordedVideo;
+  const failureMessage = videoRecordingFailure;
+  videoRecordingFailure = "";
   if (!shouldDiscard && videoRecordingStatus === "recording") {
     videoRecordingElapsedMs = boundedRecordingElapsedMs(videoRecordingStartedAt, videoRecordingElapsedMs, videoRecordingStatus, MAX_RECORDING_MS);
     videoRecordingStopwatchMs = currentStopwatchElapsed();
@@ -952,7 +958,9 @@ function finalizeCameraRecording(mimeType: string) {
   stopCameraStream();
   videoRecordingStatus = "idle";
   void releaseScreenWakeLock();
-  if (!shouldDiscard) {
+  if (!shouldDiscard && failureMessage) {
+    videoSelectionError = failureMessage;
+  } else if (!shouldDiscard) {
     const type = mimeType || chunks[0]?.type || "video/webm";
     const blob = new Blob(chunks, { type });
     if (!blob.size) {
@@ -1497,14 +1505,26 @@ async function captureMemoPhoto(video: HTMLVideoElement, target: ReturnType<type
   const shutter = document.querySelector<HTMLButtonElement>("[data-memo-photo-shutter]");
   if (shutter?.disabled) return;
   if (shutter) shutter.disabled = true;
+  const requestId = photoCaptureRequestId;
   const scale = Math.min(1, 1600 / Math.max(video.videoWidth, video.videoHeight));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
   canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
   canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", .84));
+  if (!canCommitCapturedMedia(requestId, photoCaptureRequestId, video.isConnected)) return;
   if (!blob) { if (shutter) shutter.disabled = false; return; }
-  const image = await blobToStoredImage(blob, `memo-${Date.now()}.jpg`);
+  let image: StoredImage;
+  try {
+    image = await blobToStoredImage(blob, `memo-${Date.now()}.jpg`);
+  } catch {
+    if (canCommitCapturedMedia(requestId, photoCaptureRequestId, video.isConnected)) {
+      freeMemoStatus = "写真を変換できませんでした。もう一度撮影してください。";
+      if (shutter) shutter.disabled = false;
+    }
+    return;
+  }
+  if (!canCommitCapturedMedia(requestId, photoCaptureRequestId, video.isConnected)) return;
   const id = `new-${crypto.randomUUID?.() || Date.now()}`;
   target.photos.push({ id, board: emptyCourtBoard(), image });
   closeMemoPhotoCapture();

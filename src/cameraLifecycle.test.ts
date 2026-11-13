@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   boundedRecordingElapsedMs,
+  canCommitCapturedMedia,
   canUseResolvedCameraRequest,
   hasUnsavedCameraWork,
   isCurrentMediaRequest,
+  recordingBitrateForByteLimit,
   shouldBlockCameraNavigation,
   shouldExitLateFullscreen,
   shouldPreserveExpandedCamera,
@@ -83,5 +85,23 @@ describe("camera lifecycle", () => {
 
   it("returns zero for an invalid recording limit", () => {
     expect(boundedRecordingElapsedMs(0, 20_000, "recording", 0, 30_000)).toBe(0);
+  });
+
+  it.each([
+    [45 * 1024 * 1024, 180_000, 0.9, 1_887_436],
+    [45 * 1024 * 1024, 180_000, 1, 2_097_152],
+    [0, 180_000, 0.9, 0],
+    [45 * 1024 * 1024, 0, 0.9, 0],
+    [45 * 1024 * 1024, 180_000, 1.1, 0],
+  ])("calculates a recording bitrate within the byte limit", (bytes, duration, reserve, expected) => {
+    expect(recordingBitrateForByteLimit(bytes, duration, reserve)).toBe(expected);
+  });
+
+  it.each([
+    [8, 8, true, true],
+    [8, 9, true, false],
+    [8, 8, false, false],
+  ])("commits captured media only for a current connected source", (requestId, currentId, connected, expected) => {
+    expect(canCommitCapturedMedia(requestId, currentId, connected)).toBe(expected);
   });
 });

@@ -46,3 +46,18 @@ export function boundedRecordingElapsedMs(
     : 0;
   return Math.min(maximumMs, Math.max(stored, live));
 }
+
+export function recordingBitrateForByteLimit(
+  maximumBytes: number,
+  durationMs: number,
+  reserveRatio = 0.9,
+) {
+  if (!Number.isFinite(maximumBytes) || maximumBytes <= 0) return 0;
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return 0;
+  if (!Number.isFinite(reserveRatio) || reserveRatio <= 0 || reserveRatio > 1) return 0;
+  return Math.floor((maximumBytes * 8 * reserveRatio * 1000) / durationMs);
+}
+
+export function canCommitCapturedMedia(requestId: number, currentRequestId: number, sourceConnected: boolean) {
+  return sourceConnected && isCurrentMediaRequest(requestId, currentRequestId);
+}
