@@ -199,6 +199,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.31", updatedAt: "2026.11.13", title: "Elementaryの録画全画面と画面復帰を安定化", description: "録画画面内でストップウォッチを開始した際に二重の全画面モードが有効になる問題を修正しました。録画中・保存前動画がある状態での離脱警告と、管理終了後の画面遷移も追加しています。" },
   { version: "1.7.30", updatedAt: "2026.11.13", title: "rmamの管理権限を全機能で統一", description: "rmamでログインした場合も、管理画面、全アカウントの記録・メモ・動画・写真、保存先選択、アカウント管理、管理終了を管理者パスワードと同じ仕様で使えるよう修正しました。" },
   { version: "1.7.29", updatedAt: "2026.11.13", title: "管理ログイン時の採点・動画混在を修正", description: "隠し管理ログインから管理画面へ入る場合も、切替前アカウントの時間を保存し、動画を破棄して管理アカウントの採点へ切り替えるよう修正しました。ゲスト採点がある場合だけ安全に引き継ぎます。" },
   { version: "1.7.28", updatedAt: "2026.11.13", title: "ゲスト採点からログインする際の消失を防止", description: "未ログインで入力した採点はログイン後も引き継ぎ、ゲスト側が空の場合はログイン先アカウントの保存途中データを復元するようにしました。Junior／Elementaryで同じ切替仕様に統一しています。" },

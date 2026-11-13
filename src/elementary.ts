@@ -62,7 +62,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.31";
+const ELEMENTARY_VERSION = "0.4.32";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -767,7 +767,9 @@ function bindEvents() {
     saveState();
     render();
   });
-  app.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) => button.addEventListener("click", () => timerAction(button.dataset.timer!)));
+  app.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) => button.addEventListener("click", () => {
+    timerAction(button.dataset.timer!, !button.closest(".camera-preview-wrap"));
+  }));
   app.querySelectorAll<HTMLButtonElement>("[data-recording]").forEach((button) => button.addEventListener("click", () => void recordingAction(button.dataset.recording!)));
   app.querySelector<HTMLButtonElement>('[data-action="login"]')?.addEventListener("click", () => void login());
   app.querySelector<HTMLInputElement>("#elementary-api-key")?.addEventListener("keydown", (event) => { if (event.key === "Enter") void login(); });
@@ -793,7 +795,7 @@ function updateTime() {
   saveState();
 }
 
-function timerAction(action: string) {
+function timerAction(action: string, expandOnStart = true) {
   if (action === "start") {
     const hasStopwatchView = Boolean(app.querySelector(".elementary-stopwatch"));
     if (stopwatch.status === "idle") {
@@ -803,7 +805,7 @@ function timerAction(action: string) {
     stopwatch.status = "running";
     stopwatch.startedAt = Date.now();
     refreshStopwatch();
-    enterStopwatchFullscreen();
+    if (expandOnStart) enterStopwatchFullscreen();
     if (!hasStopwatchView) render();
     startTicker();
     return;
@@ -886,7 +888,7 @@ function refreshStopwatch() {
   if (cameraStopwatch) {
     cameraStopwatch.innerHTML = cameraStopwatchContents();
     cameraStopwatch.querySelectorAll<HTMLButtonElement>("[data-timer]").forEach((button) =>
-      button.addEventListener("click", () => timerAction(button.dataset.timer!)),
+      button.addEventListener("click", () => timerAction(button.dataset.timer!, false)),
     );
   }
 }
@@ -1079,6 +1081,7 @@ function logout() {
   switchScoreContext(null);
   saveStatus = "";
   mode = "score";
+  if (location.hash !== "#/score") location.hash = "#/score";
   render();
 }
 
@@ -1442,6 +1445,11 @@ window.addEventListener("orientationchange", () => window.setTimeout(() => {
 }, 180));
 window.addEventListener("online", () => { elementaryOnline = true; render(); });
 window.addEventListener("offline", () => { elementaryOnline = false; render(); });
+window.addEventListener("beforeunload", (event) => {
+  if (recordingStatus === "idle" && !recordedVideo && saveStatus !== "保存中…") return;
+  event.preventDefault();
+  event.returnValue = "保存されていない録画があります。";
+});
 window.addEventListener("hashchange", () => {
   mode = modeFromHash();
   if (mode !== "admin") judgeModal = null;
