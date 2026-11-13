@@ -3,7 +3,7 @@ import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
-import { accountScopedStorageKey } from "./accountScopedStorage";
+import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -61,7 +61,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.28";
+const ELEMENTARY_VERSION = "0.4.29";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -993,6 +993,20 @@ function saveState() {
   localStorage.setItem(scoreStorageKey(), JSON.stringify(state));
 }
 
+function persistCurrentScoreContext() {
+  const elapsed = currentElapsedMs();
+  if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
+  saveState();
+}
+
+function keepCurrentScoreForAccount() {
+  stopwatch = { status: "idle", startedAt: 0, elapsedMs: millisecondsFromCompetitionSeconds(state.timeSeconds) };
+  stopwatchLaps = [];
+  window.clearInterval(timerId);
+  exitStopwatchFullscreen();
+  saveState();
+}
+
 function switchScoreContext(accountId?: string | null) {
   state = loadState(accountId);
   stopwatch = { status: "idle", startedAt: 0, elapsedMs: millisecondsFromCompetitionSeconds(state.timeSeconds) };
@@ -1019,6 +1033,8 @@ function saveAccount() {
 async function login() {
   const key = document.querySelector<HTMLInputElement>("#elementary-api-key")?.value.trim() || "";
   const remember = document.querySelector<HTMLInputElement>("#elementary-remember")?.checked ?? false;
+  const previousAccount = account?.account ?? null;
+  const carryGuestDraft = shouldCarryGuestDraft(previousAccount, currentScoreHasActivity());
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!key || !endpoint) {
     loginError = !key ? "APIキーを入力してください。" : "保存先が設定されていません。";
@@ -1030,11 +1046,12 @@ async function login() {
   try {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "elementary" });
     if (!result.ok || !result.account) throw new Error(result.message || "APIキーを確認できませんでした。");
-    saveState();
+    persistCurrentScoreContext();
     account = { apiKey: key, account: result.account, accountName: result.accountName || result.account, remember };
     adminMode = isManagementAccount(result.account);
     saveAccount();
-    switchScoreContext(result.account);
+    if (carryGuestDraft) keepCurrentScoreForAccount();
+    else switchScoreContext(result.account);
     loginError = "";
     mode = adminMode ? "admin" : "score";
     if (adminMode) {
@@ -1050,7 +1067,7 @@ async function login() {
 }
 
 function logout() {
-  saveState();
+  persistCurrentScoreContext();
   discardRecordingNow();
   account = null;
   adminMode = false;

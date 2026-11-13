@@ -7,6 +7,7 @@ import { APP_VERSION } from "./version";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isValidAccountId } from "./accountKey";
 import { hasScoreActivity } from "./scoreActivity";
+import { shouldCarryGuestDraft } from "./accountScopedStorage";
 import {
   boardPoint,
   boardElementBounds,
@@ -198,6 +199,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.28", updatedAt: "2026.11.13", title: "ゲスト採点からログインする際の消失を防止", description: "未ログインで入力した採点はログイン後も引き継ぎ、ゲスト側が空の場合はログイン先アカウントの保存途中データを復元するようにしました。Junior／Elementaryで同じ切替仕様に統一しています。" },
   { version: "1.7.27", updatedAt: "2026.11.13", title: "ログアウト時の時間・動画引継ぎを修正", description: "Junior版でログアウトやアカウント切替後に前利用者のストップウォッチ時間・選択動画が残る問題を修正しました。切替前の時間は元アカウントへ保存し、切替先の保存済み時間を正しく復元します。" },
   { version: "1.7.26", updatedAt: "2026.11.13", title: "Elementaryのアカウント間データ混在を修正", description: "Elementary版の採点・時間・メモをゲストと各アカウント別の端末保存へ分離しました。ログイン切替時に前の利用者の入力が残らず、それぞれの保存内容へ安全に切り替わります。" },
   { version: "1.7.25", updatedAt: "2026.11.13", title: "採点リセットの誤操作を防止", description: "入力がない状態ではリセット操作を無効化し、リセット確認に現在の合計点を表示するようにしました。点数・時間・メモ・コート書き込み・動画を判定してJunior／Elementary共通で保護します。" },
@@ -2878,6 +2880,7 @@ async function loginAccount(fromSwitch = false) {
   const remember = fromSwitch ? accountSwitchRemember : document.querySelector<HTMLInputElement>("#remember-account-input")?.checked ?? false;
   const key = input?.value.trim() ?? "";
   const previousAccount = activeAccount;
+  const carryGuestDraft = shouldCarryGuestDraft(previousAccount, currentScoreHasActivity());
   if (fromSwitch) accountSwitchDraft = key;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!key || !endpoint) {
@@ -2921,11 +2924,11 @@ async function loginAccount(fromSwitch = false) {
       recordsStatus = "";
       resetRecordFilters();
       if (accountChanged && previousAccount) loadCurrentScoreContext();
-      else if (!previousAccount) {
+      else if (carryGuestDraft) {
         const elapsed = currentStopwatchElapsed();
         if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
         saveState();
-      }
+      } else if (!previousAccount) loadCurrentScoreContext();
       const routeChanged = location.hash !== "#/admin";
       location.hash = "#/admin";
       render();
@@ -2958,13 +2961,12 @@ async function loginAccount(fromSwitch = false) {
     newFreeMemoBoard = emptyCourtBoard();
     freeMemoStatus = "";
     recordsStatus = "";
-    if (accountChanged && previousAccount) {
-      loadCurrentScoreContext();
-    } else {
+    if (accountChanged && previousAccount) loadCurrentScoreContext();
+    else if (carryGuestDraft) {
       const elapsed = currentStopwatchElapsed();
       if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
       saveState();
-    }
+    } else if (!previousAccount) loadCurrentScoreContext();
     location.hash = "#/score";
     render();
     void restorePendingVideoUpload();
