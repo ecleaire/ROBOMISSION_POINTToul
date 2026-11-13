@@ -9,6 +9,7 @@ import { createResilientStorage, type StorageLike } from "./resilientStorage";
 import { isManagementAccount, isValidAccountId } from "./accountKey";
 import { hasScoreActivity } from "./scoreActivity";
 import { shouldCarryGuestDraft } from "./accountScopedStorage";
+import { isCurrentSaveContext } from "./saveLifecycle";
 import {
   boardPoint,
   boardElementBounds,
@@ -200,6 +201,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.37", updatedAt: "2026.11.14", title: "保存中のアカウント切替を安全化", description: "結果・動画の保存中にログアウトやアカウント切替を行っても、切替後のAPIキーや採点内容へ完了処理が混入しないよう修正しました。保存開始時のアカウント情報を固定して送信します。" },
   { version: "1.7.36", updatedAt: "2026.11.14", title: "録画開始・停止と保存の多重実行を防止", description: "端末の動画形式が合わない場合も容量制限用のビットレートを維持するよう改善しました。録画開始失敗後の古い処理を破棄し、停止操作とElementaryの結果保存が重複しないようにしました。" },
   { version: "1.7.35", updatedAt: "2026.11.14", title: "3分録画と撮影エラー処理を安定化", description: "45MB以内で3分録画を完了しやすい画質設定へ調整しました。録画エラー時に不完全な動画を正常扱いしないよう修正し、閉じたメモ写真が後から追加される競合も防止しました。" },
   { version: "1.7.34", updatedAt: "2026.11.13", title: "カメラ準備・写真撮影・全画面解除を安定化", description: "カメラ準備中のキャンセルを追加し、メモ写真カメラを素早く開き直した際の競合を修正しました。録画停止後に遅れて全画面化が成功した場合も自動解除し、古いカメラ画面が残らないようにしました。" },
@@ -2855,6 +2857,8 @@ async function sendToSheet() {
     ? document.querySelector<HTMLSelectElement>("[data-admin-score-account]")?.value ?? ""
     : activeAccount;
   if (!targetAccount) { sheetStatus = "保存先アカウントを選択してください。"; render(); return; }
+  const submissionAccount = activeAccount;
+  const submissionApiKey = activeApiKey;
   sheetSending = true;
   sheetStatus = "得点を保存中…"; render();
   const videoFile = selectedVideo;
@@ -2867,7 +2871,7 @@ async function sendToSheet() {
     if (videoFile && preparedVideo && Number.isInteger(result.rowNumber) && result.recordedAt) {
       pendingVideoUpload = {
         file: videoFile,
-        apiKey: activeApiKey,
+        apiKey: submissionApiKey,
         account: targetAccount,
         rowNumber: result.rowNumber!,
         recordedAt: result.recordedAt,
@@ -2876,29 +2880,37 @@ async function sendToSheet() {
       };
       if (localStorage.getItem(API_KEY_KEY)) void persistPendingVideoUpload(pendingVideoUpload);
     }
-    resetStopwatch();
-    setSelectedVideo(null);
-    videoSelectionError = "";
-    state = makeInitialState();
-    saveState();
     sheetStatus = "";
-    pendingRequestId = createRequestId();
-    location.hash = "#/score";
-    render();
-    if (pendingVideoUpload && preparedVideo) void uploadPendingVideo(preparedVideo);
-    return;
-  } catch (error) {
-    if (isRetryableCommunicationError(error)) {
-      queueScoreSubmission(payload, error, videoFile);
+    if (isCurrentSaveContext(submissionAccount, submissionApiKey, activeAccount, activeApiKey)) {
       resetStopwatch();
       setSelectedVideo(null);
       videoSelectionError = "";
       state = makeInitialState();
       saveState();
       pendingRequestId = createRequestId();
-      sheetStatus = "";
-      systemNotice = "通信できないため端末に保存しました。通信復帰後に自動再送します。";
       location.hash = "#/score";
+    } else {
+      systemNotice = "切替前のアカウントの結果を保存しました。現在の入力内容は維持しています。";
+    }
+    render();
+    if (pendingVideoUpload && preparedVideo) void uploadPendingVideo(preparedVideo);
+    return;
+  } catch (error) {
+    if (isRetryableCommunicationError(error)) {
+      queueScoreSubmission(payload, error, videoFile);
+      sheetStatus = "";
+      if (isCurrentSaveContext(submissionAccount, submissionApiKey, activeAccount, activeApiKey)) {
+        resetStopwatch();
+        setSelectedVideo(null);
+        videoSelectionError = "";
+        state = makeInitialState();
+        saveState();
+        pendingRequestId = createRequestId();
+        systemNotice = "通信できないため端末に保存しました。通信復帰後に自動再送します。";
+        location.hash = "#/score";
+      } else {
+        systemNotice = "切替前のアカウントの結果を端末に保存しました。現在の入力内容は維持しています。";
+      }
       render();
       return;
     }

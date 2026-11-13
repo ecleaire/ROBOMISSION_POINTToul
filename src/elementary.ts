@@ -4,6 +4,7 @@ import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSecond
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
+import { isCurrentSaveContext } from "./saveLifecycle";
 import { isManagementAccount } from "./accountKey";
 import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, createCompatibleMediaRecorder, hasUnsavedCameraWork, isCurrentMediaRequest, recordingBitrateForByteLimit, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera, shouldStopActiveRecording } from "./cameraLifecycle";
 
@@ -63,7 +64,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.37";
+const ELEMENTARY_VERSION = "0.4.38";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -1401,19 +1402,24 @@ async function saveResult() {
   if (resultSaving) return;
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!endpoint || !account) { mode = "login"; render(); return; }
+  const submissionAccount = { ...account };
+  const submissionState = state;
+  const videoFile = recordedVideo;
+  const scores = sectionScores();
+  const savedTimeSeconds = state.timeSeconds;
+  const savedNotes = elementarySavedMemo(scores);
   resultSaving = true;
   saveStatus = "保存中…";
   render();
   try {
-    const scores = sectionScores();
-    const video = recordedVideo ? await fileToStoredVideo(recordedVideo) : undefined;
+    const video = videoFile ? await fileToStoredVideo(videoFile) : undefined;
     const payload = {
       action: "saveElementary",
       app: "elementary",
-      apiKey: account.apiKey,
-      account: account.account,
+      apiKey: submissionAccount.apiKey,
+      account: submissionAccount.account,
       requestId: `elementary-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      timeSeconds: state.timeSeconds,
+      timeSeconds: savedTimeSeconds,
       visitors: scores.cables,
       redTowers: scores.prepare,
       yellowTowers: scores.notes,
@@ -1421,17 +1427,23 @@ async function saveResult() {
       dirt: 0,
       bonus: scores.bonus,
       unjudged: 0,
-      notes: elementarySavedMemo(scores),
+      notes: savedNotes,
       video,
     };
-    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, payload, new AbortController(), recordedVideo ? 90000 : 15000);
+    const result = await postJson<{ ok?: boolean; message?: string }>(endpoint, payload, new AbortController(), videoFile ? 90000 : 15000);
     if (!result.ok) throw new Error(result.message || "保存できませんでした。");
-    saveStatus = "保存しました。";
-    setRecordedVideo(null);
-    state = makeInitialState();
-    resetStopwatch();
-    saveState();
-    mode = "score";
+    const contextCurrent = isCurrentSaveContext(submissionAccount.account, submissionAccount.apiKey, account?.account, account?.apiKey)
+      && state === submissionState;
+    if (contextCurrent) {
+      saveStatus = "保存しました。";
+      if (recordedVideo === videoFile) setRecordedVideo(null);
+      state = makeInitialState();
+      resetStopwatch();
+      saveState();
+      mode = "score";
+    } else {
+      saveStatus = "切替前のアカウントの結果を保存しました。現在の入力内容は維持しています。";
+    }
   } catch (error) {
     saveStatus = `保存できませんでした。${error instanceof Error ? error.message : "通信エラー"}`;
   } finally {
