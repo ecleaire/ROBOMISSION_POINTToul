@@ -5,6 +5,7 @@ import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
 import { isManagementAccount } from "./accountKey";
+import { boundedRecordingElapsedMs, canUseResolvedCameraRequest, hasUnsavedCameraWork, isCurrentMediaRequest, shouldBlockCameraNavigation, shouldExitLateFullscreen, shouldPreserveExpandedCamera } from "./cameraLifecycle";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -62,7 +63,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.34";
+const ELEMENTARY_VERSION = "0.4.35";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -170,6 +171,10 @@ function totalScore(s = state) {
 }
 
 function render() {
+  if (shouldPreserveExpandedCamera(recordingStatus, document.body.classList.contains("camera-mode"))) {
+    refreshStopwatch();
+    return;
+  }
   const title = modeTitle(mode);
   app.innerHTML = `
     <header class="elementary-header">
@@ -332,7 +337,7 @@ function videoRecorderView() {
       ${mediaStream && !isRecording ? `<button type="button" class="camera-main-expand" data-recording="expand">⛶ カメラを全画面</button>` : ""}
       ${isRecording
         ? `<button type="button" class="camera-stop" data-recording="stop">■ 録画停止</button>`
-        : `<button type="button" class="camera-start" data-recording="start" ${isBusy ? "disabled" : ""}>${recordingStatus === "starting" ? "カメラ準備中…" : recordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
+        : `${recordingStatus === "starting" ? `<button type="button" class="secondary" data-recording="cancel">準備を中止</button>` : ""}<button type="button" class="camera-start" data-recording="start" ${isBusy ? "disabled" : ""}>${recordingStatus === "starting" ? "カメラ準備中…" : recordingStatus === "processing" ? "動画処理中…" : "● 録画開始"}</button>`}
     </div>
     ${recordedVideo && recordedVideoPreviewUrl ? `<div class="selected-video">
       <div class="selected-video-head"><span><strong>保存前の動画を確認</strong>${escapeHtml(recordedVideo.name)}（${(recordedVideo.size / 1024 / 1024).toFixed(1)}MB）</span><button type="button" data-recording="clear">取り消す</button></div>
@@ -742,7 +747,7 @@ function bindEvents() {
   );
   app.querySelectorAll<HTMLButtonElement>("[data-mode]").forEach((button) => button.addEventListener("click", () => {
     const nextMode = button.dataset.mode as Mode;
-    if (nextMode !== "score" && recordingStatus !== "idle") {
+    if (shouldBlockCameraNavigation(recordingStatus, nextMode)) {
       saveStatus = "録画を停止して動画の処理が完了してから、別の画面へ移動してください。";
       render();
       return;
@@ -930,17 +935,22 @@ function requestElementFullscreen(element: FullscreenCapableElement, target: typ
     if (!request) return;
     nativeFullscreenTarget = target;
     const result = request();
-    if (result instanceof Promise) void result.catch(() => { nativeFullscreenTarget = null; });
+    if (result instanceof Promise) void result.then(() => {
+      if (shouldExitLateFullscreen(target, nativeFullscreenTarget, activeFullscreenElement() === element)) {
+        const exit = document.exitFullscreen?.bind(document) ?? (document as FullscreenCapableDocument).webkitExitFullscreen?.bind(document);
+        try { void exit?.(); } catch { /* CSS全面表示の解除は別経路で継続 */ }
+      }
+    }).catch(() => { if (nativeFullscreenTarget === target) nativeFullscreenTarget = null; });
   } catch {
-    nativeFullscreenTarget = null;
+    if (nativeFullscreenTarget === target) nativeFullscreenTarget = null;
   }
 }
 
 function exitNativeFullscreen() {
   const fullscreenDocument = document as FullscreenCapableDocument;
   const exit = document.exitFullscreen?.bind(document) ?? fullscreenDocument.webkitExitFullscreen?.bind(fullscreenDocument);
-  if (!activeFullscreenElement() || !exit) return null;
   nativeFullscreenTarget = null;
+  if (!activeFullscreenElement() || !exit) return null;
   try { return exit(); } catch { return null; }
 }
 
@@ -974,11 +984,13 @@ function enterCameraFullscreen(requestNativeFullscreen = true) {
 
 function collapseCameraFullscreen() {
   document.body.classList.remove("camera-mode");
-  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap");
+  const preview = document.querySelector<HTMLElement>(".camera-preview-wrap.camera-preview-expanded") ?? document.querySelector<HTMLElement>(".camera-preview-wrap");
   preview?.classList.remove("camera-preview-expanded");
   if (preview && cameraPreviewPlaceholder?.parentNode) {
     cameraPreviewPlaceholder.parentNode.insertBefore(preview, cameraPreviewPlaceholder);
     cameraPreviewPlaceholder.remove();
+  } else if (preview && !preview.closest("#elementary-app")) {
+    preview.remove();
   }
   cameraPreviewPlaceholder = null;
 }
@@ -1167,6 +1179,7 @@ async function recordingAction(action: string) {
   if (!account) { mode = "login"; render(); return; }
   if (action === "start") await startRecording();
   if (action === "stop") stopRecording();
+  if (action === "cancel") { discardRecordingNow(); saveStatus = "カメラの準備を中止しました。"; render(); }
   if (action === "clear") { setRecordedVideo(null); saveStatus = ""; render(); }
   if (action === "expand") enterCameraFullscreen();
   if (action === "collapse") exitCameraFullscreen();
@@ -1213,7 +1226,7 @@ async function startRecording() {
       },
       audio: false,
     });
-    if (requestId !== cameraRequestId || recordingStatus !== "starting") {
+    if (!canUseResolvedCameraRequest(requestId, cameraRequestId, recordingStatus)) {
       stream.getTracks().forEach((track) => track.stop());
       return;
     }
@@ -1256,7 +1269,7 @@ async function startRecording() {
     enterCameraFullscreen(false);
     void requestScreenWakeLock();
   } catch (error) {
-    if (requestId !== cameraRequestId) return;
+    if (!isCurrentMediaRequest(requestId, cameraRequestId)) return;
     stopCameraStream();
     recordingStatus = "idle";
     saveStatus = error instanceof DOMException && error.name === "NotAllowedError"
@@ -1268,7 +1281,7 @@ async function startRecording() {
 
 function stopRecording() {
   if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-  recordingElapsedMs = Math.min(MAX_RECORDING_MS, Math.max(recordingElapsedMs, Date.now() - recordingStartedAt));
+  recordingElapsedMs = boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS);
   recordingStopwatchMs = currentElapsedMs();
   exitCameraFullscreen();
   recordingStatus = "processing";
@@ -1296,7 +1309,7 @@ function finalizeRecording(mimeType: string) {
   videoChunks = [];
   const shouldDiscard = discardRecordedVideo;
   if (!shouldDiscard && recordingStatus === "recording") {
-    recordingElapsedMs = Math.min(MAX_RECORDING_MS, Math.max(recordingElapsedMs, Date.now() - recordingStartedAt));
+    recordingElapsedMs = boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS);
     recordingStopwatchMs = currentElapsedMs();
   }
   discardRecordedVideo = false;
@@ -1341,7 +1354,7 @@ function clearRecordingTimers() {
 
 function updateRecordingTime() {
   if (recordingStatus !== "recording") return;
-  recordingElapsedMs = Math.min(MAX_RECORDING_MS, Date.now() - recordingStartedAt);
+  recordingElapsedMs = boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS);
   document.querySelectorAll<HTMLElement>("[data-recording-time]").forEach((label) => {
     label.textContent = currentRecordingTime();
   });
@@ -1356,7 +1369,7 @@ function updateRecordingTime() {
 }
 
 function currentRecordingTime() {
-  return formatRecordingTime(recordingStatus === "recording" ? Date.now() - recordingStartedAt : recordingElapsedMs);
+  return formatRecordingTime(boundedRecordingElapsedMs(recordingStartedAt, recordingElapsedMs, recordingStatus, MAX_RECORDING_MS));
 }
 
 async function requestScreenWakeLock() {
@@ -1499,13 +1512,13 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("online", () => { elementaryOnline = true; render(); });
 window.addEventListener("offline", () => { elementaryOnline = false; render(); });
 window.addEventListener("beforeunload", (event) => {
-  if (recordingStatus === "idle" && !recordedVideo && saveStatus !== "保存中…") return;
+  if (!hasUnsavedCameraWork(recordingStatus, Boolean(recordedVideo)) && saveStatus !== "保存中…") return;
   event.preventDefault();
   event.returnValue = "保存されていない録画があります。";
 });
 window.addEventListener("hashchange", () => {
   const nextMode = modeFromHash();
-  if (recordingStatus !== "idle" && nextMode !== "score") {
+  if (shouldBlockCameraNavigation(recordingStatus, nextMode)) {
     saveStatus = "録画を停止して動画の処理が完了してから、別の画面へ移動してください。";
     if (location.hash !== "#/score") location.hash = "#/score";
     mode = "score";

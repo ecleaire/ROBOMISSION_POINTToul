@@ -825,7 +825,7 @@ body.elementary-stopwatch-mode {
 .camera-recorder-info strong { color: var(--blue-dark); font-size: .96rem; }
 .camera-recorder-info small { margin-top: 4px; color: #60798e; font-size: .72rem; line-height: 1.45; }
 .camera-recorder button { min-width: 126px; min-height: 48px; padding: 8px 12px; border-radius: 9px; font-weight: 900; }
-.camera-recorder-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.camera-recorder-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .camera-recorder-actions button { min-width: 142px; }
 .camera-main-expand { border: 2px solid #2f82bd; color: white; background: #1261a6; touch-action: manipulation; }
 .camera-start { border: 2px solid #b83f38; color: #9d2923; background: #fff1ee; }
