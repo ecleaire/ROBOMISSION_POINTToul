@@ -199,6 +199,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.29", updatedAt: "2026.11.13", title: "管理ログイン時の採点・動画混在を修正", description: "隠し管理ログインから管理画面へ入る場合も、切替前アカウントの時間を保存し、動画を破棄して管理アカウントの採点へ切り替えるよう修正しました。ゲスト採点がある場合だけ安全に引き継ぎます。" },
   { version: "1.7.28", updatedAt: "2026.11.13", title: "ゲスト採点からログインする際の消失を防止", description: "未ログインで入力した採点はログイン後も引き継ぎ、ゲスト側が空の場合はログイン先アカウントの保存途中データを復元するようにしました。Junior／Elementaryで同じ切替仕様に統一しています。" },
   { version: "1.7.27", updatedAt: "2026.11.13", title: "ログアウト時の時間・動画引継ぎを修正", description: "Junior版でログアウトやアカウント切替後に前利用者のストップウォッチ時間・選択動画が残る問題を修正しました。切替前の時間は元アカウントへ保存し、切替先の保存済み時間を正しく復元します。" },
   { version: "1.7.26", updatedAt: "2026.11.13", title: "Elementaryのアカウント間データ混在を修正", description: "Elementary版の採点・時間・メモをゲストと各アカウント別の端末保存へ分離しました。ログイン切替時に前の利用者の入力が残らず、それぞれの保存内容へ安全に切り替わります。" },
@@ -2980,6 +2981,8 @@ async function loginAccount(fromSwitch = false) {
 async function loginAdmin() {
   const input = document.querySelector<HTMLInputElement>("#admin-password-input");
   const password = input?.value ?? "";
+  const previousAccount = activeAccount;
+  const carryGuestDraft = shouldCarryGuestDraft(previousAccount, currentScoreHasActivity());
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
   if (!password || !endpoint) {
     adminError = !password ? "管理者パスワードを入力してください。" : "記録先がまだ設定されていません。";
@@ -2991,9 +2994,14 @@ async function loginAdmin() {
   try {
     const result = await postJson<{ ok?: boolean; account?: string; message?: string }>(endpoint, { action: "auth", apiKey: password });
     if (!result.ok || result.account !== "ADMIN") throw new Error(result.message || "管理者パスワードが違います。");
-    if (activeAccount !== "ADMIN") void clearRecordVideoCache();
+    const accountChanged = previousAccount !== "ADMIN";
+    if (accountChanged && previousAccount) persistCurrentScoreContext();
+    if (accountChanged) clearPrivateScoreMedia();
+    if (accountChanged) void clearRecordVideoCache();
     activeAccount = "ADMIN";
     activeApiKey = password;
+    activeAccountName = "";
+    adminModeUnlocked = true;
     adminError = "";
     practiceRecords = [];
     freeMemos = [];
@@ -3002,7 +3010,12 @@ async function loginAdmin() {
     freeMemoStatus = "";
     resetRecordFilters();
     recordsStatus = "";
-    resetStopwatch();
+    if (accountChanged && previousAccount) loadCurrentScoreContext();
+    else if (carryGuestDraft) {
+      const elapsed = currentStopwatchElapsed();
+      if (elapsed > 0) state.timeSeconds = secondsFromStopwatch(elapsed);
+      saveState();
+    } else if (!previousAccount) loadCurrentScoreContext();
     const routeChanged = location.hash !== "#/admin";
     location.hash = "#/admin";
     render();
