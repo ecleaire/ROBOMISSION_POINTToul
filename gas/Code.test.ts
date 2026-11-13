@@ -93,6 +93,7 @@ describe("GAS account management", () => {
     expect(gas.canAccessVideo_("A", "A")).toBe(true);
     expect(gas.canAccessVideo_("A", "B")).toBe(false);
     expect(gas.canAccessVideo_("ADMIN", "A")).toBe(true);
+    expect(gas.canAccessVideo_("RMAM", "A")).toBe(true);
   });
 
   it("updates the memo only when the saved row still matches the record date", () => {
@@ -130,6 +131,8 @@ describe("GAS account management", () => {
     expect(gas.isManagementAccount_("ADMIN")).toBe(true);
     expect(gas.isManagementAccount_("RMAM")).toBe(true);
     expect(gas.isManagementAccount_("A0")).toBe(false);
+    expect(gas.canUseApp_("RMAM", "junior")).toBe(true);
+    expect(gas.canUseApp_("RMAM", "elementary")).toBe(true);
   });
 
   it("separates junior and elementary managed accounts while keeping shared accounts visible", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidAccountId } from "./accountKey";
+import { isManagementAccount, isValidAccountId } from "./accountKey";
 
 describe("account id validation", () => {
   it("accepts junior legacy, shared, and admin account ids without forcing uppercase", () => {
@@ -11,6 +11,15 @@ describe("account id validation", () => {
   it("rejects empty, unsafe, or too long ids", () => {
     ["", "a b", "a/b", "a?b", "x".repeat(65)].forEach((value) => {
       expect(isValidAccountId(value), value).toBe(false);
+    });
+  });
+
+  it("uses the same case-insensitive management-account rule in both apps", () => {
+    ["ADMIN", "admin", "RMAM", "rmam"].forEach((value) => {
+      expect(isManagementAccount(value), value).toBe(true);
+    });
+    [null, "", "A0", "A", "テスト"].forEach((value) => {
+      expect(isManagementAccount(value), String(value)).toBe(false);
     });
   });
 });

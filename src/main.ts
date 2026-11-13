@@ -5,7 +5,7 @@ import { judgingGroups } from "./judging";
 import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSeconds, secondsFromStopwatch } from "./stopwatch";
 import { APP_VERSION } from "./version";
 import { createResilientStorage, type StorageLike } from "./resilientStorage";
-import { isValidAccountId } from "./accountKey";
+import { isManagementAccount, isValidAccountId } from "./accountKey";
 import { hasScoreActivity } from "./scoreActivity";
 import { shouldCarryGuestDraft } from "./accountScopedStorage";
 import {
@@ -199,6 +199,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.30", updatedAt: "2026.11.13", title: "rmamの管理権限を全機能で統一", description: "rmamでログインした場合も、管理画面、全アカウントの記録・メモ・動画・写真、保存先選択、アカウント管理、管理終了を管理者パスワードと同じ仕様で使えるよう修正しました。" },
   { version: "1.7.29", updatedAt: "2026.11.13", title: "管理ログイン時の採点・動画混在を修正", description: "隠し管理ログインから管理画面へ入る場合も、切替前アカウントの時間を保存し、動画を破棄して管理アカウントの採点へ切り替えるよう修正しました。ゲスト採点がある場合だけ安全に引き継ぎます。" },
   { version: "1.7.28", updatedAt: "2026.11.13", title: "ゲスト採点からログインする際の消失を防止", description: "未ログインで入力した採点はログイン後も引き継ぎ、ゲスト側が空の場合はログイン先アカウントの保存途中データを復元するようにしました。Junior／Elementaryで同じ切替仕様に統一しています。" },
   { version: "1.7.27", updatedAt: "2026.11.13", title: "ログアウト時の時間・動画引継ぎを修正", description: "Junior版でログアウトやアカウント切替後に前利用者のストップウォッチ時間・選択動画が残る問題を修正しました。切替前の時間は元アカウントへ保存し、切替先の保存済み時間を正しく復元します。" },
@@ -291,7 +292,7 @@ let analyticsRange: "5" | "10" | "20" | "all" = "all";
 let analyticsDateFrom = "";
 let analyticsDateTo = "";
 const adminRevealPressCounts = { rules: 0, links: 0 };
-let adminModeUnlocked = activeAccount === "ADMIN";
+let adminModeUnlocked = isManagementAccount(activeAccount);
 let adminError = "";
 let managedAccounts: ManagedAccount[] = [];
 let accountManagementStatus = "";
@@ -349,7 +350,7 @@ window.addEventListener("hashchange", () => {
   window.scrollTo(0, 0);
   render();
   configureRecordsAutoRefresh();
-  if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
+  if (location.hash === "#/admin" && isManagementAccount(activeAccount)) { void loadRecords(); void loadManagedAccounts(); }
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && location.hash === "#/records" && activeAccount) void loadRecords();
@@ -426,15 +427,15 @@ if ("serviceWorker" in navigator) {
   );
 }
 
-if (activeAccount === "ADMIN") location.hash = "#/admin";
+if (isManagementAccount(activeAccount)) location.hash = "#/admin";
 else if (!location.hash) location.hash = "#/score";
 render();
 configureRecordsAutoRefresh();
 void restorePendingVideoUpload();
 void retryPendingSaves();
 void checkStorageCapacity();
-if (location.hash === "#/admin" && activeAccount === "ADMIN") { void loadRecords(); void loadManagedAccounts(); }
-if (activeAccount && activeAccount !== "ADMIN" && activeApiKey) void refreshAccountIdentity();
+if (location.hash === "#/admin" && isManagementAccount(activeAccount)) { void loadRecords(); void loadManagedAccounts(); }
+if (activeAccount && !isManagementAccount(activeAccount) && activeApiKey) void refreshAccountIdentity();
 
 function render() {
   const renderStartedAt = performance.now();
@@ -499,7 +500,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
   ];
   if (activeAccount) modes.splice(2, 0, ["records", "練習記録"], ["memo", "メモ"]);
   if (activeAccount) modes.splice(5, 0, ["news", "ニュース"]);
-  if (adminModeUnlocked || activeAccount === "ADMIN") modes.push(["admin", "管理"]);
+  if (adminModeUnlocked || isManagementAccount(activeAccount)) modes.push(["admin", "管理"]);
   return `
     <header class="app-header">
       <div class="app-brand">
@@ -511,7 +512,7 @@ function shell(content: string, options: { back?: string; title?: string } = {})
       </nav>
     </header>
     <div class="junior-account-bar ${activeAccount ? "logged-in" : ""}">
-      ${activeAccount ? `<span>ログイン中：${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</span><div>${activeAccount === "ADMIN" ? `<button type="button" data-action="logout-admin">管理を終了</button>` : `<button type="button" data-action="open-account-switch">切替</button><button type="button" data-action="logout-account">ログアウト</button>`}</div>` : `<span>未ログイン：採点・ストップウォッチ・判定写真・ルール確認は使用できます。録画・記録保存はログイン後に使えます。</span><button type="button" data-nav="account">ログイン</button>`}
+      ${activeAccount ? `<span>ログイン中：${isManagementAccount(activeAccount) ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</span><div>${isManagementAccount(activeAccount) ? `<button type="button" data-action="logout-admin">管理を終了</button>` : `<button type="button" data-action="open-account-switch">切替</button><button type="button" data-action="logout-account">ログアウト</button>`}</div>` : `<span>未ログイン：採点・ストップウォッチ・判定写真・ルール確認は使用できます。録画・記録保存はログイン後に使えます。</span><button type="button" data-nav="account">ログイン</button>`}
     </div>
     <main>${content}</main>`;
 }
@@ -522,7 +523,7 @@ function accountView() {
       <div class="account-icon">鍵</div>
       <p class="eyebrow">OPTIONAL LOGIN</p>
       <h1>ログイン</h1>
-      ${activeAccount ? `<p><strong>${activeAccount === "ADMIN" ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</strong> としてログインしています。</p><p>結果・メモ・ストップウォッチ時間・録画をこのアカウントに保存できます。</p><button class="secondary" data-action="${activeAccount === "ADMIN" ? "logout-admin" : "logout-account"}">${activeAccount === "ADMIN" ? "管理を終了" : "ログアウト"}</button>` : `
+      ${activeAccount ? `<p><strong>${isManagementAccount(activeAccount) ? "管理モード" : escapeHtml(activeAccountName || activeAccount)}</strong> としてログインしています。</p><p>結果・メモ・ストップウォッチ時間・録画をこのアカウントに保存できます。</p><button class="secondary" data-action="${isManagementAccount(activeAccount) ? "logout-admin" : "logout-account"}">${isManagementAccount(activeAccount) ? "管理を終了" : "ログアウト"}</button>` : `
       <p>ログインしなくても採点とストップウォッチは使えます。結果保存と録画を使う場合だけログインしてください。</p>
       <label>APIキー<input id="account-key-input" type="password" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="APIキー" /></label>
       <label class="remember-account"><input id="remember-account-input" type="checkbox" /><span>この端末にアカウント情報を保存する</span></label>
@@ -547,7 +548,7 @@ function accountSwitchModal() {
 }
 
 function adminView() {
-  if (activeAccount === "ADMIN") return recordsView();
+  if (isManagementAccount(activeAccount)) return recordsView();
   return shell(`
     <section class="account-login admin-login card">
       <div class="account-icon">管理</div>
@@ -1124,7 +1125,7 @@ function resultView() {
     <section class="sheet-panel card">
       <h2>Googleスプレッドシートへ記録</h2>
       ${activeAccount
-        ? activeAccount === "ADMIN" ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`
+        ? isManagementAccount(activeAccount) ? `<label>保存先アカウント<select data-admin-score-account><option value="">選択してください</option>${managedAccounts.map((account) => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></label>` : `<p><strong>${escapeHtml(activeAccountName || "現在のアカウント")}</strong>のシートへ、この結果を1行追加します。</p>`
         : `<p>ログインすると、この採点結果・競技時間をチームの記録として保存できます。</p>`}
       ${activeAccount ? `<button class="primary" data-action="send-sheet" ${sheetSending ? "disabled" : ""}>${sheetSending ? "保存中…" : "このチームの記録として保存"}</button>` : `<button class="primary" data-nav="account">ログインして保存する</button>`}
       ${sheetStatus ? `<p class="sheet-status" role="status">${escapeHtml(sheetStatus)}</p>` : ""}
@@ -1137,7 +1138,7 @@ function recordsView() {
   if (!activeAccount || !activeApiKey) return loginRequiredView("練習記録", "練習記録を見るにはログインが必要です。ログインなしでも採点とストップウォッチは使えます。");
   const filteredRecords = filteredPracticeRecords();
   const visibleRecords = filteredRecords.slice(0, recordVisibleCount);
-  const isAdmin = activeAccount === "ADMIN";
+  const isAdmin = isManagementAccount(activeAccount);
   const activeFilterCount = [recordFilters.query, recordFilters.dateFrom, recordFilters.dateTo, recordFilters.minScore, recordFilters.maxScore, recordFilters.media !== "all" ? recordFilters.media : "", isAdmin && recordFilters.account !== "ALL" ? recordFilters.account : ""].filter(Boolean).length;
   return shell(`
     <section class="page-intro records-intro">
@@ -1206,7 +1207,7 @@ function recordsView() {
 
 function memoView() {
   if (!activeAccount || !activeApiKey) return loginRequiredView("メモ", "メモ・写真メモを使うにはログインが必要です。採点とストップウォッチはログインなしでも使えます。");
-  const isAdmin = activeAccount === "ADMIN";
+  const isAdmin = isManagementAccount(activeAccount);
   const records = [...practiceRecords].sort((left, right) =>
     new Date(right.recordedAt).getTime() - new Date(left.recordedAt).getTime(),
   );
@@ -1230,8 +1231,8 @@ function memoView() {
         <label>新しいメモ
           <textarea data-free-memo-content maxlength="1000" placeholder="アイデア、準備物、次回試したいことなど"></textarea>
         </label>
-        ${courtBoardView("free", "", activeAccount === "ADMIN" ? "" : activeAccount || "", 0, "", newFreeMemoBoard)}
-        ${memoPhotosView("free", "", activeAccount === "ADMIN" ? "" : activeAccount || "", 0, "", newFreeMemoPhotos)}
+        ${courtBoardView("free", "", isManagementAccount(activeAccount) ? "" : activeAccount || "", 0, "", newFreeMemoBoard)}
+        ${memoPhotosView("free", "", isManagementAccount(activeAccount) ? "" : activeAccount || "", 0, "", newFreeMemoPhotos)}
         <div class="memo-save-row"><small>1000文字まで</small><button class="primary" data-action="save-free-memo">新しいメモを保存</button></div>
       </article>
       ${freeMemoStatus ? `<p class="sheet-status" role="status">${escapeHtml(freeMemoStatus)}</p>` : ""}
@@ -1992,7 +1993,7 @@ function filteredPracticeRecords() {
   return practiceRecords.filter((record) => {
     const recordedAt = new Date(record.recordedAt).getTime();
     const searchable = `${record.account} ${record.accountName} ${record.notes} ${formatRecordDate(record.recordedAt)} ${record.total}`.toLowerCase();
-    const accountMatches = activeAccount !== "ADMIN" || recordFilters.account === "ALL" || record.account === recordFilters.account;
+    const accountMatches = !isManagementAccount(activeAccount) || recordFilters.account === "ALL" || record.account === recordFilters.account;
     const mediaMatches = recordFilters.media === "all" ||
       (recordFilters.media === "video" && record.hasVideo) ||
       (recordFilters.media === "photo" && record.photos.length > 0) ||
@@ -2751,7 +2752,7 @@ async function sendToSheet() {
   if (!endpoint || !activeAccount || !activeApiKey) {
     sheetStatus = "記録先がまだ設定されていません。"; render(); return;
   }
-  const targetAccount = activeAccount === "ADMIN"
+  const targetAccount = isManagementAccount(activeAccount)
     ? document.querySelector<HTMLSelectElement>("[data-admin-score-account]")?.value ?? ""
     : activeAccount;
   if (!targetAccount) { sheetStatus = "保存先アカウントを選択してください。"; render(); return; }
@@ -2895,19 +2896,19 @@ async function loginAccount(fromSwitch = false) {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "junior" });
     const verifiedAccount = result.account ?? null;
     if (!result.ok || !isAccountKey(verifiedAccount)) throw new Error(result.message || "APIキーが違います。");
-    if (verifiedAccount === "ADMIN") {
-      const accountChanged = previousAccount !== "ADMIN";
+    if (isManagementAccount(verifiedAccount)) {
+      const accountChanged = previousAccount !== verifiedAccount;
       if (accountChanged && previousAccount) persistCurrentScoreContext();
       if (accountChanged) clearPrivateScoreMedia();
-      if (activeAccount !== "ADMIN") void clearRecordVideoCache();
+      if (activeAccount !== verifiedAccount) void clearRecordVideoCache();
       if (remember) {
-        localStorage.setItem(ACCOUNT_KEY, "ADMIN");
+        localStorage.setItem(ACCOUNT_KEY, verifiedAccount);
         localStorage.setItem(API_KEY_KEY, key);
       } else {
         localStorage.removeItem(ACCOUNT_KEY);
         localStorage.removeItem(API_KEY_KEY);
       }
-      activeAccount = "ADMIN";
+      activeAccount = verifiedAccount;
       activeApiKey = key;
       activeAccountName = "";
       adminModeUnlocked = true;
@@ -2945,6 +2946,7 @@ async function loginAccount(fromSwitch = false) {
     activeAccount = verifiedAccount;
     activeApiKey = key;
     activeAccountName = typeof result.accountName === "string" ? result.accountName.slice(0, 50) : "";
+    adminModeUnlocked = false;
     if (remember) {
       localStorage.setItem(ACCOUNT_KEY, activeAccount);
       localStorage.setItem(API_KEY_KEY, key);
@@ -3031,7 +3033,7 @@ function logoutAdmin() {
   persistCurrentScoreContext();
   clearPrivateScoreMedia();
   const storedAccount = loadAccount();
-  if (storedAccount === "ADMIN") {
+  if (isManagementAccount(storedAccount)) {
     localStorage.removeItem(ACCOUNT_KEY);
     localStorage.removeItem(API_KEY_KEY);
     activeAccount = null;
@@ -3059,7 +3061,7 @@ function logoutAdmin() {
 
 async function refreshAccountIdentity() {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || !activeApiKey || activeAccount === "ADMIN") return;
+  if (!endpoint || !activeApiKey || isManagementAccount(activeAccount)) return;
   try {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string }>(endpoint, { action: "auth", apiKey: activeApiKey, app: "junior" });
     if (!result.ok || result.account !== activeAccount) return;
@@ -3072,7 +3074,7 @@ async function refreshAccountIdentity() {
 
 async function loadManagedAccounts(shouldRender = true) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || activeAccount !== "ADMIN" || !activeApiKey) return;
+  if (!endpoint || !isManagementAccount(activeAccount) || !activeApiKey) return;
   accountManagementStatus = "アカウント情報を読み込み中…";
   if (shouldRender) render();
   try {
@@ -3169,7 +3171,7 @@ async function retryPendingSaves(manual = false) {
 
 async function saveManagedAccount(accountId?: string) {
   const endpoint = DEFAULT_GAS_WEB_APP_URL || import.meta.env.VITE_GAS_WEB_APP_URL || "";
-  if (!endpoint || activeAccount !== "ADMIN" || !activeApiKey) return;
+  if (!endpoint || !isManagementAccount(activeAccount) || !activeApiKey) return;
   const nameInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-name="${accountId}"]` : "#new-account-name");
   const keyInput = document.querySelector<HTMLInputElement>(accountId ? `[data-managed-key="${accountId}"]` : "#new-account-key");
   const appSelect = document.querySelector<HTMLSelectElement>(accountId ? `[data-managed-app="${accountId}"]` : "#new-account-app");
@@ -3241,12 +3243,12 @@ function configureRecordsAutoRefresh() {
 async function loadMemoData() {
   recordsStatus = "読み込み中…";
   freeMemoStatus = "メモを読み込み中…";
-  if (activeAccount === "ADMIN") accountManagementStatus = "アカウント情報を読み込み中…";
+  if (isManagementAccount(activeAccount)) accountManagementStatus = "アカウント情報を読み込み中…";
   render();
   await Promise.all([
     loadRecords(false),
     loadFreeMemos(false),
-    ...(activeAccount === "ADMIN" ? [loadManagedAccounts(false)] : []),
+    ...(isManagementAccount(activeAccount) ? [loadManagedAccounts(false)] : []),
   ]);
   render();
 }
@@ -3290,7 +3292,7 @@ async function saveFreeMemo(element: HTMLElement) {
     ? freeMemos.find((memo) => memo.memoId === memoId && memo.account === memoAccount)?.photos ?? []
     : newFreeMemoPhotos;
   if (!content && !currentBoard.elements.length && !currentPhotos.length) { freeMemoStatus = "メモの内容、コート書き込み、写真のいずれかを入力してください。"; render(); return; }
-  if (activeAccount === "ADMIN" && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
+  if (isManagementAccount(activeAccount) && !memoId && !selectedAccount) { freeMemoStatus = "保存先アカウントを選択してください。"; render(); return; }
   if (!endpoint || !activeApiKey || !activeAccount) return;
   const previousMemos = freeMemos.map((memo) => ({ ...memo, photos: cloneMemoPhotos(memo.photos) }));
   const now = new Date().toISOString();
@@ -3561,7 +3563,7 @@ async function restorePendingVideoUpload() {
     const rowNumber = Number(response.headers.get("x-row"));
     const recordedAt = decodeURIComponent(response.headers.get("x-recorded-at") || "");
     if (!blob.type.startsWith("video/") || !account || !Number.isInteger(rowNumber) || !recordedAt) { await clearPersistedPendingVideo(); return; }
-    if (activeAccount !== "ADMIN" && activeAccount !== account) {
+    if (!isManagementAccount(activeAccount) && activeAccount !== account) {
       systemNotice = "別のアカウントに未送信動画があります。保存したアカウントへ切り替えると再送できます。";
       render();
       return;

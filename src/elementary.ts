@@ -4,6 +4,7 @@ import { formatRecordingTime, formatStopwatch, millisecondsFromCompetitionSecond
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
 import { accountScopedStorageKey, shouldCarryGuestDraft } from "./accountScopedStorage";
+import { isManagementAccount } from "./accountKey";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -61,7 +62,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.30";
+const ELEMENTARY_VERSION = "0.4.31";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -1084,11 +1085,6 @@ function logout() {
 function sharedAccountName(value: string) {
   const normalized = value.trim().toLocaleLowerCase();
   return normalized === "a0" || normalized === "rmam" || normalized === "システム動作確認" || normalized === "テスト";
-}
-
-function isManagementAccount(value?: string) {
-  const normalized = String(value || "").trim().toUpperCase();
-  return normalized === "ADMIN" || normalized === "RMAM";
 }
 
 function sanitizeManagedAccounts(accounts: unknown): ManagedAccount[] {

@@ -64,7 +64,7 @@ function doPost(event) {
         accountLock.releaseLock();
       }
     }
-    const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
+    const targetAccount = isManagementAccount_(key) ? String(data.account || "").toUpperCase() : key;
     if (!accountById_(targetAccount)) {
       throw new Error("対象アカウントが無効です。");
     }
@@ -180,7 +180,7 @@ function attachVideoToRecord_(sheet, targetAccount, data) {
 }
 
 function getRecordsForAccount_(key) {
-  if (key === "ADMIN") {
+  if (isManagementAccount_(key)) {
     const records = accountConfigs_().reduce(function(allRecords, account) {
       const accountSheet = getSheet_(account.id);
       ensureHeader_(accountSheet);
@@ -223,7 +223,7 @@ function ensureMemoHeader_(sheet) {
 }
 
 function getFreeMemosForAccount_(key) {
-  if (key === "ADMIN") {
+  if (isManagementAccount_(key)) {
     return accountConfigs_().reduce(function(allMemos, account) {
       return allMemos.concat(readFreeMemos_(getMemoSheet_(account.id), account.id, account.name));
     }, []).sort(function(left, right) {
@@ -481,11 +481,11 @@ function ensureDeleteControlForRow_(sheet, rowNumber) {
 }
 
 function canAccessVideo_(key, targetAccount) {
-  return key === "ADMIN" || key === targetAccount;
+  return isManagementAccount_(key) || key === targetAccount;
 }
 
 function getRecordVideo_(key, data) {
-  const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
+  const targetAccount = isManagementAccount_(key) ? String(data.account || "").toUpperCase() : key;
   if (!accountById_(targetAccount) || !canAccessVideo_(key, targetAccount)) {
     throw new Error("この動画を表示する権限がありません。");
   }
@@ -555,7 +555,7 @@ function videoFolder_() {
 }
 
 function getMemoPhoto_(key, data) {
-  const targetAccount = key === "ADMIN" ? String(data.account || "").toUpperCase() : key;
+  const targetAccount = isManagementAccount_(key) ? String(data.account || "").toUpperCase() : key;
   if (!accountById_(targetAccount) || !canAccessVideo_(key, targetAccount)) {
     throw new Error("この写真を表示する権限がありません。");
   }
@@ -735,7 +735,7 @@ function accountName_(id) {
 }
 
 function canUseApp_(key, appFilter) {
-  if (key === "ADMIN") return true;
+  if (isManagementAccount_(key)) return true;
   const requestedApp = normalizeAccountApp_(appFilter, "");
   if (!requestedApp) return true;
   const account = accountById_(key);
