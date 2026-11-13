@@ -198,6 +198,7 @@ const RULE_DOCUMENT_INFO: Record<RulesDocument, { revision: string }> = {
   japanFinalGeneral: { revision: "2026-07-28" },
 };
 const APP_UPDATES = [
+  { version: "1.7.26", updatedAt: "2026.11.13", title: "Elementaryのアカウント間データ混在を修正", description: "Elementary版の採点・時間・メモをゲストと各アカウント別の端末保存へ分離しました。ログイン切替時に前の利用者の入力が残らず、それぞれの保存内容へ安全に切り替わります。" },
   { version: "1.7.25", updatedAt: "2026.11.13", title: "採点リセットの誤操作を防止", description: "入力がない状態ではリセット操作を無効化し、リセット確認に現在の合計点を表示するようにしました。点数・時間・メモ・コート書き込み・動画を判定してJunior／Elementary共通で保護します。" },
   { version: "1.7.24", updatedAt: "2026.11.13", title: "採点の進み具合を一覧表示", description: "採点表のミッション移動バーに現在点／満点を表示し、得点済み・満点の項目を色で判別しながら目的のミッションへ移動できるようにしました。" },
   { version: "1.7.23", updatedAt: "2026.11.13", title: "公開前の品質検査を強化", description: "Pull Requestとmain更新の両方で、全テスト・型チェック・本番ビルドに合格しなければ公開されない品質ゲートを追加しました。" },

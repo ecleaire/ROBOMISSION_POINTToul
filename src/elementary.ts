@@ -3,6 +3,7 @@ import { DEFAULT_GAS_WEB_APP_URL } from "./config";
 import { formatRecordingTime, formatStopwatch, secondsFromStopwatch } from "./stopwatch";
 import { createResilientStorage } from "./resilientStorage";
 import { hasScoreActivity } from "./scoreActivity";
+import { accountScopedStorageKey } from "./accountScopedStorage";
 
 type Mode = "score" | "judging" | "course" | "rules" | "links" | "result" | "login" | "admin";
 type ScoreValue = 0 | 5 | 10 | 15 | 20;
@@ -60,7 +61,7 @@ interface ElementaryScoreBreakdown {
   bonus: number;
 }
 
-const ELEMENTARY_VERSION = "0.4.26";
+const ELEMENTARY_VERSION = "0.4.27";
 const localStorage = createResilientStorage(() => window.localStorage);
 const MAX_SCORE = 255;
 const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
@@ -76,9 +77,9 @@ const JUNIOR_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/";
 const ELEMENTARY_APP_URL = "https://ecleaire.github.io/ROBOMISSION_POINTToul/elementary/";
 const NOTE_LABELS = ["赤の音符", "青の音符", "緑の音符", "黄色の音符", "白の音符", "黒の音符"];
 
-let mode: Mode = modeFromHash();
-let state = loadState();
 let account = loadAccount();
+let mode: Mode = modeFromHash();
+let state = loadState(account?.account);
 let loginError = "";
 let adminMode = isManagementAccount(account?.account);
 let adminStatus = "";
@@ -971,13 +972,33 @@ function exitCameraFullscreen() {
   collapseCameraFullscreen();
 }
 
-function loadState() {
-  try { return sanitizeState(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null")); }
+function scoreStorageKey(accountId: string | null | undefined = account?.account) {
+  return accountScopedStorageKey(STORAGE_KEY, accountId);
+}
+
+function loadState(accountId: string | null | undefined = account?.account) {
+  const scopedKey = scoreStorageKey(accountId);
+  let saved = localStorage.getItem(scopedKey);
+  const legacySaved = localStorage.getItem(STORAGE_KEY);
+  if (!saved && legacySaved) {
+    saved = legacySaved;
+    localStorage.setItem(scopedKey, legacySaved);
+    localStorage.removeItem(STORAGE_KEY);
+  }
+  try { return sanitizeState(JSON.parse(saved || "null")); }
   catch { return makeInitialState(); }
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(scoreStorageKey(), JSON.stringify(state));
+}
+
+function switchScoreContext(accountId?: string | null) {
+  state = loadState(accountId);
+  stopwatch = { status: "idle", startedAt: 0, elapsedMs: Math.round((state.timeSeconds ?? 0) * 1000) };
+  stopwatchLaps = [];
+  window.clearInterval(timerId);
+  exitStopwatchFullscreen();
 }
 
 function loadAccount(): ElementaryAccount | null {
@@ -1009,9 +1030,11 @@ async function login() {
   try {
     const result = await postJson<{ ok?: boolean; account?: string; accountName?: string; message?: string }>(endpoint, { action: "auth", apiKey: key, app: "elementary" });
     if (!result.ok || !result.account) throw new Error(result.message || "APIキーを確認できませんでした。");
+    saveState();
     account = { apiKey: key, account: result.account, accountName: result.accountName || result.account, remember };
     adminMode = isManagementAccount(result.account);
     saveAccount();
+    switchScoreContext(result.account);
     loginError = "";
     mode = adminMode ? "admin" : "score";
     if (adminMode) {
@@ -1027,6 +1050,7 @@ async function login() {
 }
 
 function logout() {
+  saveState();
   discardRecordingNow();
   account = null;
   adminMode = false;
@@ -1034,6 +1058,7 @@ function logout() {
   adminStatus = "";
   setRecordedVideo(null);
   localStorage.removeItem(ACCOUNT_KEY);
+  switchScoreContext(null);
   saveStatus = "";
   mode = "score";
   render();
